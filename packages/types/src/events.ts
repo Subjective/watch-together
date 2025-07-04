@@ -49,6 +49,68 @@ export type SignalingMessage =
   | WebRTCIceCandidateMessage;
 
 /**
+ * WebSocket response message types from server to client
+ */
+export interface BaseResponseMessage {
+  type: string;
+  timestamp: number;
+}
+
+export interface RoomCreatedMessage extends BaseResponseMessage {
+  type: "ROOM_CREATED";
+  roomId: string;
+  userId: string;
+  roomState: import("./room").RoomState;
+}
+
+export interface RoomJoinedMessage extends BaseResponseMessage {
+  type: "ROOM_JOINED";
+  roomId: string;
+  userId: string;
+  roomState: import("./room").RoomState;
+}
+
+export interface UserJoinedMessage extends BaseResponseMessage {
+  type: "USER_JOINED";
+  roomId: string;
+  userId: string;
+  joinedUser: import("./room").User;
+  roomState: import("./room").RoomState;
+}
+
+export interface UserLeftMessage extends BaseResponseMessage {
+  type: "USER_LEFT";
+  roomId: string;
+  userId: string;
+  leftUserId: string;
+  roomState: import("./room").RoomState;
+  newHostId?: string;
+}
+
+export interface UserDisconnectedMessage extends BaseResponseMessage {
+  type: "USER_DISCONNECTED";
+  roomId: string;
+  userId: string;
+  leftUserId: string;
+  roomState: import("./room").RoomState;
+  newHostId?: string;
+}
+
+export interface ErrorMessage extends BaseResponseMessage {
+  type: "ERROR";
+  error: string;
+  details?: string;
+}
+
+export type ResponseMessage =
+  | RoomCreatedMessage
+  | RoomJoinedMessage
+  | UserJoinedMessage
+  | UserLeftMessage
+  | UserDisconnectedMessage
+  | ErrorMessage;
+
+/**
  * WebRTC Data Channel message types for video synchronization
  */
 export interface BaseSyncMessage {

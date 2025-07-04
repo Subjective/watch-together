@@ -12,5 +12,9 @@ name = "watch-together-backend-prod"
 name = "ROOM_STATE"
 class_name = "RoomState"
 
+[[migrations]]
+tag = "v1"
+new_classes = [ "RoomState" ]
+
 [build]
 command = "npm run build"

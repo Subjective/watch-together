@@ -1,0 +1,16 @@
+name = "watch-together-backend"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+[env.development]
+name = "watch-together-backend-dev"
+
+[env.production]
+name = "watch-together-backend-prod"
+
+[[durable_objects.bindings]]
+name = "ROOM_STATE"
+class_name = "RoomState"
+
+[build]
+command = "npm run build"

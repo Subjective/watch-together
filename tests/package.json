@@ -1,0 +1,24 @@
+{
+  "name": "tests",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "test": "playwright test",
+    "test:playwright": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "lint": "eslint \"**/*.{ts,js}\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^22.8.4",
+    "eslint": "^8.57.0",
+    "typescript": "^5.5.4"
+  }
+}

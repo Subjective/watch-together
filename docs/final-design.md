@@ -68,6 +68,7 @@ The complete file and directory structure combines the best organizational patte
 
 ```plaintext
 watch-together/
+├── vitest.workspace.ts        # Root Vitest workspace configuration
 ├── .claude/
 │   ├── settings.json          # Claude Code hooks configuration
 │   ├── settings.local.json    # Local, uncommitted settings
@@ -78,7 +79,9 @@ watch-together/
 │       ├── phase-4-adapter-framework.md
 │       ├── phase-5-sync-logic.md
 │       ├── phase-6-navigation.md
-│       └── phase-7-testing.md
+│       ├── phase-7-testing.md
+│       ├── testing-strategy-detailed.md
+│       └── testing-implementation-summary.md
 ├── .github/
 │   └── workflows/
 │       └── ci.yml             # GitHub Actions for linting and testing
@@ -87,25 +90,43 @@ watch-together/
 │   │   ├── public/           # Static assets (icons, manifest.json)
 │   │   ├── src/
 │   │   │   ├── background/   # Service Worker logic
-│   │   │   │   └── main.ts
+│   │   │   │   ├── main.ts
+│   │   │   │   └── __tests__/    # Service Worker unit tests
 │   │   │   ├── content/      # Content script loader
-│   │   │   │   └── main.ts
-│   │   │   └── popup/        # React UI components
-│   │   │       ├── main.tsx
-│   │   │       ├── App.tsx
-│   │   │       ├── RoomCreate.tsx
-│   │   │       ├── RoomJoin.tsx
-│   │   │       ├── RoomManager.tsx
-│   │   │       └── ControlModeToggle.tsx
+│   │   │   │   ├── main.ts
+│   │   │   │   └── __tests__/    # Content script unit tests
+│   │   │   ├── popup/        # React UI components
+│   │   │   │   ├── main.tsx
+│   │   │   │   ├── App.tsx
+│   │   │   │   ├── RoomCreate.tsx
+│   │   │   │   ├── RoomJoin.tsx
+│   │   │   │   ├── RoomManager.tsx
+│   │   │   │   ├── ControlModeToggle.tsx
+│   │   │   │   └── __tests__/    # React component tests
+│   │   │   └── test-setup.ts     # Global test setup for extension
+│   │   ├── test-utils/           # Chrome API mocks
+│   │   │   └── chrome-mock.ts
 │   │   ├── vite.config.ts
+│   │   ├── vitest.config.ts      # Extension-specific test config
 │   │   └── package.json
 │   └── backend/               # Cloudflare Worker + Durable Objects
 │       ├── src/
 │       │   ├── index.ts       # Main worker script
-│       │   └── roomState.ts   # Durable Object implementation
+│       │   ├── roomState.ts   # Durable Object implementation
+│       │   └── __tests__/     # Worker and Durable Object tests
 │       ├── wrangler.toml
+│       ├── vitest.config.ts   # Cloudflare Workers test config
 │       └── package.json
 ├── packages/
+│   ├── vitest-config/         # Shared test configurations
+│   │   ├── src/
+│   │   │   ├── base.ts        # Base Vitest configuration
+│   │   │   ├── browser.ts     # Browser/DOM testing config
+│   │   │   ├── workers.ts     # Cloudflare Workers config
+│   │   │   └── index.ts       # Export all configurations
+│   │   ├── dist/              # Compiled configuration files
+│   │   ├── tsconfig.json
+│   │   └── package.json
 │   ├── adapters/              # Site-specific video player adapters
 │   │   ├── src/
 │   │   │   ├── IPlayerAdapter.ts
@@ -113,38 +134,42 @@ watch-together/
 │   │   │   ├── NetflixAdapter.ts
 │   │   │   ├── YouTubeAdapter.ts
 │   │   │   ├── VimeoAdapter.ts
-│   │   │   └── index.ts       # Adapter factory and registry
+│   │   │   ├── index.ts       # Adapter factory and registry
+│   │   │   └── __tests__/     # Adapter unit tests
+│   │   ├── vitest.config.ts   # Adapter testing configuration
 │   │   └── package.json
 │   ├── types/                 # Shared TypeScript types
 │   │   ├── src/
 │   │   │   ├── events.ts      # Sync events, WebSocket messages
 │   │   │   ├── room.ts        # Room state, user types, control modes
+│   │   │   ├── adapter.ts     # IPlayerAdapter interface
 │   │   │   └── index.ts
 │   │   └── package.json
-│   ├── eslint-config/  # Shared ESLint configuration
+│   ├── eslint-config/         # Shared ESLint configuration
 │   │   ├── index.js
 │   │   └── package.json
-│   └── typescript-config/       # Shared TypeScript configuration
+│   └── typescript-config/     # Shared TypeScript configuration
 │       ├── base.json
 │       └── package.json
-├── tests/                     # Comprehensive test suite
-│   ├── e2e/                   # End-to-end tests
+├── tests/                     # Integration and E2E tests
+│   ├── e2e/                   # End-to-end tests (Playwright)
 │   │   ├── room.spec.ts
 │   │   ├── sync.spec.ts
 │   │   ├── navigation.spec.ts
 │   │   └── control-modes.spec.ts
-│   ├── integration/           # Integration tests
-│   │   ├── signaling.spec.ts
-│   │   └── webrtc.spec.ts
-│   ├── adapters/              # Adapter-specific tests
-│   │   ├── youtube.spec.ts
-│   │   ├── netflix.spec.ts
-│   │   └── generic.spec.ts
+│   ├── integration/           # Integration tests (Vitest)
+│   │   ├── signaling.test.ts  # WebRTC signaling flow
+│   │   ├── sync-logic.test.ts # Video sync integration
+│   │   └── navigation.test.ts # Host navigation flow
 │   ├── fixtures/              # Test fixtures and utilities
 │   │   ├── extension.ts
 │   │   └── testPages.ts
-│   ├── playwright.config.ts
+│   ├── playwright.config.ts   # Playwright E2E configuration
+│   ├── vitest.config.ts       # Integration test configuration
 │   └── package.json
+├── test-utils/                # Shared test utilities and mocks
+│   ├── webrtc-mock.ts         # WebRTC API mocks
+│   └── mock-adapter.ts        # Test adapter implementation
 ├── .gitignore
 ├── package.json               # Root package.json with workspaces
 ├── pnpm-lock.yaml
@@ -321,7 +346,7 @@ Adhere to the three core architectural pillars:
 - **UI Framework:** React 19 (with hooks and TypeScript)
 - **Backend:** Cloudflare Workers with Durable Objects
 - **P2P Communication:** WebRTC Data Channels
-- **Testing Framework:** Playwright
+- **Testing Framework:** Vitest (primary) + Playwright (E2E)
 
 ## **4. Immutable Coding Conventions**
 
@@ -332,7 +357,7 @@ Adhere to the three core architectural pillars:
 - **File Naming:**
   - React components: PascalCase (RoomManager.tsx)
   - TypeScript files: camelCase (syncLogic.ts)
-  - Test files: \*.spec.ts (sync.spec.ts)
+  - Test files: _.test.ts (Vitest unit/integration), _.spec.ts (Playwright E2E)
 - **Module Format:** **All runtime code must be authored as ECMAScript modules** (ESM).
   - Use `import` / `export` syntax exclusively; **no CommonJS** `require`, `module.exports`, or `__dirname`.
   - Ensure every build target that needs it (Chrome MV3 service worker, Cloudflare Worker) is emitted as an ES module (`format: "es"` in Vite/Rollup).
@@ -351,10 +376,35 @@ Adhere to the three core architectural pillars:
 
 ## **6. Testing Requirements**
 
-- **Test Categories:** E2E (user journeys), Integration (component interaction), Unit (adapter-specific)
-- **TDD Process:** Red (failing test) → Green (passing implementation) → Refactor
-- **Coverage:** All adapters must have corresponding Playwright tests
-- **Fixtures:** Use shared test fixtures for extension setup
+**Testing Framework Hierarchy:**
+
+- **Primary:** Vitest for unit and integration tests
+- **Secondary:** Playwright for comprehensive E2E user journeys
+- **Configuration:** Shared `@repo/vitest-config` package for consistency
+
+**Test Categories:**
+
+- **Unit Tests (Vitest):** Individual functions, components, adapters
+- **Integration Tests (Vitest):** Cross-package communication, WebRTC signaling, video sync
+- **E2E Tests (Playwright):** Complete user journeys across browser instances
+
+**Testing Environments:**
+
+- **Node.js:** Backend logic, utilities, shared packages
+- **jsdom:** React components, DOM interactions, browser APIs
+- **Cloudflare Workers:** Durable Objects, Worker scripts with `@cloudflare/vitest-pool-workers`
+
+**TDD Workflow:**
+
+- **Red:** Write failing test with clear expectations
+- **Green:** Implement minimal code to pass test
+- **Refactor:** Improve code while maintaining test coverage
+- **Watch Mode:** Use `pnpm run test:watch` for immediate feedback
+
+**Coverage Requirements:**
+
+- **Minimum Thresholds:** 80% lines, 80% functions, 70% branches
+- **Shared Infrastructure:** Use `@repo/vitest-config` for consistent setup
 
 ## **7. Interaction Protocol**
 
@@ -528,57 +578,76 @@ Follow the same pattern for NetflixAdapter.ts afterward.
 
 ### **4.3 Claude Code Hooks Configuration**
 
-The project leverages Claude Code hooks for automated quality assurance:
+The project leverages Claude Code hooks for automated quality assurance with a practical, non-intrusive approach:
 
 ```json
 {
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "", // run for all tools
-        "hooks": [
-          {
-            "type": "command",
-            "command": "pnpm run lint",
-            "description": "Run ESLint before every tool call"
-          }
-        ]
-      }
+  "includeCoAuthoredBy": false,
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(ls:*)",
+      "Bash(pnpm:*)",
+      "Bash(npm:*)",
+      "Bash(playwright:*)"
     ],
-
+    "deny": []
+  },
+  "hooks": {
     "PostToolUse": [
       {
-        "matcher": "", // run for all tools
+        "matcher": "Write|Edit|MultiEdit",
         "hooks": [
           {
             "type": "command",
             "command": "pnpm run typecheck",
-            "description": "Ensure TypeScript compiles after each tool call"
+            "description": "TypeScript validation after file modifications"
           },
           {
             "type": "command",
-            "command": "bash -c 'if [[ \"$CLAUDE_LAST_TOOL\" == *\"spec.ts\"* ]]; then pnpm run test:playwright \"$CLAUDE_LAST_FILE\"; fi'",
-            "description": "Run Playwright on any modified *.spec.ts file"
+            "command": "pnpm run lint",
+            "description": "ESLint checks after file modifications"
           }
         ]
       }
     ],
-
     "Stop": [
-      // fires at end of conversation
       {
         "hooks": [
           {
             "type": "command",
+            "command": "pnpm run format",
+            "description": "Format code at end of session"
+          },
+          {
+            "type": "command",
             "command": "pnpm run build",
-            "description": "Full build after each Claude session"
+            "description": "Full build verification after development session"
           }
         ]
       }
     ]
+  },
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@context7/mcp-server"]
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@sequential-thinking/mcp-server"]
+    }
   }
 }
 ```
+
+**Key Features:**
+
+- **Targeted Hooks:** Only run on file modifications (`Write|Edit|MultiEdit`), not all tool calls
+- **Quality Gates:** TypeScript and ESLint validation after code changes
+- **Session Cleanup:** Code formatting and full build verification at session end
+- **Permission Control:** Explicit allowlist for bash commands
+- **MCP Integration:** Context7 and Sequential-Thinking servers for up-to-date documentation
 
 ### 4.4 External Knowledge via MCP Servers
 
@@ -597,15 +666,173 @@ Usage rules
 
 ## **Section 5: Comprehensive Testing Strategy**
 
-### **5.1 Test Environment Setup**
+### **5.1 Hybrid Testing Architecture**
 
-Playwright configuration for Chrome extension testing:
+The Watch Together project implements a sophisticated hybrid testing approach that combines the best of multiple testing frameworks:
+
+**Primary Framework: Vitest**
+
+- Fast unit and integration testing
+- Excellent TypeScript support
+- Native Turborepo integration
+- Hot module reloading for TDD workflow
+- Built-in coverage reporting
+
+**Secondary Framework: Playwright**
+
+- Comprehensive end-to-end testing
+- Chrome extension support
+- Multi-browser testing capabilities
+- Visual regression testing
+- Preserved from original design for complete user journeys
+
+### **5.2 Testing Infrastructure Components**
+
+#### **5.2.1 Shared Configuration Package**
+
+The `packages/vitest-config/` package provides standardized testing configurations:
+
+```typescript
+// packages/vitest-config/src/base.ts
+export const baseConfig = defineConfig({
+  test: {
+    globals: true,
+    environment: "node",
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json", "html"],
+      thresholds: {
+        lines: 80,
+        functions: 80,
+        branches: 70,
+        statements: 80,
+      },
+    },
+  },
+});
+```
+
+**Environment-Specific Configurations:**
+
+- **Browser Config (`browser.ts`):** jsdom environment for React components and DOM APIs
+- **Workers Config (`workers.ts`):** Cloudflare Workers environment with `@cloudflare/vitest-pool-workers`
+- **Base Config (`base.ts`):** Node.js environment for utilities and shared packages
+
+#### **5.2.2 Workspace Configuration**
+
+Root workspace configuration enables coordinated testing across all packages:
+
+```typescript
+// vitest.workspace.ts
+import { defineWorkspace } from "vitest/config";
+
+export default defineWorkspace(["packages/*", "apps/*", "tests"]);
+```
+
+#### **5.2.3 Mock Infrastructure**
+
+**Chrome Extension APIs:**
+
+- Complete mock implementations for chrome.runtime, chrome.storage, chrome.tabs
+- Service Worker API mocks for Manifest V3 compatibility
+- Extension lifecycle simulation for testing
+
+**WebRTC APIs:**
+
+- MockRTCPeerConnection with state management
+- Data channel simulation
+- Connection state transitions
+- ICE candidate handling
+
+**Video Player Adapters:**
+
+- Mock adapter implementations for testing sync logic
+- Controllable video state simulation
+- Event system for testing adapter communication
+
+### **5.3 Test Categories and Organization**
+
+#### **5.3.1 Unit Tests (Vitest)**
+
+**Adapter Package (`packages/adapters/`):**
+
+```typescript
+// src/__tests__/GenericHTML5Adapter.test.ts
+describe("GenericHTML5Adapter", () => {
+  it("should implement IPlayerAdapter interface", () => {
+    expect(adapter).toBeInstanceOf(GenericHTML5Adapter);
+    expect(typeof adapter.play).toBe("function");
+    // ... interface validation
+  });
+});
+```
+
+**Extension Components (`apps/extension/`):**
+
+```typescript
+// src/popup/__tests__/RoomManager.test.tsx
+describe("RoomManager", () => {
+  it("should display room information", () => {
+    render(<RoomManager room={mockRoom} />);
+    expect(screen.getByText("Room: room-123")).toBeInTheDocument();
+  });
+});
+```
+
+#### **5.3.2 Integration Tests (Vitest)**
+
+**Cross-Package Communication (`tests/integration/`):**
+
+```typescript
+// integration/signaling.test.ts
+describe("WebRTC Signaling Integration", () => {
+  it("should complete WebRTC handshake", async () => {
+    const pc1 = new RTCPeerConnection() as unknown as MockRTCPeerConnection;
+    const offer = await pc1.createOffer();
+    // ... signaling flow testing
+  });
+});
+```
+
+**Video Synchronization Testing:**
+
+```typescript
+// integration/sync-logic.test.ts
+describe("Video Sync Integration", () => {
+  it("should sync play/pause between host and client", async () => {
+    await hostSync.play();
+    expect(clientAdapter.isPlaying()).toBe(true);
+  });
+});
+```
+
+#### **5.3.3 Cloudflare Workers Testing**
+
+**Durable Objects Testing:**
+
+```typescript
+// apps/backend/src/__tests__/roomState.test.ts
+import { env, SELF } from "cloudflare:test";
+
+describe("RoomState Durable Object", () => {
+  it("should create room successfully", async () => {
+    const roomId = env.ROOM_STATE.idFromName("test-room");
+    const room = env.ROOM_STATE.get(roomId);
+    const response = await room.fetch("http://room/create", {
+      method: "POST",
+      body: JSON.stringify({ hostId: "user-1" }),
+    });
+    expect(response.status).toBe(200);
+  });
+});
+```
+
+#### **5.3.4 End-to-End Tests (Playwright)**
+
+**Preserved E2E Testing Setup:**
 
 ```typescript
 // tests/fixtures/extension.ts
-import { test as base, chromium, type BrowserContext } from "@playwright/test";
-import path from "path";
-
 export const test = base.extend<{
   context: BrowserContext;
   extensionId: string;
@@ -622,49 +849,123 @@ export const test = base.extend<{
     await use(context);
     await context.close();
   },
-  extensionId: async ({ context }, use) => {
-    let [background] = context.serviceWorkers();
-    if (!background) {
-      background = await context.waitForEvent("serviceworker");
-    }
-    const extensionId = background.url().split("/")[2];
-    await use(extensionId);
-  },
 });
 ```
 
-### **5.2 Test Suite Organization**
+### **5.4 Turborepo Integration**
 
-**End-to-End Tests:**
+**Enhanced turbo.json Configuration:**
 
-- `room.spec.ts` - Complete user journey from creation to joining
-- `sync.spec.ts` - Full synchronization testing across multiple users
-- `navigation.spec.ts` - Follow the Host functionality with both modes
+```json
+{
+  "tasks": {
+    "test": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "__tests__/**", "**/*.test.ts", "**/*.spec.ts"],
+      "outputs": ["coverage/**"]
+    },
+    "test:unit": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "__tests__/**", "**/*.test.ts"],
+      "outputs": ["coverage/**"]
+    },
+    "test:integration": {
+      "dependsOn": ["^build", "test:unit"],
+      "inputs": ["tests/integration/**", "src/**"],
+      "outputs": ["coverage/**"]
+    },
+    "test:e2e": {
+      "dependsOn": ["^build"],
+      "inputs": ["tests/e2e/**", "dist/**"],
+      "outputs": ["test-results/**", "playwright-report/**"]
+    },
+    "test:watch": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}
+```
 
-**Integration Tests:**
+### **5.5 TDD Workflow Implementation**
 
-- `signaling.spec.ts` - WebSocket and WebRTC signaling flow
-- `webrtc.spec.ts` - P2P connection establishment and data channel communication
+**Enhanced TDD Process with Vitest:**
 
-**Adapter Tests:**
+1. **Red Phase:** Write failing test with clear expectations
 
-- `youtube.spec.ts` - YouTube-specific functionality
-- `netflix.spec.ts` - Netflix adapter behavior
-- `generic.spec.ts` - HTML5 video element control
+   ```bash
+   pnpm run test:watch  # Immediate feedback on test failure
+   ```
 
-### **5.3 TDD Workflow Implementation**
+2. **Green Phase:** Implement minimal code to pass test
 
-The Test-Driven Development workflow creates a self-correcting feedback loop:
+   ```bash
+   # Watch mode provides instant feedback
+   # TypeScript hooks ensure type safety
+   ```
 
-1. **Define Feature Slice:** Identify small, testable unit of work
-2. **Write Failing Test:** Create Playwright test that defines desired behavior
-3. **Confirm Red State:** Run test to verify it fails as expected
-4. **Implement Feature:** Write code to make the test pass
-5. **Verify Green State:** Hooks automatically re-run tests
-6. **Refactor:** Improve code while maintaining passing tests
-7. **Commit:** Save working implementation with conventional commit message
+3. **Refactor Phase:** Improve code while maintaining test coverage
 
-This process is automated through Claude Code hooks, providing immediate feedback and preventing regressions.
+   ```bash
+   pnpm run test:coverage  # Verify coverage thresholds
+   ```
+
+4. **Commit Phase:** Automated validation before commit
+   ```bash
+   # Hooks run typecheck and lint automatically
+   pnpm run build  # Final validation
+   ```
+
+**Available Testing Commands:**
+
+```bash
+# TDD development with watch mode
+pnpm run test:watch
+
+# Run all tests with Turborepo optimization
+pnpm run test
+
+# Category-specific testing
+pnpm run test:unit          # Unit tests only
+pnpm run test:integration   # Integration tests only
+pnpm run test:e2e           # E2E tests with Playwright
+
+# Analysis and debugging
+pnpm run test:coverage      # Coverage reports
+pnpm run test:ui            # Interactive Vitest UI
+
+# Package-specific testing
+pnpm run test --filter=@repo/adapters
+pnpm run test --filter=extension
+pnpm run test --filter=backend
+```
+
+### **5.6 Quality Assurance Integration**
+
+**Coverage Requirements:**
+
+- Minimum 80% line coverage
+- 80% function coverage
+- 70% branch coverage
+- Automated reporting in CI/CD
+
+**Performance Optimization:**
+
+- Turborepo caching for test results
+- Parallel test execution where safe
+- Incremental testing based on changed files
+- Fast feedback loops for development
+
+**CI/CD Integration:**
+
+```yaml
+# .github/workflows/test.yml
+- run: pnpm run test:unit
+- run: pnpm run test:integration
+- run: pnpm run test:e2e
+```
+
+This comprehensive testing strategy ensures code quality, enables confident refactoring, and supports the TDD workflow essential for AI-driven development.
 
 ## **Section 6: Execution Roadmap & Prompts**
 

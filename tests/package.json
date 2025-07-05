@@ -4,9 +4,13 @@
   "version": "0.0.0",
   "scripts": {
     "test": "playwright test",
+    "test:unit": "vitest run",
+    "test:integration": "vitest run",
+    "test:e2e": "playwright test",
     "test:playwright": "playwright test",
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug",
+    "test:watch": "vitest",
     "lint": "eslint \"**/*.{ts,js}\"",
     "typecheck": "tsc --noEmit"
   },
@@ -16,9 +20,11 @@
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
+    "@repo/vitest-config": "workspace:*",
     "@playwright/test": "^1.48.0",
     "@types/node": "^22.8.4",
     "eslint": "^8.57.0",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.0"
   }
 }

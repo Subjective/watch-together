@@ -15,10 +15,33 @@
       "dependsOn": ["^build"]
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "__tests__/**", "**/*.test.ts", "**/*.spec.ts"],
+      "outputs": ["coverage/**"]
+    },
+    "test:unit": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "__tests__/**", "**/*.test.ts"],
+      "outputs": ["coverage/**"]
+    },
+    "test:integration": {
+      "dependsOn": ["^build", "test:unit"],
+      "inputs": ["tests/integration/**", "src/**"],
+      "outputs": ["coverage/**"]
+    },
+    "test:e2e": {
+      "dependsOn": ["^build"],
+      "inputs": ["tests/e2e/**", "dist/**"],
+      "outputs": ["test-results/**", "playwright-report/**"]
     },
     "test:playwright": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "inputs": ["tests/**", "dist/**"],
+      "outputs": ["test-results/**", "playwright-report/**"]
+    },
+    "test:watch": {
+      "cache": false,
+      "persistent": true
     }
   }
 }

@@ -120,18 +120,21 @@ pnpm run test:watch
 pnpm run test
 
 # Specific test categories
-pnpm run test:unit          # Unit tests only
-pnpm run test:integration   # Integration tests only
+pnpm run test:unit          # Unit tests only (apps/packages)
+pnpm run test:integration   # Integration tests only (tests/)
 pnpm run test:e2e           # E2E tests with Playwright
 
 # Coverage and analysis
-pnpm run test:coverage      # Generate coverage reports
+pnpm run test:coverage      # Generate merged coverage reports
 pnpm run test:ui            # Interactive Vitest UI
 
 # Package-specific testing
 pnpm run test --filter=@repo/adapters
 pnpm run test --filter=extension
 pnpm run test --filter=backend
+
+# Development workflow
+pnpm run test:projects:watch # Watch mode across all packages
 ```
 
 **TDD Development Cycle:**
@@ -151,6 +154,7 @@ pnpm run test --filter=backend
 **Quality Gates:**
 
 - All tests must pass before commits
-- Maintain minimum 80% code coverage
+- Maintain minimum 80% code coverage (lines, functions), 70% branches
+- Coverage thresholds enforced in @repo/vitest-config
 - Use TypeScript strict mode throughout
 - Follow established mocking patterns for external APIs

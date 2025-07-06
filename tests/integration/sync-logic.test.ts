@@ -1,18 +1,28 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { MockAdapter } from "../../test-utils/mock-adapter";
+import { MockAdapter } from "@repo/test-utils/mock-adapter";
+import type { SyncMessage } from "@repo/types";
 
 // Mock sync manager class for testing
 class MockSyncManager {
   private adapter: MockAdapter;
-  private peers: Map<string, (message: any) => void> = new Map();
+  private peers: Map<string, (message: SyncMessage) => void> = new Map();
   private role: "host" | "client";
+  private userId: string;
 
-  constructor(role: "host" | "client", adapter: MockAdapter) {
+  constructor(
+    role: "host" | "client",
+    adapter: MockAdapter,
+    userId: string = "user-1",
+  ) {
     this.role = role;
     this.adapter = adapter;
+    this.userId = userId;
   }
 
-  addPeer(peerId: string, messageHandler: (message: any) => void): void {
+  addPeer(
+    peerId: string,
+    messageHandler: (message: SyncMessage) => void,
+  ): void {
     this.peers.set(peerId, messageHandler);
   }
 
@@ -21,6 +31,7 @@ class MockSyncManager {
     if (this.role === "host") {
       this.broadcastToAllPeers({
         type: "HOST_STATE_UPDATE",
+        userId: this.userId,
         state: "PLAYING",
         time: await this.adapter.getCurrentTime(),
         timestamp: Date.now(),
@@ -33,6 +44,7 @@ class MockSyncManager {
     if (this.role === "host") {
       this.broadcastToAllPeers({
         type: "HOST_STATE_UPDATE",
+        userId: this.userId,
         state: "PAUSED",
         time: await this.adapter.getCurrentTime(),
         timestamp: Date.now(),
@@ -45,6 +57,7 @@ class MockSyncManager {
     if (this.role === "host") {
       this.broadcastToAllPeers({
         type: "HOST_STATE_UPDATE",
+        userId: this.userId,
         state: (await this.adapter.isPaused()) ? "PAUSED" : "PLAYING",
         time,
         timestamp: Date.now(),
@@ -52,7 +65,7 @@ class MockSyncManager {
     }
   }
 
-  receiveMessage(message: any): void {
+  receiveMessage(message: SyncMessage): void {
     if (message.type === "HOST_STATE_UPDATE" && this.role === "client") {
       // Client receives host state update
       if (message.state === "PLAYING") {
@@ -72,7 +85,7 @@ class MockSyncManager {
     }
   }
 
-  private broadcastToAllPeers(message: any): void {
+  private broadcastToAllPeers(message: SyncMessage): void {
     this.peers.forEach((handler) => handler(message));
   }
 }
@@ -87,8 +100,8 @@ describe("Video Sync Integration", () => {
     hostAdapter = new MockAdapter();
     clientAdapter = new MockAdapter();
 
-    hostSync = new MockSyncManager("host", hostAdapter);
-    clientSync = new MockSyncManager("client", clientAdapter);
+    hostSync = new MockSyncManager("host", hostAdapter, "host-user");
+    clientSync = new MockSyncManager("client", clientAdapter, "client-user");
 
     // Connect sync managers
     hostSync.addPeer("client", clientSync.receiveMessage.bind(clientSync));

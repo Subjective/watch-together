@@ -1,6 +1,7 @@
 name = "watch-together-backend"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
 
 [env.development]
 name = "watch-together-backend-dev"

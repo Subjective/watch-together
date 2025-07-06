@@ -1,17 +1,7 @@
 import { defineConfig } from "vitest/config";
 
-export const workersConfig = defineConfig({
+export const baseConfig = defineConfig({
   test: {
-    globals: true,
-    environment: "node",
-    pool: "@cloudflare/vitest-pool-workers",
-    poolOptions: {
-      workers: {
-        wrangler: {
-          configPath: "./wrangler.toml",
-        },
-      },
-    },
     coverage: {
       provider: "istanbul",
       reporter: [

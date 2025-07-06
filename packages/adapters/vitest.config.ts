@@ -1,19 +1,11 @@
 import { defineConfig } from "vitest/config";
+import { sharedConfig } from "@repo/vitest-config";
 
 export default defineConfig({
+  ...sharedConfig,
   test: {
-    globals: true,
-    environment: "jsdom",
-    include: ["src/**/*.test.ts"],
-    coverage: {
-      provider: "v8",
-      reporter: ["text", "json", "html"],
-      exclude: [
-        "**/*.test.ts",
-        "**/*.spec.ts",
-        "**/node_modules/**",
-        "**/dist/**",
-      ],
-    },
+    ...sharedConfig.test,
+    environment: "jsdom", // Adapters need DOM for video player testing
+    // Package-specific overrides if needed
   },
 });

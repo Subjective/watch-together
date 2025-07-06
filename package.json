@@ -1,6 +1,7 @@
 {
   "name": "watch-together",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
@@ -12,25 +13,30 @@
     "backend:build": "turbo run build --filter=backend",
     "backend:deploy": "turbo run deploy --filter=backend",
     "test": "turbo run test",
-    "test:unit": "turbo run test:unit",
-    "test:integration": "turbo run test:integration",
-    "test:e2e": "turbo run test:e2e",
-    "test:playwright": "turbo run test:playwright",
+    "test:unit": "turbo run test --filter='!tests'",
+    "test:integration": "turbo run test --filter=tests",
+    "test:projects:watch": "vitest --watch",
     "test:watch": "turbo run test:watch",
-    "test:coverage": "vitest run --coverage",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "test:coverage": "turbo run test && turbo run report",
+    "merge-json-reports": "mkdir -p coverage/merged && find . -name 'coverage.json' -path '*/coverage/*' -o -name 'coverage.json' | head -10 | xargs -r nyc merge --output coverage/merged/merged.json",
+    "report": "nyc report --temp-dir=coverage/merged --report=html --report=text --report-dir=coverage/report",
+    "test:e2e": "turbo run test:e2e"
   },
   "devDependencies": {
+    "@repo/vitest-config": "workspace:*",
+    "@testing-library/jest-dom": "^6.5.0",
+    "@testing-library/react": "^16.0.0",
+    "@testing-library/user-event": "^14.5.0",
+    "@vitest/coverage-istanbul": "^2.0.0",
+    "@vitest/ui": "^2.0.0",
     "eslint": "^8.57.0",
+    "jsdom": "^25.0.0",
+    "nyc": "^17.1.0",
     "prettier": "^3.2.5",
     "turbo": "^2.5.4",
     "typescript": "~5.6.0",
-    "vitest": "^2.0.0",
-    "@vitest/ui": "^2.0.0",
-    "@testing-library/react": "^16.0.0",
-    "@testing-library/jest-dom": "^6.5.0",
-    "@testing-library/user-event": "^14.5.0",
-    "jsdom": "^25.0.0"
+    "vitest": "^2.0.0"
   },
   "packageManager": "pnpm@8.15.6"
 }

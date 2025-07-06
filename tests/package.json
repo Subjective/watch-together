@@ -2,8 +2,9 @@
   "name": "tests",
   "private": true,
   "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "test": "playwright test",
+    "test": "vitest run",
     "test:unit": "vitest run",
     "test:integration": "vitest run",
     "test:e2e": "playwright test",
@@ -15,7 +16,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@repo/types": "workspace:*"
+    "@repo/types": "workspace:*",
+    "@repo/test-utils": "workspace:*"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",

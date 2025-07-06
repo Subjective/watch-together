@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   setupWebRTCMocks,
   MockRTCPeerConnection,
-} from "../../test-utils/webrtc-mock";
+} from "@repo/test-utils/webrtc-mock";
 
 describe("WebRTC Signaling Integration", () => {
   beforeEach(() => {

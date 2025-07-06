@@ -1,12 +1,13 @@
-import { defineProject, mergeConfig } from "vitest/config";
-import { browserConfig } from "@repo/vitest-config/browser";
+import { defineConfig } from "vitest/config";
+import { sharedConfig } from "@repo/vitest-config";
+import { resolve } from "path";
 
-export default mergeConfig(
-  browserConfig,
-  defineProject({
-    test: {
-      include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
-      setupFiles: ["./src/test-setup.ts"],
-    },
-  }),
-);
+export default defineConfig({
+  ...sharedConfig,
+  test: {
+    ...sharedConfig.test,
+    environment: "jsdom",
+    setupFiles: [resolve(__dirname, "./src/test-setup.ts")],
+    // Package-specific overrides if needed
+  },
+});

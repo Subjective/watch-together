@@ -10,11 +10,13 @@ describe("App Component", () => {
     expect(true).toBe(true);
   });
 
-  it("should have chrome extension APIs available", () => {
-    render(<App />);
+  it("should render with expected content", () => {
+    const { getByText } = render(<App />);
 
-    // Verify chrome API is available in test environment
-    expect(global.chrome).toBeDefined();
-    expect(global.chrome.runtime).toBeDefined();
+    // Test actual component functionality (without jest-dom matchers for projects compatibility)
+    expect(getByText("Watch Together")).toBeTruthy();
+    expect(
+      getByText("Chrome extension for synchronized video watching"),
+    ).toBeTruthy();
   });
 });

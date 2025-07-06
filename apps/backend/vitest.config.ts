@@ -1,17 +1,10 @@
-import { defineProject, mergeConfig } from "vitest/config";
-import { workersConfig } from "@repo/vitest-config/workers";
+import { defineConfig } from "vitest/config";
+import { workersConfig } from "@repo/vitest-config";
 
-export default mergeConfig(
-  workersConfig,
-  defineProject({
-    test: {
-      include: ["src/**/*.test.ts"],
-      environment: "cloudflare-workers",
-      poolOptions: {
-        workers: {
-          wrangler: { configPath: "./wrangler.toml" },
-        },
-      },
-    },
-  }),
-);
+export default defineConfig({
+  ...workersConfig,
+  test: {
+    ...workersConfig.test,
+    // Package-specific overrides if needed
+  },
+});

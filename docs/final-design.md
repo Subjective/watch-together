@@ -664,69 +664,100 @@ Usage rules
 3. If a resource is missing, ask for clarification **after** searching via MCP.
 4. Keep MCP references out of final code comments unless they aid maintainability.
 
-## **Section 5: Comprehensive Testing Strategy**
+## **Section 5: Optimized Testing Strategy with Turborepo Best Practices**
 
-### **5.1 Hybrid Testing Architecture**
+### **5.1 Hybrid Testing Architecture Implementation**
 
-The Watch Together project implements a sophisticated hybrid testing approach that combines the best of multiple testing frameworks:
+The Watch Together project implements the **official Turborepo hybrid testing approach**, combining package-level caching for CI efficiency with unified development experience via Vitest projects:
 
 **Primary Framework: Vitest**
 
-- Fast unit and integration testing
-- Excellent TypeScript support
-- Native Turborepo integration
-- Hot module reloading for TDD workflow
-- Built-in coverage reporting
+- Fast unit and integration testing with Istanbul coverage
+- Excellent TypeScript support and hot module reloading
+- Native Turborepo integration with optimal caching
+- Package-level testing for CI efficiency
+- Unified projects feature for development workflow
 
 **Secondary Framework: Playwright**
 
-- Comprehensive end-to-end testing
-- Chrome extension support
-- Multi-browser testing capabilities
-- Visual regression testing
-- Preserved from original design for complete user journeys
+- Comprehensive end-to-end testing for complete user journeys
+- Chrome extension support with multi-browser capabilities
+- Preserved from original design for integration testing
 
-### **5.2 Testing Infrastructure Components**
+### **5.2 Shared Configuration Package Architecture**
 
-#### **5.2.1 Shared Configuration Package**
+#### **5.2.1 Core Configuration Structure**
 
-The `packages/vitest-config/` package provides standardized testing configurations:
+The `packages/vitest-config/` package provides environment-specific configurations following Turborepo best practices:
 
 ```typescript
-// packages/vitest-config/src/base.ts
-export const baseConfig = defineConfig({
+// packages/vitest-config/src/index.ts
+export const sharedConfig = {
+  test: {
+    globals: true,
+    environment: "jsdom", // Default for most packages
+    coverage: {
+      provider: "istanbul" as const,
+      reporter: [
+        [
+          "json",
+          {
+            file: `../coverage.json`, // Per-package output for caching
+          },
+        ],
+      ] as const,
+      enabled: true,
+    },
+  },
+};
+```
+
+**Environment-Specific Configurations:**
+
+- **Base Config (`base.ts`):** Node.js environment for backend utilities
+- **Browser Config (`browser.ts`):** jsdom environment for React components
+- **Workers Config (`workers.ts`):** Cloudflare Workers with proper pool configuration
+
+```typescript
+// packages/vitest-config/src/workers.ts
+export const workersConfig = defineConfig({
   test: {
     globals: true,
     environment: "node",
-    coverage: {
-      provider: "v8",
-      reporter: ["text", "json", "html"],
-      thresholds: {
-        lines: 80,
-        functions: 80,
-        branches: 70,
-        statements: 80,
+    pool: "@cloudflare/vitest-pool-workers",
+    poolOptions: {
+      workers: {
+        wrangler: {
+          configPath: "./wrangler.toml", // Use existing wrangler config
+        },
       },
+    },
+    coverage: {
+      provider: "istanbul",
+      reporter: [["json", { file: "../coverage.json" }]],
+      enabled: true,
     },
   },
 });
 ```
 
-**Environment-Specific Configurations:**
+#### **5.2.2 Hybrid Projects Configuration**
 
-- **Browser Config (`browser.ts`):** jsdom environment for React components and DOM APIs
-- **Workers Config (`workers.ts`):** Cloudflare Workers environment with `@cloudflare/vitest-pool-workers`
-- **Base Config (`base.ts`):** Node.js environment for utilities and shared packages
-
-#### **5.2.2 Workspace Configuration**
-
-Root workspace configuration enables coordinated testing across all packages:
+Root configuration uses Vitest projects for unified development testing:
 
 ```typescript
-// vitest.workspace.ts
-import { defineWorkspace } from "vitest/config";
+// vitest.config.ts
+import { defineConfig } from "vitest/config";
+import { sharedConfig } from "@repo/vitest-config";
 
-export default defineWorkspace(["packages/*", "apps/*", "tests"]);
+export default defineConfig({
+  ...sharedConfig,
+  projects: [
+    "./packages/*/vitest.config.ts",
+    "./apps/*/vitest.config.ts",
+    "./tests/vitest.config.ts",
+  ],
+});
 ```
 
 #### **5.2.3 Mock Infrastructure**
@@ -852,40 +883,48 @@ export const test = base.extend<{
 });
 ```
 
-### **5.4 Turborepo Integration**
+### **5.4 Optimized Turborepo Integration**
 
-**Enhanced turbo.json Configuration:**
+**Turborepo Configuration Following Best Practices:**
 
 ```json
 {
   "tasks": {
     "test": {
-      "dependsOn": ["^build"],
-      "inputs": ["src/**", "__tests__/**", "**/*.test.ts", "**/*.spec.ts"],
-      "outputs": ["coverage/**"]
+      "dependsOn": ["transit", "@repo/vitest-config#build"],
+      "outputs": ["coverage.json"] // Per-package JSON output for caching
     },
-    "test:unit": {
-      "dependsOn": ["^build"],
-      "inputs": ["src/**", "__tests__/**", "**/*.test.ts"],
-      "outputs": ["coverage/**"]
+    "transit": {
+      "dependsOn": ["^transit"] // Proper dependency chaining
     },
-    "test:integration": {
-      "dependsOn": ["^build", "test:unit"],
-      "inputs": ["tests/integration/**", "src/**"],
-      "outputs": ["coverage/**"]
+    "test:watch": {
+      "cache": false,
+      "persistent": true
     },
     "test:e2e": {
       "dependsOn": ["^build"],
       "inputs": ["tests/e2e/**", "dist/**"],
       "outputs": ["test-results/**", "playwright-report/**"]
     },
-    "test:watch": {
-      "cache": false,
-      "persistent": true
+    "//#merge-json-reports": {
+      "inputs": ["**/coverage.json"],
+      "outputs": ["coverage/merged/**"]
+    },
+    "//#report": {
+      "dependsOn": ["//#merge-json-reports"],
+      "inputs": ["coverage/merged/**"],
+      "outputs": ["coverage/report/**"]
     }
   }
 }
 ```
+
+**Key Optimizations:**
+
+- **Per-Package Coverage:** Each package outputs `coverage.json` for efficient caching
+- **Istanbul Provider:** Better compatibility with coverage merging tools
+- **Root Tasks:** Used for coverage aggregation without breaking package boundaries
+- **Proper Dependencies:** `@repo/vitest-config#build` ensures shared config is built first
 
 ### **5.5 TDD Workflow Implementation**
 
@@ -916,29 +955,33 @@ export const test = base.extend<{
    pnpm run build  # Final validation
    ```
 
-**Available Testing Commands:**
+**Available Testing Commands (Updated):**
 
 ```bash
-# TDD development with watch mode
-pnpm run test:watch
+# Package-level testing with Turborepo caching (CI/Production)
+pnpm run test                # Run all package tests with caching
+turbo run test --filter=@repo/adapters  # Test specific package
+turbo run test --filter=extension       # Test extension only
+turbo run test --filter=backend         # Test backend only
 
-# Run all tests with Turborepo optimization
-pnpm run test
+# Unified development testing with Vitest projects
+pnpm run test:projects:watch  # Watch mode across all packages
+pnpm run test:watch          # Individual package watch mode
 
-# Category-specific testing
-pnpm run test:unit          # Unit tests only
-pnpm run test:integration   # Integration tests only
-pnpm run test:e2e           # E2E tests with Playwright
+# Coverage and reporting
+pnpm run test:coverage       # Generate merged coverage reports
+turbo run //#report          # Generate final coverage reports
 
-# Analysis and debugging
-pnpm run test:coverage      # Coverage reports
-pnpm run test:ui            # Interactive Vitest UI
-
-# Package-specific testing
-pnpm run test --filter=@repo/adapters
-pnpm run test --filter=extension
-pnpm run test --filter=backend
+# End-to-end testing
+pnpm run test:e2e           # Playwright E2E tests
 ```
+
+**Hybrid Workflow Benefits:**
+
+- **Development:** Use `test:projects:watch` for unified testing across packages
+- **CI/Debugging:** Use `turbo run test` for package-level caching and isolation
+- **Coverage:** Istanbul provider with JSON outputs enables proper merging
+- **Performance:** Turborepo caching reduces test execution time in CI
 
 ### **5.6 Quality Assurance Integration**
 

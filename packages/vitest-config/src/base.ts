@@ -5,24 +5,16 @@ export const baseConfig = defineConfig({
     globals: true,
     environment: "node",
     coverage: {
-      provider: "v8",
-      reporter: ["text", "json", "html"],
-      exclude: [
-        "**/*.test.ts",
-        "**/*.spec.ts",
-        "**/node_modules/**",
-        "**/dist/**",
-        "**/test-utils/**",
-        "**/mocks/**",
+      provider: "istanbul",
+      reporter: [
+        [
+          "json",
+          {
+            file: `../coverage.json`,
+          },
+        ],
       ],
-      thresholds: {
-        lines: 80,
-        functions: 80,
-        branches: 70,
-        statements: 80,
-      },
+      enabled: true,
     },
-    testTimeout: 10000,
-    hookTimeout: 10000,
   },
 });

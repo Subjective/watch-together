@@ -15,33 +15,29 @@
       "dependsOn": ["^build"]
     },
     "test": {
-      "dependsOn": ["^build"],
-      "inputs": ["src/**", "__tests__/**", "**/*.test.ts", "**/*.spec.ts"],
-      "outputs": ["coverage/**"]
+      "dependsOn": ["transit", "@repo/vitest-config#build"],
+      "outputs": ["coverage.json"]
     },
-    "test:unit": {
-      "dependsOn": ["^build"],
-      "inputs": ["src/**", "__tests__/**", "**/*.test.ts"],
-      "outputs": ["coverage/**"]
+    "transit": {
+      "dependsOn": ["^transit"]
     },
-    "test:integration": {
-      "dependsOn": ["^build", "test:unit"],
-      "inputs": ["tests/integration/**", "src/**"],
-      "outputs": ["coverage/**"]
+    "test:watch": {
+      "cache": false,
+      "persistent": true
     },
     "test:e2e": {
       "dependsOn": ["^build"],
       "inputs": ["tests/e2e/**", "dist/**"],
       "outputs": ["test-results/**", "playwright-report/**"]
     },
-    "test:playwright": {
-      "dependsOn": ["^build"],
-      "inputs": ["tests/**", "dist/**"],
-      "outputs": ["test-results/**", "playwright-report/**"]
+    "//#merge-json-reports": {
+      "inputs": ["**/coverage.json"],
+      "outputs": ["coverage/merged/**"]
     },
-    "test:watch": {
-      "cache": false,
-      "persistent": true
+    "//#report": {
+      "dependsOn": ["//#merge-json-reports"],
+      "inputs": ["coverage/merged/**"],
+      "outputs": ["coverage/report/**"]
     }
   }
 }

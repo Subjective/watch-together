@@ -40,13 +40,25 @@ export interface WebRTCIceCandidateMessage extends BaseSignalingMessage {
   candidate: RTCIceCandidateInit;
 }
 
+export interface PingMessage {
+  type: "PING";
+  timestamp: number;
+}
+
+export interface PongMessage {
+  type: "PONG";
+  timestamp: number;
+}
+
 export type SignalingMessage =
   | CreateRoomMessage
   | JoinRoomMessage
   | LeaveRoomMessage
   | WebRTCOfferMessage
   | WebRTCAnswerMessage
-  | WebRTCIceCandidateMessage;
+  | WebRTCIceCandidateMessage
+  | PingMessage
+  | PongMessage;
 
 /**
  * WebSocket response message types from server to client

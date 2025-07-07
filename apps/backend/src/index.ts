@@ -33,7 +33,9 @@ export default {
 
       // Handle WebSocket upgrade requests
       const upgradeHeader = request.headers.get("Upgrade");
-      if (upgradeHeader === "websocket") {
+      if (upgradeHeader === "websocket" || url.pathname === "/ws") {
+        // For initial connections without a room ID, create a temporary connection
+        // that will be upgraded when a room is created or joined
         return handleWebSocketUpgrade(request, env, corsHeaders);
       }
 
@@ -82,6 +84,8 @@ async function handleWebSocketUpgrade(
     const url = new URL(request.url);
     const roomId = url.searchParams.get("roomId");
 
+    // If no roomId is provided, return an error
+    // The client should provide a roomId when connecting
     if (!roomId) {
       return new Response("Missing roomId parameter", {
         status: 400,

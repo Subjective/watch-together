@@ -40,6 +40,14 @@ export class RoomState {
 
   constructor(state: DurableObjectState) {
     this.state = state;
+
+    // Load existing room data from storage on initialization
+    this.state.blockConcurrencyWhile(async () => {
+      this.roomData = (await this.state.storage.get("roomData")) || null;
+      if (this.roomData) {
+        console.log("Loaded existing room data:", this.roomData.id);
+      }
+    });
   }
 
   /**
@@ -75,22 +83,10 @@ export class RoomState {
       const webSocketPair = new WebSocketPair();
       const [client, server] = Object.values(webSocketPair);
 
-      // Accept the WebSocket connection
+      // Accept the WebSocket connection using Durable Object state
       this.state.acceptWebSocket(server);
 
-      // Set up event handlers for the WebSocket
-      server.addEventListener("message", (event) => {
-        this.handleWebSocketMessage(server, event.data);
-      });
-
-      server.addEventListener("close", () => {
-        this.handleWebSocketClose(server);
-      });
-
-      server.addEventListener("error", (error) => {
-        console.error("WebSocket error:", error);
-        this.handleWebSocketClose(server);
-      });
+      console.log("WebSocket accepted in Durable Object");
 
       return new Response(null, {
         status: 101,
@@ -103,6 +99,26 @@ export class RoomState {
   }
 
   /**
+   * Durable Object hibernation API - handle WebSocket messages
+   */
+  async webSocketMessage(websocket: WebSocket, message: string): Promise<void> {
+    console.log("WebSocket message received in DO:", message);
+    return this.handleWebSocketMessage(websocket, message);
+  }
+
+  /**
+   * Durable Object hibernation API - handle WebSocket close
+   */
+  async webSocketClose(
+    websocket: WebSocket,
+    code: number,
+    reason: string,
+  ): Promise<void> {
+    console.log("WebSocket closed in DO:", code, reason);
+    return this.handleWebSocketClose(websocket);
+  }
+
+  /**
    * Handle incoming WebSocket messages
    */
   private async handleWebSocketMessage(
@@ -111,6 +127,12 @@ export class RoomState {
   ): Promise<void> {
     try {
       const message: SignalingMessage = JSON.parse(data);
+      console.log(
+        "Received message:",
+        message.type,
+        "roomId:",
+        (message as any).roomId,
+      );
 
       // Update last activity
       const user = this.findUserByWebSocket(websocket);
@@ -147,6 +169,13 @@ export class RoomState {
             message as WebRTCIceCandidateMessage,
           );
           break;
+        case "PING":
+          // Handle heartbeat ping messages
+          this.sendMessage(websocket, {
+            type: "PONG",
+            timestamp: Date.now(),
+          });
+          break;
         default:
           console.warn("Unknown message type:", (message as any).type);
           this.sendError(
@@ -173,10 +202,12 @@ export class RoomState {
     message: CreateRoomMessage,
   ): Promise<void> {
     try {
-      // If room already exists, reject creation
-      if (this.roomData) {
-        this.sendError(websocket, "Room already exists", message.roomId);
-        return;
+      // If room already exists with same ID, clear it first (for development)
+      if (this.roomData && this.roomData.id === message.roomId) {
+        console.log("Clearing existing room data for:", message.roomId);
+        await this.state.storage.delete("roomData");
+        this.roomData = null;
+        this.connections.clear();
       }
 
       // Create new room

@@ -1,22 +1,82 @@
-import { describe, it, expect } from "vitest";
-import { render } from "@testing-library/react";
+/**
+ * Tests for App component
+ */
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { vi } from "vitest";
 import { App } from "../App";
 
-describe("App Component", () => {
-  it("should render without crashing", () => {
-    render(<App />);
+// Mock chrome.runtime for testing
+const mockSendMessage = vi.fn();
+global.chrome = {
+  ...global.chrome,
+  runtime: {
+    ...global.chrome.runtime,
+    sendMessage: mockSendMessage,
+  },
+};
 
-    // Just verify the component renders without errors
-    expect(true).toBe(true);
+describe("App", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSendMessage.mockResolvedValue({
+      isConnected: false,
+      currentRoom: null,
+      connectionStatus: "DISCONNECTED",
+      currentUser: null,
+      followMode: "AUTO_FOLLOW",
+      hasFollowNotification: false,
+      followNotificationUrl: null,
+    });
   });
 
-  it("should render with expected content", () => {
-    const { getByText } = render(<App />);
+  it("should render home screen by default", async () => {
+    render(<App />);
 
-    // Test actual component functionality (without jest-dom matchers for projects compatibility)
-    expect(getByText("Watch Together")).toBeTruthy();
+    expect(screen.getByText("Watch Together")).toBeInTheDocument();
     expect(
-      getByText("Chrome extension for synchronized video watching"),
-    ).toBeTruthy();
+      screen.getByText("Synchronized video watching with friends"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Create Room" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Join Room" }),
+    ).toBeInTheDocument();
+  });
+
+  it("should navigate to create room view", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const createButton = screen.getByRole("button", { name: "Create Room" });
+    await user.click(createButton);
+
+    expect(
+      screen.getByRole("heading", { name: "Create Room" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Room Name")).toBeInTheDocument();
+  });
+
+  it("should navigate to join room view", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const joinButton = screen.getByRole("button", { name: "Join Room" });
+    await user.click(joinButton);
+
+    expect(
+      screen.getByRole("heading", { name: "Join Room" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Room ID")).toBeInTheDocument();
+  });
+
+  it("should send GET_STATE message on mount", () => {
+    render(<App />);
+
+    expect(mockSendMessage).toHaveBeenCalledWith({
+      type: "GET_STATE",
+      timestamp: expect.any(Number),
+    });
   });
 });

@@ -59,6 +59,19 @@ async function initializeServiceWorker(): Promise<void> {
 }
 
 /**
+ * Ensure room manager is initialized
+ */
+async function ensureRoomManagerInitialized(): Promise<void> {
+  if (!roomManager) {
+    await initializeServiceWorker();
+  }
+  
+  if (!roomManager) {
+    throw new Error("Room manager failed to initialize");
+  }
+}
+
+/**
  * Set up event handlers for room manager
  */
 function setupRoomManagerEventHandlers(): void {
@@ -188,13 +201,9 @@ async function handleGetState(
   _message: GetStateRequest,
   sendResponse: (response: any) => void,
 ): Promise<void> {
-  if (!roomManager) {
-    await initializeServiceWorker();
-  }
+  await ensureRoomManagerInitialized();
 
-  const state =
-    roomManager?.getExtensionState() ||
-    (await StorageManager.getExtensionState());
+  const state = roomManager!.getExtensionState();
   sendResponse({ state });
 }
 
@@ -206,15 +215,9 @@ async function handleCreateRoom(
   sendResponse: (response: any) => void,
 ): Promise<void> {
   try {
-    if (!roomManager) {
-      await initializeServiceWorker();
-    }
+    await ensureRoomManagerInitialized();
 
-    if (!roomManager) {
-      throw new Error("Room manager not initialized");
-    }
-
-    const room = await roomManager.createRoom(
+    const room = await roomManager!.createRoom(
       message.roomName,
       message.userName,
     );
@@ -236,15 +239,9 @@ async function handleJoinRoom(
   sendResponse: (response: any) => void,
 ): Promise<void> {
   try {
-    if (!roomManager) {
-      await initializeServiceWorker();
-    }
+    await ensureRoomManagerInitialized();
 
-    if (!roomManager) {
-      throw new Error("Room manager not initialized");
-    }
-
-    const room = await roomManager.joinRoom(message.roomId, message.userName);
+    const room = await roomManager!.joinRoom(message.roomId, message.userName);
     sendResponse({ success: true, room });
   } catch (error) {
     console.error("Failed to join room:", error);
@@ -313,15 +310,9 @@ async function handleSetFollowMode(
   sendResponse: (response: any) => void,
 ): Promise<void> {
   try {
-    if (!roomManager) {
-      await initializeServiceWorker();
-    }
+    await ensureRoomManagerInitialized();
 
-    if (!roomManager) {
-      throw new Error("Room manager not initialized");
-    }
-
-    await roomManager.setFollowMode(message.mode);
+    await roomManager!.setFollowMode(message.mode);
     sendResponse({ success: true });
   } catch (error) {
     console.error("Failed to set follow mode:", error);

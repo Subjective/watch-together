@@ -55,6 +55,20 @@ export type ConnectionStatus =
   | "ERROR";
 
 /**
+ * Connection state that needs to be persisted across Service Worker restarts
+ */
+export interface ConnectionState {
+  roomId: string;
+  userId: string;
+  userName: string;
+  isHost: boolean;
+  websocketUrl: string;
+  roomState: RoomState;
+  connectedAt: number;
+  lastActivity: number;
+}
+
+/**
  * Chrome extension message types
  */
 export interface BaseExtensionMessage {

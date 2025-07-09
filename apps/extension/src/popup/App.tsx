@@ -51,11 +51,11 @@ export const App: React.FC = () => {
           type: "GET_STATE",
           timestamp: Date.now(),
         };
-        const state = await sendMessage(message);
-        if (state) {
-          setExtensionState(state);
+        const response = await sendMessage(message);
+        if (response?.state) {
+          setExtensionState(response.state);
           // Set view based on current room state
-          if (state.currentRoom) {
+          if (response.state.currentRoom) {
             setCurrentView("room");
           }
         }

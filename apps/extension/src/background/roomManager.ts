@@ -9,6 +9,7 @@ import type {
   ExtensionState,
   ControlMode,
   FollowMode,
+  ConnectionState,
   CreateRoomMessage,
   JoinRoomMessage,
   LeaveRoomMessage,
@@ -76,16 +77,78 @@ export class RoomManager {
    */
   async initialize(): Promise<void> {
     try {
-      // Restore state from storage
+      // Restore extension state from storage
       this.extensionState = await StorageManager.getExtensionState();
 
-      // Don't connect WebSocket immediately - wait for room creation/joining
-      console.log(
-        "Room manager initialized (WebSocket will connect when room is created/joined)",
-      );
+      // Check if we have an existing connection to restore
+      const connectionState = await StorageManager.getConnectionState();
+      if (connectionState) {
+        console.log("Found existing connection state, attempting to restore...");
+        await this.restoreConnection(connectionState);
+      } else {
+        console.log(
+          "No existing connection state found (WebSocket will connect when room is created/joined)",
+        );
+      }
+
+      console.log("Room manager initialized successfully");
     } catch (error) {
       console.error("Failed to initialize room manager:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Restore connection from persisted state
+   */
+  private async restoreConnection(connectionState: ConnectionState): Promise<void> {
+    try {
+      // Update WebSocket URL
+      this.websocket["config"].url = connectionState.websocketUrl;
+
+      // Restore room and user state
+      this.currentRoom = connectionState.roomState;
+      this.currentUser = connectionState.roomState.users.find(
+        (u) => u.id === connectionState.userId,
+      ) || null;
+
+      if (!this.currentUser) {
+        console.error("Could not find user in restored room state");
+        await StorageManager.clearConnectionState();
+        return;
+      }
+
+      // Update extension state
+      this.updateExtensionState({
+        isConnected: false, // Will be set to true when WebSocket connects
+        currentRoom: this.currentRoom,
+        currentUser: this.currentUser,
+        connectionStatus: "RECONNECTING",
+      });
+
+      // Attempt to reconnect WebSocket
+      await this.websocket.connect();
+
+      // Initialize WebRTC
+      this.webrtc.initialize(connectionState.userId, connectionState.isHost);
+
+      // If connection succeeds, we'll get WebSocket events that will restore peer connections
+      console.log("Connection restored successfully");
+    } catch (error) {
+      console.error("Failed to restore connection:", error);
+      
+      // Clear invalid connection state
+      await StorageManager.clearConnectionState();
+      
+      // Reset to disconnected state
+      this.currentRoom = null;
+      this.currentUser = null;
+      this.updateExtensionState({
+        isConnected: false,
+        currentRoom: null,
+        currentUser: null,
+        connectionStatus: "DISCONNECTED",
+      });
     }
   }
 
@@ -139,6 +202,9 @@ export class RoomManager {
               currentUser: this.currentUser,
               connectionStatus: "CONNECTED",
             });
+
+            // Save connection state for persistence
+            this.saveConnectionState(roomId, userId, userName, true);
 
             resolve(this.currentRoom!);
           }
@@ -216,6 +282,9 @@ export class RoomManager {
               StorageManager.addRoomToHistory(this.currentRoom);
             }
 
+            // Save connection state for persistence
+            this.saveConnectionState(roomId, userId, userName, false);
+
             resolve(this.currentRoom!);
           }
         };
@@ -257,6 +326,9 @@ export class RoomManager {
 
       // Close WebRTC connections
       this.webrtc.closeAllConnections();
+
+      // Clear persisted connection state
+      await StorageManager.clearConnectionState();
 
       // Reset state
       this.currentRoom = null;
@@ -401,6 +473,36 @@ export class RoomManager {
     this.webrtc.closeAllConnections();
     this.websocket.disconnect();
     this.eventListeners.clear();
+  }
+
+  /**
+   * Save connection state for persistence across Service Worker restarts
+   */
+  private async saveConnectionState(
+    roomId: string,
+    userId: string,
+    userName: string,
+    isHost: boolean,
+  ): Promise<void> {
+    if (!this.currentRoom) return;
+
+    const connectionState: ConnectionState = {
+      roomId,
+      userId,
+      userName,
+      isHost,
+      websocketUrl: this.websocket["config"].url,
+      roomState: this.currentRoom,
+      connectedAt: Date.now(),
+      lastActivity: Date.now(),
+    };
+
+    try {
+      await StorageManager.setConnectionState(connectionState);
+      console.log("Connection state saved for persistence");
+    } catch (error) {
+      console.error("Failed to save connection state:", error);
+    }
   }
 
   private setupEventHandlers(): void {

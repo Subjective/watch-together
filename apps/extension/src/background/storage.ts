@@ -3,7 +3,12 @@
  * Handles persistent storage of user preferences and room state
  */
 
-import type { ExtensionState, RoomState, FollowMode, ConnectionState } from "@repo/types";
+import type {
+  ExtensionState,
+  RoomState,
+  FollowMode,
+  ConnectionState,
+} from "@repo/types";
 
 export interface StorageKeys {
   EXTENSION_STATE: "extensionState";

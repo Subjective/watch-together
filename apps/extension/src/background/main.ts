@@ -27,6 +27,42 @@ let roomManager: RoomManager | null = null;
 console.log("Watch Together Service Worker loaded");
 
 /**
+ * Handle Service Worker suspension (browser close)
+ */
+chrome.runtime.onSuspend.addListener(async () => {
+  console.log("Service Worker suspending - cleaning up room connections");
+
+  // Prevent duplicate cleanup
+  if (isCleaningUp) {
+    console.log("Cleanup already in progress, skipping");
+    return;
+  }
+
+  isCleaningUp = true;
+
+  try {
+    if (roomManager) {
+      await roomManager.leaveRoom();
+      await StorageManager.clearConnectionState();
+    }
+  } catch (error) {
+    console.error("Error during Service Worker suspension cleanup:", error);
+  } finally {
+    isCleaningUp = false;
+  }
+});
+
+/**
+ * Track tabs that are part of watch sessions (for reference)
+ */
+const activeTabs = new Set<number>();
+
+/**
+ * Track if we're already cleaning up to prevent duplicate leave messages
+ */
+let isCleaningUp = false;
+
+/**
  * Initialize the Service Worker
  */
 async function initializeServiceWorker(): Promise<void> {
@@ -65,7 +101,7 @@ async function ensureRoomManagerInitialized(): Promise<void> {
   if (!roomManager) {
     await initializeServiceWorker();
   }
-  
+
   if (!roomManager) {
     throw new Error("Room manager failed to initialize");
   }
@@ -369,6 +405,9 @@ async function handleVideoStateChange(
     return;
   }
 
+  // Track this tab as active in watch session
+  activeTabs.add(sender.tab.id);
+
   const currentUser = roomManager.getCurrentUser();
   if (!currentUser?.isHost) {
     return; // Only host can broadcast state changes
@@ -391,6 +430,9 @@ async function handleVideoControlRequest(
   if (!roomManager || !sender.tab?.id) {
     return;
   }
+
+  // Track this tab as active in watch session
+  activeTabs.add(sender.tab.id);
 
   // Forward control request through room manager
   await roomManager.sendVideoControl(message.action, message.seekTime);

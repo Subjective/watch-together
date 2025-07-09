@@ -37,6 +37,12 @@ export class RoomState {
   private state: DurableObjectState;
   private connections: Map<string, ConnectedUser> = new Map();
   private roomData: RoomStateData | null = null;
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
+
+  // Constants for activity monitoring
+  private static readonly USER_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+  private static readonly CLEANUP_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+  private static readonly EMPTY_ROOM_CLEANUP_MS = 30 * 60 * 1000; // 30 minutes
 
   constructor(state: DurableObjectState) {
     this.state = state;
@@ -46,6 +52,8 @@ export class RoomState {
       this.roomData = (await this.state.storage.get("roomData")) || null;
       if (this.roomData) {
         console.log("Loaded existing room data:", this.roomData.id);
+        // Start user activity monitoring for existing rooms
+        this.startUserActivityMonitoring();
       }
     });
   }
@@ -72,6 +80,53 @@ export class RoomState {
     } catch (error) {
       console.error("RoomState fetch error:", error);
       return new Response("Internal Server Error", { status: 500 });
+    }
+  }
+
+  /**
+   * Handle Durable Object alarms for scheduled cleanup
+   */
+  async alarm(): Promise<void> {
+    console.log("Alarm triggered - checking for empty room cleanup");
+
+    try {
+      // Load room data if not in memory
+      if (!this.roomData) {
+        this.roomData = (await this.state.storage.get("roomData")) || null;
+      }
+
+      // If room exists but has no connections, clean it up
+      if (this.roomData && this.connections.size === 0) {
+        const roomId = this.roomData.id;
+        const timeSinceLastActivity = Date.now() - this.roomData.lastActivity;
+
+        if (timeSinceLastActivity >= RoomState.EMPTY_ROOM_CLEANUP_MS) {
+          console.log(
+            `Cleaning up empty room ${roomId} (inactive for ${Math.round(timeSinceLastActivity / 60000)} minutes)`,
+          );
+
+          // Delete room data
+          await this.state.storage.delete("roomData");
+          this.roomData = null;
+
+          // Stop monitoring
+          this.stopUserActivityMonitoring();
+
+          console.log(`Empty room cleaned up: ${roomId}`);
+        } else {
+          // Schedule another check
+          const nextCheckTime =
+            Date.now() +
+            RoomState.EMPTY_ROOM_CLEANUP_MS -
+            timeSinceLastActivity;
+          await this.state.storage.setAlarm(nextCheckTime);
+          console.log(
+            `Scheduled next empty room check in ${Math.round((nextCheckTime - Date.now()) / 60000)} minutes`,
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Alarm handling error:", error);
     }
   }
 
@@ -202,12 +257,23 @@ export class RoomState {
     message: CreateRoomMessage,
   ): Promise<void> {
     try {
-      // If room already exists with same ID, clear it first (for development)
-      if (this.roomData && this.roomData.id === message.roomId) {
-        console.log("Clearing existing room data for:", message.roomId);
-        await this.state.storage.delete("roomData");
-        this.roomData = null;
-        this.connections.clear();
+      // If room data exists, validate or clear it
+      if (this.roomData) {
+        if (this.roomData.id === message.roomId) {
+          console.log("Clearing existing room data for:", message.roomId);
+          await this.state.storage.delete("roomData");
+          this.roomData = null;
+          this.connections.clear();
+        } else {
+          // Room data exists but for different room ID - clear stale data
+          console.log(
+            `Clearing stale room data (${this.roomData.id}) for new room:`,
+            message.roomId,
+          );
+          await this.state.storage.delete("roomData");
+          this.roomData = null;
+          this.connections.clear();
+        }
       }
 
       // Create new room
@@ -239,6 +305,9 @@ export class RoomState {
 
       // Persist room state
       await this.state.storage.put("roomData", this.roomData);
+
+      // Start user activity monitoring
+      this.startUserActivityMonitoring();
 
       // Send success response
       this.sendMessage(websocket, {
@@ -279,6 +348,12 @@ export class RoomState {
         }
       }
 
+      // Validate that the stored room ID matches the requested room ID
+      if (this.roomData.id !== message.roomId) {
+        this.sendError(websocket, "Room ID mismatch", message.roomId);
+        return;
+      }
+
       // Check if user is already in room
       if (this.connections.has(message.userId)) {
         this.sendError(websocket, "User already in room", message.userId);
@@ -307,6 +382,11 @@ export class RoomState {
 
       // Persist updated room state
       await this.state.storage.put("roomData", this.roomData);
+
+      // Start user activity monitoring if this is the first connection
+      if (this.connections.size === 1) {
+        this.startUserActivityMonitoring();
+      }
 
       // Send success response to joining user
       this.sendMessage(websocket, {
@@ -527,12 +607,24 @@ export class RoomState {
       }
     }
 
-    // If room is now empty, mark for cleanup
+    // If room is now empty, schedule cleanup
     if (this.roomData.users.length === 0) {
       const roomId = this.roomData.id;
-      await this.state.storage.delete("roomData");
-      this.roomData = null;
-      console.log(`Room cleaned up: ${roomId}`);
+      console.log(`Room ${roomId} is now empty - scheduling cleanup alarm`);
+
+      // Stop user activity monitoring since no users remain
+      this.stopUserActivityMonitoring();
+
+      // Schedule alarm for empty room cleanup
+      const cleanupTime = Date.now() + RoomState.EMPTY_ROOM_CLEANUP_MS;
+      await this.state.storage.setAlarm(cleanupTime);
+
+      // Persist the empty room state with updated lastActivity
+      await this.state.storage.put("roomData", this.roomData);
+
+      console.log(
+        `Cleanup alarm scheduled for room ${roomId} in ${RoomState.EMPTY_ROOM_CLEANUP_MS / 60000} minutes`,
+      );
       return;
     }
 
@@ -639,6 +731,65 @@ export class RoomState {
       if (userId !== excludeUserId) {
         this.sendMessage(connection.websocket, message);
       }
+    }
+  }
+
+  /**
+   * Start monitoring user activity and clean up inactive users
+   */
+  private startUserActivityMonitoring(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+    }
+
+    this.cleanupInterval = setInterval(() => {
+      this.checkAndCleanupInactiveUsers();
+    }, RoomState.CLEANUP_INTERVAL_MS);
+
+    console.log("Started user activity monitoring");
+  }
+
+  /**
+   * Stop monitoring user activity
+   */
+  private stopUserActivityMonitoring(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+      console.log("Stopped user activity monitoring");
+    }
+  }
+
+  /**
+   * Check for inactive users and disconnect them
+   */
+  private async checkAndCleanupInactiveUsers(): Promise<void> {
+    if (!this.roomData || this.connections.size === 0) {
+      return;
+    }
+
+    const now = Date.now();
+    const inactiveUsers: string[] = [];
+
+    // Find users who haven't been active recently
+    for (const [userId, connection] of this.connections.entries()) {
+      const timeSinceLastActivity = now - connection.lastActivity;
+      if (timeSinceLastActivity > RoomState.USER_TIMEOUT_MS) {
+        inactiveUsers.push(userId);
+        console.log(
+          `User ${userId} inactive for ${Math.round(timeSinceLastActivity / 1000)}s - disconnecting`,
+        );
+      }
+    }
+
+    // Remove inactive users
+    for (const userId of inactiveUsers) {
+      await this.removeUserFromRoom(userId, true);
+    }
+
+    // If room is now empty, stop monitoring
+    if (this.connections.size === 0) {
+      this.stopUserActivityMonitoring();
     }
   }
 }

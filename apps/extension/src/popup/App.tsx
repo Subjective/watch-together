@@ -208,6 +208,23 @@ export const App: React.FC = () => {
           />
         );
       case "room":
+        // Handle reconnecting state
+        if (extensionState.connectionStatus === "RECONNECTING") {
+          return (
+            <div className="p-4 h-full flex flex-col items-center justify-center">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <h2 className="text-lg font-medium text-gray-900 mb-2">
+                  Reconnecting...
+                </h2>
+                <p className="text-sm text-gray-600">
+                  Validating previous session
+                </p>
+              </div>
+            </div>
+          );
+        }
+
         if (!extensionState.currentRoom || !extensionState.currentUser) {
           setCurrentView("home");
           return null;

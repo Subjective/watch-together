@@ -90,9 +90,11 @@ function detectAndCreateAdapter(): void {
 function setupAdapterEventListeners(): void {
   if (!currentAdapter) return;
 
-  // Throttle timeupdate events to reduce noise
-  let lastTimeupdateTime = 0;
-  const TIMEUPDATE_THROTTLE_MS = 250; // 4 updates per second max
+  // For sync purposes, we only need control events and periodic heartbeats
+  // Regular timeupdate events are too frequent and unnecessary since each
+  // peer's video player maintains its own timing
+  let lastHeartbeatTime = 0;
+  const HEARTBEAT_INTERVAL_MS = 5000; // Send heartbeat every 5 seconds
 
   const events: Array<"play" | "pause" | "seeking" | "timeupdate"> = [
     "play",
@@ -103,15 +105,16 @@ function setupAdapterEventListeners(): void {
 
   events.forEach((event) => {
     currentAdapter!.on(event, (payload) => {
-      // Throttle timeupdate events
+      // Only send timeupdate as periodic heartbeat
       if (event === "timeupdate") {
         const now = Date.now();
-        if (now - lastTimeupdateTime < TIMEUPDATE_THROTTLE_MS) {
+        if (now - lastHeartbeatTime < HEARTBEAT_INTERVAL_MS) {
           return; // Skip this update
         }
-        lastTimeupdateTime = now;
+        lastHeartbeatTime = now;
+        // Continue to send as heartbeat for connection monitoring
       }
-      
+
       sendAdapterEvent(event, payload);
     });
   });

@@ -90,6 +90,10 @@ function detectAndCreateAdapter(): void {
 function setupAdapterEventListeners(): void {
   if (!currentAdapter) return;
 
+  // Throttle timeupdate events to reduce noise
+  let lastTimeupdateTime = 0;
+  const TIMEUPDATE_THROTTLE_MS = 250; // 4 updates per second max
+
   const events: Array<"play" | "pause" | "seeking" | "timeupdate"> = [
     "play",
     "pause",
@@ -99,6 +103,15 @@ function setupAdapterEventListeners(): void {
 
   events.forEach((event) => {
     currentAdapter!.on(event, (payload) => {
+      // Throttle timeupdate events
+      if (event === "timeupdate") {
+        const now = Date.now();
+        if (now - lastTimeupdateTime < TIMEUPDATE_THROTTLE_MS) {
+          return; // Skip this update
+        }
+        lastTimeupdateTime = now;
+      }
+      
       sendAdapterEvent(event, payload);
     });
   });

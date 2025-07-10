@@ -3,6 +3,7 @@
  */
 import { AdapterFactory } from "@repo/adapters";
 import type { IPlayerAdapter, AdapterMessage } from "@repo/types";
+import { runUniversalPlayerDiagnostic } from "@repo/adapters";
 
 // Current adapter instance
 let currentAdapter: IPlayerAdapter | null = null;
@@ -15,6 +16,23 @@ let port: chrome.runtime.Port | null = null;
  */
 export function initialize(): void {
   console.log("[ContentLoader] Initializing...");
+
+  // Set up diagnostic via message passing (CSP-compliant)
+  document.addEventListener("run-diagnostic", async () => {
+    console.log("🔍 Running Universal Player Diagnostic...");
+    const results = await runUniversalPlayerDiagnostic();
+    console.log("✅ Diagnostic complete. Results:", results);
+    // Dispatch results back
+    document.dispatchEvent(
+      new CustomEvent("diagnostic-complete", {
+        detail: results,
+      }),
+    );
+  });
+
+  console.log(
+    "[ContentLoader] Diagnostics enabled. Run: document.dispatchEvent(new Event('run-diagnostic'))",
+  );
 
   // Set up communication with Service Worker
   setupServiceWorkerConnection();

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Watch Together - Adapter Test Page</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #f0f0f0;
+    }
+    
+    h1 {
+      color: #3b82f6;
+    }
+    
+    .video-container {
+      margin: 20px 0;
+      border: 2px solid #374151;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #000;
+    }
+    
+    video {
+      width: 100%;
+      max-width: 800px;
+      display: block;
+    }
+    
+    .controls {
+      margin: 20px 0;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    
+    button {
+      padding: 10px 20px;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background 0.2s;
+    }
+    
+    button:hover {
+      background: #2563eb;
+    }
+    
+    button:disabled {
+      background: #4b5563;
+      cursor: not-allowed;
+    }
+    
+    .status {
+      margin: 20px 0;
+      padding: 15px;
+      background: #1f2937;
+      border-radius: 8px;
+      font-family: monospace;
+    }
+    
+    .status h3 {
+      margin-top: 0;
+      color: #10b981;
+    }
+    
+    .status-item {
+      margin: 5px 0;
+    }
+    
+    .events {
+      margin: 20px 0;
+      padding: 15px;
+      background: #1f2937;
+      border-radius: 8px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    
+    .events h3 {
+      margin-top: 0;
+      color: #f59e0b;
+    }
+    
+    .event-item {
+      margin: 5px 0;
+      padding: 5px;
+      background: #374151;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 14px;
+    }
+    
+    .test-videos {
+      margin: 20px 0;
+    }
+    
+    .test-videos h3 {
+      color: #8b5cf6;
+    }
+    
+    .video-option {
+      margin: 10px 0;
+    }
+    
+    input[type="number"] {
+      padding: 8px;
+      background: #374151;
+      color: white;
+      border: 1px solid #4b5563;
+      border-radius: 4px;
+      width: 100px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Watch Together - Adapter Test Page</h1>
+  
+  <div class="test-videos">
+    <h3>Test Videos</h3>
+    <div class="video-option">
+      <button onclick="loadTestVideo('bunny')">Big Buck Bunny (Short)</button>
+      <button onclick="loadTestVideo('sintel')">Sintel Trailer</button>
+      <button onclick="loadTestVideo('custom')">Custom URL</button>
+    </div>
+  </div>
+  
+  <div class="video-container">
+    <video id="testVideo" controls>
+      <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
+  </div>
+  
+  <div class="controls">
+    <button onclick="testPlay()">Play</button>
+    <button onclick="testPause()">Pause</button>
+    <button onclick="testSeek()">Seek to <input type="number" id="seekTime" value="30" min="0" step="1"> seconds</button>
+    <button onclick="testPlaybackRate()">Set speed to <input type="number" id="playbackRate" value="1.5" min="0.25" max="4" step="0.25">x</button>
+    <button onclick="testAdapter()">Test Adapter Detection</button>
+    <button onclick="clearEvents()">Clear Events</button>
+  </div>
+  
+  <div class="status">
+    <h3>Video Status</h3>
+    <div class="status-item">Current Time: <span id="currentTime">0</span>s</div>
+    <div class="status-item">Duration: <span id="duration">0</span>s</div>
+    <div class="status-item">Paused: <span id="paused">true</span></div>
+    <div class="status-item">Playback Rate: <span id="rate">1</span>x</div>
+    <div class="status-item">Adapter: <span id="adapterStatus">Not detected</span></div>
+  </div>
+  
+  <div class="events">
+    <h3>Adapter Events</h3>
+    <div id="eventLog"></div>
+  </div>
+  
+  <script>
+    const video = document.getElementById('testVideo');
+    const eventLog = document.getElementById('eventLog');
+    let eventCounter = 0;
+    
+    // Update status display
+    function updateStatus() {
+      document.getElementById('currentTime').textContent = video.currentTime.toFixed(2);
+      document.getElementById('duration').textContent = video.duration.toFixed(2);
+      document.getElementById('paused').textContent = video.paused;
+      document.getElementById('rate').textContent = video.playbackRate;
+    }
+    
+    // Log events
+    function logEvent(event, data = {}) {
+      const item = document.createElement('div');
+      item.className = 'event-item';
+      item.textContent = `[${++eventCounter}] ${event}: ${JSON.stringify(data)}`;
+      eventLog.insertBefore(item, eventLog.firstChild);
+      
+      // Keep only last 50 events
+      while (eventLog.children.length > 50) {
+        eventLog.removeChild(eventLog.lastChild);
+      }
+    }
+    
+    // Video event listeners
+    video.addEventListener('play', () => {
+      logEvent('play');
+      updateStatus();
+    });
+    
+    video.addEventListener('pause', () => {
+      logEvent('pause');
+      updateStatus();
+    });
+    
+    video.addEventListener('seeking', () => {
+      logEvent('seeking', { time: video.currentTime });
+      updateStatus();
+    });
+    
+    video.addEventListener('timeupdate', () => {
+      updateStatus();
+      // Log timeupdate only every 5 seconds to avoid spam
+      if (Math.floor(video.currentTime) % 5 === 0 && 
+          Math.floor(video.currentTime) !== window.lastLoggedTime) {
+        window.lastLoggedTime = Math.floor(video.currentTime);
+        logEvent('timeupdate', { time: video.currentTime });
+      }
+    });
+    
+    video.addEventListener('loadedmetadata', () => {
+      logEvent('loadedmetadata', { duration: video.duration });
+      updateStatus();
+    });
+    
+    // Test functions
+    function testPlay() {
+      video.play().catch(err => {
+        logEvent('error', { message: err.message });
+      });
+    }
+    
+    function testPause() {
+      video.pause();
+    }
+    
+    function testSeek() {
+      const time = parseFloat(document.getElementById('seekTime').value);
+      video.currentTime = time;
+    }
+    
+    function testPlaybackRate() {
+      const rate = parseFloat(document.getElementById('playbackRate').value);
+      video.playbackRate = rate;
+    }
+    
+    function testAdapter() {
+      // This would test if the Watch Together extension can detect this video
+      logEvent('adapter-test', { 
+        videoFound: !!video,
+        videoDimensions: {
+          width: video.videoWidth,
+          height: video.videoHeight
+        }
+      });
+      
+      // Check if Watch Together extension is installed
+      if (window.watchTogetherAdapter) {
+        document.getElementById('adapterStatus').textContent = 'Detected';
+        logEvent('adapter-detected', { type: 'GenericHTML5Adapter' });
+      } else {
+        document.getElementById('adapterStatus').textContent = 'Not detected';
+        logEvent('adapter-not-detected');
+      }
+    }
+    
+    function clearEvents() {
+      eventLog.innerHTML = '';
+      eventCounter = 0;
+    }
+    
+    function loadTestVideo(type) {
+      const videos = {
+        bunny: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+        sintel: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
+      };
+      
+      if (type === 'custom') {
+        const url = prompt('Enter video URL:');
+        if (url) {
+          video.src = url;
+          logEvent('video-loaded', { url });
+        }
+      } else if (videos[type]) {
+        video.src = videos[type];
+        logEvent('video-loaded', { type });
+      }
+    }
+    
+    // Initial status update
+    updateStatus();
+    
+    // Expose adapter hook for extension
+    window.watchTogetherReady = () => {
+      document.getElementById('adapterStatus').textContent = 'Extension Connected';
+      logEvent('extension-connected');
+    };
+  </script>
+</body>
+</html>

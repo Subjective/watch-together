@@ -14,6 +14,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@repo/adapters": "workspace:*",
     "@repo/types": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

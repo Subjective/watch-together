@@ -84,6 +84,9 @@ importers:
 
   apps/extension:
     dependencies:
+      '@repo/adapters':
+        specifier: workspace:*
+        version: link:../../packages/adapters
       '@repo/types':
         specifier: workspace:*
         version: link:../../packages/types

@@ -19,6 +19,7 @@ import type {
 import { RoomManager } from "./roomManager";
 import { StorageManager, StorageEventManager } from "./storage";
 import { defaultWebSocketConfig } from "./websocket";
+import { initializeAdapterHandler } from "./adapterHandler";
 
 // Global room manager instance
 let roomManager: RoomManager | null = null;
@@ -69,6 +70,9 @@ async function initializeServiceWorker(): Promise<void> {
   try {
     // Initialize storage event manager
     StorageEventManager.init();
+
+    // Initialize adapter handler
+    initializeAdapterHandler();
 
     // Get WebRTC configuration from storage
     const webrtcConfig = await StorageManager.getWebRTCConfig();

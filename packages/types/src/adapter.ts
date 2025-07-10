@@ -49,6 +49,12 @@ export interface AdapterInfo {
 
 export type AdapterTier = "PROPRIETARY" | "IFRAME_API" | "HTML5" | "FALLBACK";
 
+export interface AdapterDetection {
+  supported: boolean;
+  confidence: number;
+  tier: AdapterTier;
+}
+
 export interface AdapterDetectionResult {
   adapter: IPlayerAdapter | null;
   adapterName: string;

@@ -21,6 +21,12 @@ import type {
 import { WebSocketManager, defaultWebSocketConfig } from "./websocket";
 import { WebRTCManager } from "./webrtc";
 import { StorageManager } from "./storage";
+import {
+  adapterEventTarget,
+  type AdapterEventDetail,
+  sendAdapterCommand,
+  getActiveAdapters,
+} from "./adapterHandler";
 
 export interface RoomManagerConfig {
   websocketUrl: string;
@@ -661,6 +667,12 @@ export class RoomManager {
       this.handleControlModeChange.bind(this),
     );
     this.webrtc.on("HOST_NAVIGATE", this.handleHostNavigate.bind(this));
+
+    // Adapter event handlers
+    adapterEventTarget.addEventListener("adapter:event", (event) => {
+      const customEvent = event as CustomEvent<AdapterEventDetail>;
+      this.handleAdapterEvent(customEvent.detail);
+    });
   }
 
   private async handleUserJoined(response: any): Promise<void> {
@@ -776,34 +788,98 @@ export class RoomManager {
     }
   }
 
-  private handleHostStateUpdate(message: any): void {
-    // Forward to content script for video control
-    this.emit("VIDEO_CONTROL", {
-      action: message.state === "PLAYING" ? "PLAY" : "PAUSE",
-      time: message.time,
-      timestamp: message.timestamp,
-    });
-  }
-
-  private handleClientRequest(message: any): void {
-    // Host should handle client requests
-    if (this.currentUser?.isHost) {
-      this.emit("CLIENT_REQUEST", {
-        action: message.type.replace("CLIENT_REQUEST_", ""),
-        time: message.time,
-        fromUserId: message.fromUserId,
-      });
+  private async handleHostStateUpdate(message: any): Promise<void> {
+    // Client receives host state update
+    if (!this.currentUser?.isHost) {
+      await this.applyVideoState(message);
     }
   }
 
-  private handleDirectCommand(message: any): void {
-    // Forward direct commands to content script
-    this.emit("VIDEO_CONTROL", {
-      action: message.type.replace("DIRECT_", ""),
+  private async handleClientRequest(message: any): Promise<void> {
+    // Host handles client requests
+    if (this.currentUser?.isHost) {
+      // Get the active adapter tab
+      const activeTab = await this.getActiveAdapterTab();
+      if (!activeTab) return;
+
+      try {
+        switch (message.type) {
+          case "CLIENT_REQUEST_PLAY":
+            await sendAdapterCommand(activeTab, "play");
+            break;
+          case "CLIENT_REQUEST_PAUSE":
+            await sendAdapterCommand(activeTab, "pause");
+            break;
+          case "CLIENT_REQUEST_SEEK":
+            await sendAdapterCommand(activeTab, "seek", { time: message.time });
+            break;
+        }
+      } catch (error) {
+        console.error("Failed to handle client request:", error);
+      }
+    }
+  }
+
+  private async handleDirectCommand(message: any): Promise<void> {
+    // In free-for-all mode, apply commands directly
+    await this.applyVideoState({
+      state:
+        message.type === "DIRECT_PLAY"
+          ? "PLAYING"
+          : message.type === "DIRECT_PAUSE"
+            ? "PAUSED"
+            : "SEEKING",
       time: message.time,
       timestamp: message.timestamp,
       fromUserId: message.fromUserId,
     });
+  }
+
+  private async applyVideoState(message: {
+    state: string;
+    time: number;
+    timestamp: number;
+    fromUserId?: string;
+  }): Promise<void> {
+    const activeTab = await this.getActiveAdapterTab();
+    if (!activeTab) return;
+
+    try {
+      // Apply latency compensation
+      const latency = this.calculateLatency(message.timestamp);
+      const compensatedTime = message.time + latency / 1000; // Convert ms to seconds
+
+      // Apply the state
+      if (message.state === "PLAYING") {
+        await sendAdapterCommand(activeTab, "play");
+      } else if (message.state === "PAUSED") {
+        await sendAdapterCommand(activeTab, "pause");
+      }
+
+      // Always sync the time if there's a significant difference
+      if (message.time !== undefined) {
+        await sendAdapterCommand(activeTab, "seek", { time: compensatedTime });
+      }
+    } catch (error) {
+      console.error("Failed to apply video state:", error);
+    }
+  }
+
+  private async getActiveAdapterTab(): Promise<number | null> {
+    const adapters = getActiveAdapters();
+    if (adapters.length === 0) {
+      console.warn("No active adapters found");
+      return null;
+    }
+    // For now, use the first active adapter
+    return adapters[0].tabId;
+  }
+
+  private calculateLatency(remoteTimestamp: number): number {
+    const now = Date.now();
+    const latency = Math.max(0, now - remoteTimestamp);
+    // Cap latency compensation at 500ms to avoid over-correction
+    return Math.min(latency, 500);
   }
 
   private handleControlModeChange(message: any): void {
@@ -826,6 +902,116 @@ export class RoomManager {
     this.emit("HOST_NAVIGATE", {
       url: message.url,
       fromUserId: message.fromUserId,
+    });
+  }
+
+  private async handleAdapterEvent(detail: AdapterEventDetail): Promise<void> {
+    // Only process events if we're in a room and connected
+    if (!this.currentRoom || !this.currentUser) {
+      return;
+    }
+
+    // Handle different adapter events
+    switch (detail.event) {
+      case "play":
+      case "pause":
+      case "seeking":
+      case "seeked":
+        // For control events, broadcast based on control mode
+        if (this.currentRoom.controlMode === "HOST_ONLY") {
+          // In host-only mode, only the host broadcasts state updates
+          if (this.currentUser.isHost) {
+            await this.broadcastHostStateUpdate(detail);
+          } else {
+            // Clients send requests to the host
+            await this.sendClientRequest(detail);
+          }
+        } else {
+          // In free-for-all mode, everyone broadcasts directly
+          await this.broadcastDirectCommand(detail);
+        }
+        break;
+
+      case "timeupdate":
+        // Timeupdate events are used as heartbeats
+        // Only the host sends these in host-only mode
+        if (
+          this.currentUser.isHost &&
+          this.currentRoom.controlMode === "HOST_ONLY"
+        ) {
+          await this.broadcastHostStateUpdate(detail);
+        }
+        break;
+    }
+  }
+
+  private async broadcastHostStateUpdate(
+    detail: AdapterEventDetail,
+  ): Promise<void> {
+    const state = detail.state.isPaused ? "PAUSED" : "PLAYING";
+    this.webrtc.sendSyncMessage({
+      type: "HOST_STATE_UPDATE",
+      userId: this.currentUser!.id,
+      state,
+      time: detail.state.currentTime,
+      timestamp: detail.timestamp,
+    });
+  }
+
+  private async sendClientRequest(detail: AdapterEventDetail): Promise<void> {
+    let messageType:
+      | "CLIENT_REQUEST_PLAY"
+      | "CLIENT_REQUEST_PAUSE"
+      | "CLIENT_REQUEST_SEEK";
+
+    switch (detail.event) {
+      case "play":
+        messageType = "CLIENT_REQUEST_PLAY";
+        break;
+      case "pause":
+        messageType = "CLIENT_REQUEST_PAUSE";
+        break;
+      case "seeking":
+      case "seeked":
+        messageType = "CLIENT_REQUEST_SEEK";
+        break;
+      default:
+        return;
+    }
+
+    this.webrtc.sendSyncMessage({
+      type: messageType,
+      userId: this.currentUser!.id,
+      time: detail.state.currentTime,
+      timestamp: detail.timestamp,
+    });
+  }
+
+  private async broadcastDirectCommand(
+    detail: AdapterEventDetail,
+  ): Promise<void> {
+    let messageType: "DIRECT_PLAY" | "DIRECT_PAUSE" | "DIRECT_SEEK";
+
+    switch (detail.event) {
+      case "play":
+        messageType = "DIRECT_PLAY";
+        break;
+      case "pause":
+        messageType = "DIRECT_PAUSE";
+        break;
+      case "seeking":
+      case "seeked":
+        messageType = "DIRECT_SEEK";
+        break;
+      default:
+        return;
+    }
+
+    this.webrtc.sendSyncMessage({
+      type: messageType,
+      userId: this.currentUser!.id,
+      time: detail.state.currentTime,
+      timestamp: detail.timestamp,
     });
   }
 

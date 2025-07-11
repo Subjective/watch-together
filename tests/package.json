@@ -16,14 +16,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@repo/types": "workspace:*",
-    "@repo/test-utils": "workspace:*"
+    "@repo/test-utils": "workspace:*",
+    "@repo/types": "workspace:*"
   },
   "devDependencies": {
+    "@playwright/test": "^1.48.0",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@repo/vitest-config": "workspace:*",
-    "@playwright/test": "^1.48.0",
+    "@types/chrome": "^0.0.268",
     "@types/node": "^22.8.4",
     "eslint": "^8.57.0",
     "typescript": "^5.5.4",

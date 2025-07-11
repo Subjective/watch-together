@@ -259,6 +259,9 @@ importers:
       '@repo/vitest-config':
         specifier: workspace:*
         version: link:../packages/vitest-config
+      '@types/chrome':
+        specifier: ^0.0.268
+        version: 0.0.268
       '@types/node':
         specifier: ^22.8.4
         version: 22.16.0

@@ -3,6 +3,25 @@
  */
 import type { AdapterMessage } from "@repo/types";
 
+// Adapter event detail interface
+export interface AdapterEventDetail {
+  tabId: number;
+  event: "play" | "pause" | "seeking" | "seeked" | "timeupdate";
+  payload?: any;
+  state: {
+    currentTime: number;
+    duration: number;
+    isPaused: boolean;
+    playbackRate: number;
+  };
+  timestamp: number;
+}
+
+// Custom event type for adapter events
+export interface AdapterEvent extends Event {
+  detail: AdapterEventDetail;
+}
+
 // Store active adapter connections
 const activeAdapters = new Map<
   string,
@@ -18,6 +37,9 @@ const activeAdapters = new Map<
     lastUpdate: number;
   }
 >();
+
+// Event target for broadcasting adapter events
+export const adapterEventTarget = new EventTarget();
 
 /**
  * Initialize adapter handler
@@ -169,11 +191,26 @@ function handleAdapterEvent(message: AdapterMessage, tabId: number): void {
 function broadcastAdapterEvent(tabId: number, message: AdapterMessage): void {
   if (message.type !== "ADAPTER_EVENT") return;
 
-  // This would be connected to the room sync logic
   console.log(`[AdapterHandler] Event from tab ${tabId}:`, message.event);
 
-  // TODO: Connect to room manager and WebRTC sync
-  // For now, just log the event
+  // Get the adapter state
+  const adapterId = `tab-${tabId}`;
+  const adapter = activeAdapters.get(adapterId);
+  if (!adapter) return;
+
+  // Create a custom event that the room manager can listen to
+  const event = new CustomEvent("adapter:event", {
+    detail: {
+      tabId,
+      event: message.event,
+      payload: message.payload,
+      state: adapter.state,
+      timestamp: message.timestamp || Date.now(),
+    },
+  });
+
+  // Dispatch the event on a shared event target
+  adapterEventTarget.dispatchEvent(event);
 }
 
 /**

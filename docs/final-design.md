@@ -226,11 +226,11 @@ export interface IPlayerAdapter {
 
   // Event subscription
   on(
-    event: "play" | "pause" | "seeking" | "timeupdate",
+    event: "play" | "pause" | "seeking" | "seeked" | "timeupdate",
     callback: (payload?: any) => void,
   ): void;
   off(
-    event: "play" | "pause" | "seeking" | "timeupdate",
+    event: "play" | "pause" | "seeking" | "seeked" | "timeupdate",
     callback: (payload?: any) => void,
   ): void;
 
@@ -247,6 +247,10 @@ export interface IPlayerAdapter {
 | Netflix.com | Tier 1       | Proprietary JS Object | window.netflix.appContext | Polling mechanism   |
 | Vimeo.com   | Tier 2       | Player.js API         | Vimeo.Player instance     | API events          |
 | Generic     | Tier 3       | HTML5 video element   | HTMLVideoElement          | Standard DOM events |
+
+**Event Behavior Notes:**
+
+- **Seeking vs Seeked:** The adapter framework listens for both `seeking` (fired when seek starts) and `seeked` (fired when seek completes) events. This dual approach ensures synchronization captures both the initiation and completion of seek operations, providing smoother scrubbing synchronization across peers.
 
 ### **3.2 State Synchronization via WebRTC Data Channels**
 

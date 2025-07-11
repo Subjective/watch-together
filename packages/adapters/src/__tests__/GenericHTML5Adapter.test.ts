@@ -67,12 +67,12 @@ describe("GenericHTML5Adapter", () => {
   describe("attachment", () => {
     it("should attach to video element in constructor", () => {
       new GenericHTML5Adapter(mockVideo);
-      expect(mockVideo.addEventListener).toHaveBeenCalledTimes(4);
+      expect(mockVideo.addEventListener).toHaveBeenCalledTimes(5);
     });
 
     it("should attach to video element after construction", () => {
       adapter.attach(mockVideo);
-      expect(mockVideo.addEventListener).toHaveBeenCalledTimes(4);
+      expect(mockVideo.addEventListener).toHaveBeenCalledTimes(5);
       expect(mockVideo.addEventListener).toHaveBeenCalledWith(
         "play",
         expect.any(Function),
@@ -83,6 +83,10 @@ describe("GenericHTML5Adapter", () => {
       );
       expect(mockVideo.addEventListener).toHaveBeenCalledWith(
         "seeking",
+        expect.any(Function),
+      );
+      expect(mockVideo.addEventListener).toHaveBeenCalledWith(
+        "seeked",
         expect.any(Function),
       );
       expect(mockVideo.addEventListener).toHaveBeenCalledWith(
@@ -98,8 +102,8 @@ describe("GenericHTML5Adapter", () => {
       adapter.attach(video1);
       adapter.attach(video2);
 
-      expect(video1.removeEventListener).toHaveBeenCalledTimes(4);
-      expect(video2.addEventListener).toHaveBeenCalledTimes(4);
+      expect(video1.removeEventListener).toHaveBeenCalledTimes(5);
+      expect(video2.addEventListener).toHaveBeenCalledTimes(5);
     });
   });
 
@@ -295,7 +299,7 @@ describe("GenericHTML5Adapter", () => {
 
       adapter.destroy();
 
-      expect(mockVideo.removeEventListener).toHaveBeenCalledTimes(4);
+      expect(mockVideo.removeEventListener).toHaveBeenCalledTimes(5);
 
       // Try to use adapter after destroy
       expect(() => adapter.on("play", callback)).not.toThrow();
@@ -307,7 +311,7 @@ describe("GenericHTML5Adapter", () => {
       adapter.attach(mockVideo);
       adapter.detach();
 
-      expect(mockVideo.removeEventListener).toHaveBeenCalledTimes(4);
+      expect(mockVideo.removeEventListener).toHaveBeenCalledTimes(5);
     });
   });
 

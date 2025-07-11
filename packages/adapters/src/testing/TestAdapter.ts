@@ -67,8 +67,12 @@ export class TestAdapter implements IPlayerAdapter {
       throw new Error(`Invalid seek time: ${time}`);
     }
 
-    this.state.currentTime = time;
     this.emit("seeking", { currentTime: time });
+    this.state.currentTime = time;
+    // Simulate seek completion after a brief delay
+    setTimeout(() => {
+      this.emit("seeked", { currentTime: this.state.currentTime });
+    }, 50);
   }
 
   async setPlaybackRate(rate: number): Promise<void> {
@@ -92,7 +96,7 @@ export class TestAdapter implements IPlayerAdapter {
   }
 
   on(
-    event: "play" | "pause" | "seeking" | "timeupdate",
+    event: "play" | "pause" | "seeking" | "seeked" | "timeupdate",
     callback: (payload?: unknown) => void,
   ): void {
     if (!this.eventListeners.has(event)) {
@@ -102,7 +106,7 @@ export class TestAdapter implements IPlayerAdapter {
   }
 
   off(
-    event: "play" | "pause" | "seeking" | "timeupdate",
+    event: "play" | "pause" | "seeking" | "seeked" | "timeupdate",
     callback: (payload?: unknown) => void,
   ): void {
     const listeners = this.eventListeners.get(event);

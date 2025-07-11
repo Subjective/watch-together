@@ -42,6 +42,7 @@ export class GenericHTML5Adapter implements IPlayerAdapter {
       { domEvent: "play", adapterEvent: "play" },
       { domEvent: "pause", adapterEvent: "pause" },
       { domEvent: "seeking", adapterEvent: "seeking" },
+      { domEvent: "seeked", adapterEvent: "seeked" },
       { domEvent: "timeupdate", adapterEvent: "timeupdate" },
     ] as const;
 
@@ -51,7 +52,7 @@ export class GenericHTML5Adapter implements IPlayerAdapter {
           undefined;
         if (adapterEvent === "timeupdate") {
           payload = { currentTime: this.videoElement?.currentTime || 0 };
-        } else if (adapterEvent === "seeking") {
+        } else if (adapterEvent === "seeking" || adapterEvent === "seeked") {
           payload = { currentTime: this.videoElement?.currentTime || 0 };
         }
         this.emit(adapterEvent, payload);
@@ -153,7 +154,7 @@ export class GenericHTML5Adapter implements IPlayerAdapter {
   }
 
   on(
-    event: "play" | "pause" | "seeking" | "timeupdate",
+    event: "play" | "pause" | "seeking" | "seeked" | "timeupdate",
     callback: (payload?: unknown) => void,
   ): void {
     if (!this.eventListeners.has(event)) {
@@ -163,7 +164,7 @@ export class GenericHTML5Adapter implements IPlayerAdapter {
   }
 
   off(
-    event: "play" | "pause" | "seeking" | "timeupdate",
+    event: "play" | "pause" | "seeking" | "seeked" | "timeupdate",
     callback: (payload?: unknown) => void,
   ): void {
     const listeners = this.eventListeners.get(event);

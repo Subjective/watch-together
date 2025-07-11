@@ -114,12 +114,8 @@ function setupAdapterEventListeners(): void {
   let lastHeartbeatTime = 0;
   const HEARTBEAT_INTERVAL_MS = 5000; // Send heartbeat every 5 seconds
 
-  const events: Array<"play" | "pause" | "seeking" | "timeupdate"> = [
-    "play",
-    "pause",
-    "seeking",
-    "timeupdate",
-  ];
+  const events: Array<"play" | "pause" | "seeking" | "seeked" | "timeupdate"> =
+    ["play", "pause", "seeking", "seeked", "timeupdate"];
 
   events.forEach((event) => {
     currentAdapter!.on(event, (payload) => {
@@ -142,7 +138,7 @@ function setupAdapterEventListeners(): void {
  * Send adapter event to Service Worker
  */
 function sendAdapterEvent(
-  event: "play" | "pause" | "seeking" | "timeupdate",
+  event: "play" | "pause" | "seeking" | "seeked" | "timeupdate",
   payload?: any,
 ): void {
   const message: AdapterMessage = {

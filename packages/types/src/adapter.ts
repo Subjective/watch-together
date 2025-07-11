@@ -21,12 +21,12 @@ export interface IPlayerAdapter {
    * Event subscription
    */
   on(
-    event: "play" | "pause" | "seeking" | "timeupdate",
+    event: "play" | "pause" | "seeking" | "seeked" | "timeupdate",
     callback: (payload?: any) => void,
   ): void;
 
   off(
-    event: "play" | "pause" | "seeking" | "timeupdate",
+    event: "play" | "pause" | "seeking" | "seeked" | "timeupdate",
     callback: (payload?: any) => void,
   ): void;
 
@@ -68,7 +68,7 @@ export interface AdapterDetectionResult {
  */
 export interface AdapterEventMessage {
   type: "ADAPTER_EVENT";
-  event: "play" | "pause" | "seeking" | "timeupdate";
+  event: "play" | "pause" | "seeking" | "seeked" | "timeupdate";
   payload?: {
     currentTime?: number;
     duration?: number;

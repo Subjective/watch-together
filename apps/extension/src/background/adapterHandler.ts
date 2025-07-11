@@ -149,6 +149,12 @@ function handleAdapterEvent(message: AdapterMessage, tabId: number): void {
         adapter.state.currentTime = message.payload.currentTime;
       }
       break;
+    case "seeked":
+      // For seeked events (seek completed), update the current time
+      if (message.payload?.currentTime !== undefined) {
+        adapter.state.currentTime = message.payload.currentTime;
+      }
+      break;
   }
 
   adapter.lastUpdate = Date.now();

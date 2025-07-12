@@ -899,12 +899,27 @@ export class RoomManager {
         await sendAdapterCommand(activeTab, "pause");
       }
 
-      // Always sync the time if there's a significant difference
+      // Only sync the time if there's a significant difference
       if (message.time !== undefined) {
-        console.log(
-          `[RoomManager] Seeking to time: ${compensatedTime}s (compensated from ${message.time}s)`,
-        );
-        await sendAdapterCommand(activeTab, "seek", { time: compensatedTime });
+        // Get current adapter state to check time difference
+        const adapters = getActiveAdapters();
+        const currentAdapter = adapters.find(a => a.tabId === activeTab);
+        
+        if (currentAdapter) {
+          const timeDiff = Math.abs(currentAdapter.state.currentTime - compensatedTime);
+          
+          // Only seek if the difference is greater than tolerance
+          if (timeDiff > this.seekTolerance) {
+            console.log(
+              `[RoomManager] Seeking to time: ${compensatedTime}s (diff: ${timeDiff}s)`,
+            );
+            await sendAdapterCommand(activeTab, "seek", { time: compensatedTime });
+          } else {
+            console.log(
+              `[RoomManager] Skipping seek, within tolerance (diff: ${timeDiff}s)`,
+            );
+          }
+        }
       }
     } catch (error) {
       console.error("Failed to apply video state:", error);
@@ -946,6 +961,11 @@ export class RoomManager {
     return Math.min(latency, 500);
   }
 
+  // Sync tolerance and throttling
+  private lastSyncTime = 0;
+  private syncThrottleMs = 100; // Minimum time between sync updates
+  private seekTolerance = 0.5; // Don't seek if within 0.5 seconds
+  
   private handleControlModeChange(message: any): void {
     if (this.currentRoom) {
       this.currentRoom.controlMode = message.mode;
@@ -975,12 +995,21 @@ export class RoomManager {
       return;
     }
 
+    // Throttle all events to prevent flooding
+    const now = Date.now();
+    if (now - this.lastSyncTime < this.syncThrottleMs) {
+      return; // Skip this event, too soon after last sync
+    }
+
     // Handle different adapter events
     switch (detail.event) {
       case "play":
       case "pause":
       case "seeking":
       case "seeked":
+        // Update last sync time for control events
+        this.lastSyncTime = now;
+        
         // For control events, broadcast based on control mode
         if (this.currentRoom.controlMode === "HOST_ONLY") {
           // In host-only mode, only the host broadcasts state updates
@@ -997,14 +1026,9 @@ export class RoomManager {
         break;
 
       case "timeupdate":
-        // Timeupdate events are used as heartbeats
-        // Only the host sends these in host-only mode
-        if (
-          this.currentUser.isHost &&
-          this.currentRoom.controlMode === "HOST_ONLY"
-        ) {
-          await this.broadcastHostStateUpdate(detail);
-        }
+        // Timeupdate events are already throttled in content script (5s intervals)
+        // But we'll skip them entirely - they're not needed for sync
+        // The play/pause/seek events are sufficient
         break;
     }
   }
@@ -1013,9 +1037,13 @@ export class RoomManager {
     detail: AdapterEventDetail,
   ): Promise<void> {
     const state = detail.state.isPaused ? "PAUSED" : "PLAYING";
-    console.log(
-      `[RoomManager] Broadcasting host state: ${state} at ${detail.state.currentTime}s`,
-    );
+    
+    // Only log significant events, not timeupdate
+    if (detail.event !== "timeupdate") {
+      console.log(
+        `[RoomManager] Broadcasting host state: ${state} at ${detail.state.currentTime}s`,
+      );
+    }
 
     await this.webrtc.sendSyncMessage({
       type: "HOST_STATE_UPDATE",

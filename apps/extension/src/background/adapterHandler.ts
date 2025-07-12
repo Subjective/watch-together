@@ -52,11 +52,17 @@ export function initializeAdapterHandler(): void {
     }
   });
 
-  // Listen for one-time messages
+  // Listen for one-time messages (only as fallback when no port exists)
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (sender.tab?.id && isAdapterMessage(message)) {
-      handleAdapterMessage(message, sender.tab.id);
-      sendResponse({ received: true });
+      const adapterId = `tab-${sender.tab.id}`;
+      const adapter = activeAdapters.get(adapterId);
+
+      // Only handle if no active port connection exists
+      if (!adapter?.port) {
+        handleAdapterMessage(message, sender.tab.id);
+        sendResponse({ received: true });
+      }
     }
   });
 

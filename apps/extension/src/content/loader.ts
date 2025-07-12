@@ -108,27 +108,14 @@ function detectAndCreateAdapter(): void {
 function setupAdapterEventListeners(): void {
   if (!currentAdapter) return;
 
-  // For sync purposes, we only need control events and periodic heartbeats
-  // Regular timeupdate events are too frequent and unnecessary since each
-  // peer's video player maintains its own timing
-  let lastHeartbeatTime = 0;
-  const HEARTBEAT_INTERVAL_MS = 5000; // Send heartbeat every 5 seconds
+  // Send all events to room manager, which will handle throttling logic
+  // This allows room manager to make intelligent decisions about when to sync
 
   const events: Array<"play" | "pause" | "seeking" | "seeked" | "timeupdate"> =
     ["play", "pause", "seeking", "seeked", "timeupdate"];
 
   events.forEach((event) => {
     currentAdapter!.on(event, (payload) => {
-      // Only send timeupdate as periodic heartbeat
-      if (event === "timeupdate") {
-        const now = Date.now();
-        if (now - lastHeartbeatTime < HEARTBEAT_INTERVAL_MS) {
-          return; // Skip this update
-        }
-        lastHeartbeatTime = now;
-        // Continue to send as heartbeat for connection monitoring
-      }
-
       sendAdapterEvent(event, payload);
     });
   });

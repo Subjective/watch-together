@@ -975,7 +975,9 @@ export class RoomManager {
 
   // Sync tolerance and throttling
   private lastSyncTime = 0;
-  private syncThrottleMs = 100; // Minimum time between sync updates
+  private syncThrottleMs = 100; // Minimum time between sync updates for control events
+  private lastTimeupdateSync = 0;
+  private timeupdateThrottleMs = 3000; // Minimum time between timeupdate syncs (3s)
   private seekTolerance = 0.5; // Don't seek if within 0.5 seconds
 
   private handleControlModeChange(message: any): void {
@@ -1037,11 +1039,27 @@ export class RoomManager {
         }
         break;
 
-      case "timeupdate":
-        // Timeupdate events are already throttled in content script (5s intervals)
-        // But we'll skip them entirely - they're not needed for sync
-        // The play/pause/seek events are sufficient
+      case "timeupdate": {
+        // Handle timeupdate events for drift detection with separate throttling
+        const timeupdateNow = Date.now();
+        if (
+          timeupdateNow - this.lastTimeupdateSync >=
+          this.timeupdateThrottleMs
+        ) {
+          this.lastTimeupdateSync = timeupdateNow;
+
+          // Only broadcast timeupdate in host-only mode from the host
+          if (
+            this.currentRoom.controlMode === "HOST_ONLY" &&
+            this.currentUser.isHost
+          ) {
+            await this.broadcastHostStateUpdate(detail);
+          }
+          // In free-for-all mode, timeupdate events are used for drift detection
+          // but we don't broadcast them to avoid conflicts
+        }
         break;
+      }
     }
   }
 

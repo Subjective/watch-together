@@ -17,13 +17,27 @@ const mockChrome = {
       addListener: vi.fn(),
     },
     connect: vi.fn(),
-    sendMessage: vi.fn(),
+    sendMessage: vi.fn().mockImplementation((_message, callback) => {
+      // Mock successful response for offscreen document calls
+      if (callback) {
+        callback({ success: true });
+      }
+    }),
+    getContexts: vi.fn().mockResolvedValue([]),
+    getURL: vi.fn((path: string) => path),
   },
   tabs: {
     onRemoved: {
       addListener: vi.fn(),
     },
     sendMessage: vi.fn(),
+    query: vi.fn().mockResolvedValue([{ id: 1 }]),
+  },
+  offscreen: {
+    createDocument: vi.fn().mockResolvedValue(undefined),
+    closeDocument: vi.fn().mockResolvedValue(undefined),
+    hasDocument: vi.fn().mockResolvedValue(false),
+    Reason: { USER_MEDIA: "USER_MEDIA" },
   },
   storage: {
     local: {
@@ -41,11 +55,19 @@ global.chrome = mockChrome;
 vi.mock("../../apps/extension/src/background/adapterHandler", () => ({
   adapterEventTarget: new EventTarget(),
   sendAdapterCommand: vi.fn().mockResolvedValue(undefined),
-  getActiveAdapters: vi
-    .fn()
-    .mockReturnValue([
-      { tabId: 1, connected: true, state: {}, lastUpdate: Date.now() },
-    ]),
+  getActiveAdapters: vi.fn().mockReturnValue([
+    {
+      tabId: 1,
+      connected: true,
+      state: {
+        currentTime: 0,
+        duration: 600,
+        isPaused: false,
+        playbackRate: 1,
+      },
+      lastUpdate: Date.now(),
+    },
+  ]),
   initializeAdapterHandler: vi.fn(),
 }));
 
@@ -65,7 +87,6 @@ vi.mock("../../apps/extension/src/background/websocket", () => ({
 
 describe("Room Sync Integration", () => {
   let roomManager: RoomManager;
-  let mockWebRTCManager: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -78,16 +99,6 @@ describe("Room Sync Integration", () => {
         iceCandidatePoolSize: 10,
       },
     });
-
-    // Access the WebRTC manager
-    mockWebRTCManager = (roomManager as any).webrtc;
-
-    // Mock WebRTC methods
-    mockWebRTCManager.sendSyncMessage = vi.fn().mockResolvedValue(undefined);
-    mockWebRTCManager.on = vi.fn();
-    mockWebRTCManager.off = vi.fn();
-    mockWebRTCManager.initialize = vi.fn();
-    mockWebRTCManager.setControlMode = vi.fn();
   });
 
   afterEach(() => {
@@ -134,14 +145,22 @@ describe("Room Sync Integration", () => {
 
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      // Verify sync message was sent
-      expect(mockWebRTCManager.sendSyncMessage).toHaveBeenCalledWith({
-        type: "HOST_STATE_UPDATE",
-        userId: "host-user",
-        state: "PLAYING",
-        time: 100,
-        timestamp: expect.any(Number),
-      });
+      // Verify message was sent to offscreen document
+      expect(mockChrome.runtime.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "WEBRTC_SEND_SYNC_MESSAGE",
+          data: expect.objectContaining({
+            message: expect.objectContaining({
+              type: "HOST_STATE_UPDATE",
+              userId: "host-user",
+              state: "PLAYING",
+              time: 100,
+              timestamp: expect.any(Number),
+            }),
+          }),
+        }),
+        expect.any(Function),
+      );
     });
 
     it("should send client request when client tries to control", async () => {
@@ -170,13 +189,21 @@ describe("Room Sync Integration", () => {
 
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      // Verify client request was sent
-      expect(mockWebRTCManager.sendSyncMessage).toHaveBeenCalledWith({
-        type: "CLIENT_REQUEST_PAUSE",
-        userId: "client-user",
-        time: 150,
-        timestamp: expect.any(Number),
-      });
+      // Verify message was sent to offscreen document
+      expect(mockChrome.runtime.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "WEBRTC_SEND_SYNC_MESSAGE",
+          data: expect.objectContaining({
+            message: expect.objectContaining({
+              type: "CLIENT_REQUEST_PAUSE",
+              userId: "client-user",
+              time: 150,
+              timestamp: expect.any(Number),
+            }),
+          }),
+        }),
+        expect.any(Function),
+      );
     });
 
     it("should handle seeking events", async () => {
@@ -199,14 +226,22 @@ describe("Room Sync Integration", () => {
 
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      // Verify sync message was sent
-      expect(mockWebRTCManager.sendSyncMessage).toHaveBeenCalledWith({
-        type: "HOST_STATE_UPDATE",
-        userId: "host-user",
-        state: "PLAYING",
-        time: 200,
-        timestamp: expect.any(Number),
-      });
+      // Verify message was sent to offscreen document
+      expect(mockChrome.runtime.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "WEBRTC_SEND_SYNC_MESSAGE",
+          data: expect.objectContaining({
+            message: expect.objectContaining({
+              type: "HOST_STATE_UPDATE",
+              userId: "host-user",
+              state: "PLAYING",
+              time: 200,
+              timestamp: expect.any(Number),
+            }),
+          }),
+        }),
+        expect.any(Function),
+      );
     });
 
     it("should send heartbeat on timeupdate events", async () => {
@@ -229,14 +264,22 @@ describe("Room Sync Integration", () => {
 
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      // Verify heartbeat was sent
-      expect(mockWebRTCManager.sendSyncMessage).toHaveBeenCalledWith({
-        type: "HOST_STATE_UPDATE",
-        userId: "host-user",
-        state: "PLAYING",
-        time: 105,
-        timestamp: expect.any(Number),
-      });
+      // Verify heartbeat message was sent
+      expect(mockChrome.runtime.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "WEBRTC_SEND_SYNC_MESSAGE",
+          data: expect.objectContaining({
+            message: expect.objectContaining({
+              type: "HOST_STATE_UPDATE",
+              userId: "host-user",
+              state: "PLAYING",
+              time: 105,
+              timestamp: expect.any(Number),
+            }),
+          }),
+        }),
+        expect.any(Function),
+      );
     });
   });
 
@@ -280,13 +323,21 @@ describe("Room Sync Integration", () => {
 
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      // Verify direct command was sent
-      expect(mockWebRTCManager.sendSyncMessage).toHaveBeenCalledWith({
-        type: "DIRECT_PLAY",
-        userId: "client-user",
-        time: 100,
-        timestamp: expect.any(Number),
-      });
+      // Verify direct command message was sent
+      expect(mockChrome.runtime.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "WEBRTC_SEND_SYNC_MESSAGE",
+          data: expect.objectContaining({
+            message: expect.objectContaining({
+              type: "DIRECT_PLAY",
+              userId: "client-user",
+              time: 100,
+              timestamp: expect.any(Number),
+            }),
+          }),
+        }),
+        expect.any(Function),
+      );
     });
   });
 

@@ -974,10 +974,8 @@ export class RoomManager {
   }
 
   // Sync tolerance and throttling
-  private lastSyncTime = 0;
-  private syncThrottleMs = 100; // Minimum time between sync updates for control events
   private lastTimeupdateSync = 0;
-  private timeupdateThrottleMs = 3000; // Minimum time between timeupdate syncs (3s)
+  private timeupdateThrottleMs = 1000; // Minimum time between timeupdate syncs (1s)
   private seekTolerance = 0.5; // Don't seek if within 0.5 seconds
 
   private handleControlModeChange(message: any): void {
@@ -1009,21 +1007,12 @@ export class RoomManager {
       return;
     }
 
-    // Throttle all events to prevent flooding
-    const now = Date.now();
-    if (now - this.lastSyncTime < this.syncThrottleMs) {
-      return; // Skip this event, too soon after last sync
-    }
-
     // Handle different adapter events
     switch (detail.event) {
       case "play":
       case "pause":
       case "seeking":
       case "seeked":
-        // Update last sync time for control events
-        this.lastSyncTime = now;
-
         // For control events, broadcast based on control mode
         if (this.currentRoom.controlMode === "HOST_ONLY") {
           // In host-only mode, only the host broadcasts state updates

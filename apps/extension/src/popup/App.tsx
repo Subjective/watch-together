@@ -16,6 +16,7 @@ import type {
 import { RoomCreate } from "./RoomCreate";
 import { RoomJoin } from "./RoomJoin";
 import { RoomManager } from "./RoomManager";
+import { RecentRooms } from "./RecentRooms";
 
 type View = "home" | "create" | "join" | "room";
 
@@ -208,23 +209,6 @@ export const App: React.FC = () => {
           />
         );
       case "room":
-        // Handle reconnecting state
-        if (extensionState.connectionStatus === "RECONNECTING") {
-          return (
-            <div className="p-4 h-full flex flex-col items-center justify-center">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                <h2 className="text-lg font-medium text-gray-900 mb-2">
-                  Reconnecting...
-                </h2>
-                <p className="text-sm text-gray-600">
-                  Validating previous session
-                </p>
-              </div>
-            </div>
-          );
-        }
-
         if (!extensionState.currentRoom || !extensionState.currentUser) {
           setCurrentView("home");
           return null;
@@ -254,26 +238,30 @@ export const App: React.FC = () => {
               </p>
             </div>
 
-            <div className="flex-1 flex flex-col justify-center space-y-4">
-              <button
-                onClick={() => setCurrentView("create")}
-                className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-              >
-                Create Room
-              </button>
+            <div className="flex-1 flex flex-col">
+              <RecentRooms onJoinRoom={handleJoinRoom} />
 
-              <button
-                onClick={() => setCurrentView("join")}
-                className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 font-medium"
-              >
-                Join Room
-              </button>
-            </div>
+              <div className="space-y-4">
+                <button
+                  onClick={() => setCurrentView("create")}
+                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                >
+                  Create Room
+                </button>
 
-            <div className="mt-6 text-center">
-              <p className="text-xs text-gray-500">
-                Create or join a room to watch videos together
-              </p>
+                <button
+                  onClick={() => setCurrentView("join")}
+                  className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 font-medium"
+                >
+                  Join Room
+                </button>
+              </div>
+
+              <div className="mt-6 text-center">
+                <p className="text-xs text-gray-500">
+                  Create or join a room to watch videos together
+                </p>
+              </div>
             </div>
           </div>
         );

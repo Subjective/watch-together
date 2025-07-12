@@ -149,6 +149,11 @@ export class RoomManager {
               connectionStatus: "CONNECTED",
             });
 
+            // Store room in history for host
+            if (this.currentRoom) {
+              StorageManager.addRoomToHistory(this.currentRoom);
+            }
+
             resolve(this.currentRoom!);
           }
         };

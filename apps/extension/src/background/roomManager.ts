@@ -728,10 +728,19 @@ export class RoomManager {
   private async handleWebRTCOffer(message: any): Promise<void> {
     if (message.targetUserId === this.currentUser?.id) {
       try {
+        // Find if the offering user is the host
+        const offeringUser = this.currentRoom?.users.find(
+          (u) => u.id === message.userId,
+        );
         const answer = await this.webrtc.createAnswer(
           message.userId,
           message.offer,
         );
+
+        // Mark the peer as host if they are
+        if (offeringUser?.isHost) {
+          this.webrtc.markPeerAsHost(message.userId);
+        }
 
         const answerMessage: WebRTCAnswerMessage = {
           type: "WEBRTC_ANSWER",
@@ -789,9 +798,14 @@ export class RoomManager {
   }
 
   private async handleHostStateUpdate(message: any): Promise<void> {
+    console.log(`[RoomManager] Received host state update:`, message);
+
     // Client receives host state update
     if (!this.currentUser?.isHost) {
+      console.log(`[RoomManager] Applying host state as client`);
       await this.applyVideoState(message);
+    } else {
+      console.log(`[RoomManager] Ignoring host state update - we are the host`);
     }
   }
 
@@ -842,7 +856,16 @@ export class RoomManager {
     fromUserId?: string;
   }): Promise<void> {
     const activeTab = await this.getActiveAdapterTab();
-    if (!activeTab) return;
+    if (!activeTab) {
+      console.warn(`[RoomManager] No active adapter tab found to apply state`);
+      return;
+    }
+
+    console.log(`[RoomManager] Applying video state to tab ${activeTab}:`, {
+      state: message.state,
+      time: message.time,
+      fromUser: message.fromUserId,
+    });
 
     try {
       // Apply latency compensation
@@ -851,13 +874,18 @@ export class RoomManager {
 
       // Apply the state
       if (message.state === "PLAYING") {
+        console.log(`[RoomManager] Sending play command to adapter`);
         await sendAdapterCommand(activeTab, "play");
       } else if (message.state === "PAUSED") {
+        console.log(`[RoomManager] Sending pause command to adapter`);
         await sendAdapterCommand(activeTab, "pause");
       }
 
       // Always sync the time if there's a significant difference
       if (message.time !== undefined) {
+        console.log(
+          `[RoomManager] Seeking to time: ${compensatedTime}s (compensated from ${message.time}s)`,
+        );
         await sendAdapterCommand(activeTab, "seek", { time: compensatedTime });
       }
     } catch (error) {
@@ -871,7 +899,25 @@ export class RoomManager {
       console.warn("No active adapters found");
       return null;
     }
-    // For now, use the first active adapter
+
+    // Try to find an adapter in the current active tab first
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const activeTabId = tabs[0]?.id;
+
+    if (activeTabId) {
+      const activeAdapter = adapters.find((a) => a.tabId === activeTabId);
+      if (activeAdapter) {
+        return activeAdapter.tabId;
+      }
+    }
+
+    // Otherwise use the first connected adapter
+    const connectedAdapter = adapters.find((a) => a.connected);
+    if (connectedAdapter) {
+      return connectedAdapter.tabId;
+    }
+
+    // Fallback to first adapter
     return adapters[0].tabId;
   }
 
@@ -949,7 +995,11 @@ export class RoomManager {
     detail: AdapterEventDetail,
   ): Promise<void> {
     const state = detail.state.isPaused ? "PAUSED" : "PLAYING";
-    this.webrtc.sendSyncMessage({
+    console.log(
+      `[RoomManager] Broadcasting host state: ${state} at ${detail.state.currentTime}s`,
+    );
+
+    await this.webrtc.sendSyncMessage({
       type: "HOST_STATE_UPDATE",
       userId: this.currentUser!.id,
       state,

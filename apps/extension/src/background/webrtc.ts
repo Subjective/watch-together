@@ -412,6 +412,17 @@ export class WebRTCManager {
     return this.controlMode;
   }
 
+  /**
+   * Mark a peer as host
+   */
+  markPeerAsHost(userId: string): void {
+    const peer = this.peers.get(userId);
+    if (peer) {
+      peer.isHost = true;
+      console.log(`Marked peer ${userId} as host`);
+    }
+  }
+
   private createPeerConnection(userId: string): PeerConnection {
     const connection = new RTCPeerConnection({
       iceServers: this.config.iceServers,

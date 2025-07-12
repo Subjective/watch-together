@@ -19,7 +19,7 @@ import type {
 } from "@repo/types";
 
 import { WebSocketManager, defaultWebSocketConfig } from "./websocket";
-import { WebRTCManager } from "./webrtcOffscreen";
+import { WebRTCManager } from "./webrtcBridge";
 import { StorageManager } from "./storage";
 import {
   adapterEventTarget,
@@ -167,7 +167,10 @@ export class RoomManager {
       await this.websocket.connect();
 
       // Initialize WebRTC
-      await this.webrtc.initialize(connectionState.userId, connectionState.isHost);
+      await this.webrtc.initialize(
+        connectionState.userId,
+        connectionState.isHost,
+      );
 
       // Validate connection with server by sending a PING
       await this.validateServerConnection();
@@ -737,9 +740,9 @@ export class RoomManager {
         const offeringUser = this.currentRoom?.users.find(
           (u) => u.id === message.userId,
         );
-        
+
         console.log("Handling WebRTC offer from:", message.userId);
-        
+
         const answer = await this.webrtc.createAnswer(
           message.userId,
           message.offer,
@@ -764,10 +767,15 @@ export class RoomManager {
       } catch (error) {
         console.error("Failed to handle WebRTC offer:", error);
         // If it's a port closed error, the offscreen might not be ready yet
-        if (error && typeof error === 'object' && 'message' in error) {
+        if (error && typeof error === "object" && "message" in error) {
           const errorMessage = (error as any).message;
-          if (typeof errorMessage === 'string' && errorMessage.includes('port closed')) {
-            console.log("Offscreen document not ready, will retry offer handling");
+          if (
+            typeof errorMessage === "string" &&
+            errorMessage.includes("port closed")
+          ) {
+            console.log(
+              "Offscreen document not ready, will retry offer handling",
+            );
             // Store the offer to retry later
             // In a real implementation, you'd want to queue this and retry
           }
@@ -903,17 +911,21 @@ export class RoomManager {
       if (message.time !== undefined) {
         // Get current adapter state to check time difference
         const adapters = getActiveAdapters();
-        const currentAdapter = adapters.find(a => a.tabId === activeTab);
-        
+        const currentAdapter = adapters.find((a) => a.tabId === activeTab);
+
         if (currentAdapter) {
-          const timeDiff = Math.abs(currentAdapter.state.currentTime - compensatedTime);
-          
+          const timeDiff = Math.abs(
+            currentAdapter.state.currentTime - compensatedTime,
+          );
+
           // Only seek if the difference is greater than tolerance
           if (timeDiff > this.seekTolerance) {
             console.log(
               `[RoomManager] Seeking to time: ${compensatedTime}s (diff: ${timeDiff}s)`,
             );
-            await sendAdapterCommand(activeTab, "seek", { time: compensatedTime });
+            await sendAdapterCommand(activeTab, "seek", {
+              time: compensatedTime,
+            });
           } else {
             console.log(
               `[RoomManager] Skipping seek, within tolerance (diff: ${timeDiff}s)`,
@@ -965,7 +977,7 @@ export class RoomManager {
   private lastSyncTime = 0;
   private syncThrottleMs = 100; // Minimum time between sync updates
   private seekTolerance = 0.5; // Don't seek if within 0.5 seconds
-  
+
   private handleControlModeChange(message: any): void {
     if (this.currentRoom) {
       this.currentRoom.controlMode = message.mode;
@@ -1009,7 +1021,7 @@ export class RoomManager {
       case "seeked":
         // Update last sync time for control events
         this.lastSyncTime = now;
-        
+
         // For control events, broadcast based on control mode
         if (this.currentRoom.controlMode === "HOST_ONLY") {
           // In host-only mode, only the host broadcasts state updates
@@ -1037,7 +1049,7 @@ export class RoomManager {
     detail: AdapterEventDetail,
   ): Promise<void> {
     const state = detail.state.isPaused ? "PAUSED" : "PLAYING";
-    
+
     // Only log significant events, not timeupdate
     if (detail.event !== "timeupdate") {
       console.log(

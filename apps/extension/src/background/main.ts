@@ -152,7 +152,16 @@ chrome.runtime.onMessage.addListener(
     sender: chrome.runtime.MessageSender,
     sendResponse: (response?: any) => void,
   ) => {
-    console.log("Service Worker received message:", message.type);
+    // Don't log WebRTC messages from offscreen to reduce noise
+    if (!message.type?.startsWith("WEBRTC_")) {
+      console.log("Service Worker received message:", message.type);
+    }
+
+    // Check if this is from our offscreen document
+    if (sender.url?.includes("offscreen.html")) {
+      // Let the WebRTC manager handle these messages directly
+      return false;
+    }
 
     // Handle messages asynchronously
     handleMessage(message, sender, sendResponse).catch((error) => {

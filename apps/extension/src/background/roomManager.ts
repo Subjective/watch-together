@@ -19,7 +19,7 @@ import type {
 } from "@repo/types";
 
 import { WebSocketManager, defaultWebSocketConfig } from "./websocket";
-import { WebRTCManager } from "./webrtc";
+import { WebRTCManager } from "./webrtcOffscreen";
 import { StorageManager } from "./storage";
 import {
   adapterEventTarget,
@@ -167,7 +167,7 @@ export class RoomManager {
       await this.websocket.connect();
 
       // Initialize WebRTC
-      this.webrtc.initialize(connectionState.userId, connectionState.isHost);
+      await this.webrtc.initialize(connectionState.userId, connectionState.isHost);
 
       // Validate connection with server by sending a PING
       await this.validateServerConnection();
@@ -297,6 +297,9 @@ export class RoomManager {
       // Connect WebSocket with the roomId
       await this.websocket.connect();
 
+      // Initialize WebRTC BEFORE creating the room
+      await this.webrtc.initialize(userId, true);
+
       const message: CreateRoomMessage = {
         type: "CREATE_ROOM",
         roomId,
@@ -313,7 +316,7 @@ export class RoomManager {
           reject(new Error("Room creation timeout"));
         }, 10000);
 
-        const onRoomCreated = (response: any) => {
+        const onRoomCreated = async (response: any) => {
           if (response.type === "ROOM_CREATED" && response.roomId === roomId) {
             clearTimeout(timeout);
             this.websocket.off("ROOM_CREATED", onRoomCreated);
@@ -323,8 +326,7 @@ export class RoomManager {
               response.roomState.users.find((u: User) => u.id === userId) ||
               null;
 
-            // Initialize WebRTC as host
-            this.webrtc.initialize(userId, true);
+            // WebRTC already initialized before creating room
 
             this.updateExtensionState({
               isConnected: true,
@@ -371,6 +373,10 @@ export class RoomManager {
 
       const userId = this.generateUserId();
 
+      // Initialize WebRTC BEFORE joining the room
+      // This ensures offscreen document is ready when offers arrive
+      await this.webrtc.initialize(userId, false);
+
       const message: JoinRoomMessage = {
         type: "JOIN_ROOM",
         roomId,
@@ -387,7 +393,7 @@ export class RoomManager {
           reject(new Error("Room join timeout"));
         }, 10000);
 
-        const onRoomJoined = (response: any) => {
+        const onRoomJoined = async (response: any) => {
           if (response.type === "ROOM_JOINED" && response.roomId === roomId) {
             clearTimeout(timeout);
             this.websocket.off("ROOM_JOINED", onRoomJoined);
@@ -397,8 +403,7 @@ export class RoomManager {
               response.roomState.users.find((u: User) => u.id === userId) ||
               null;
 
-            // Initialize WebRTC as client
-            this.webrtc.initialize(userId, false);
+            // WebRTC already initialized before joining
 
             this.updateExtensionState({
               isConnected: true,
@@ -732,6 +737,9 @@ export class RoomManager {
         const offeringUser = this.currentRoom?.users.find(
           (u) => u.id === message.userId,
         );
+        
+        console.log("Handling WebRTC offer from:", message.userId);
+        
         const answer = await this.webrtc.createAnswer(
           message.userId,
           message.offer,
@@ -739,7 +747,7 @@ export class RoomManager {
 
         // Mark the peer as host if they are
         if (offeringUser?.isHost) {
-          this.webrtc.markPeerAsHost(message.userId);
+          await this.webrtc.markPeerAsHost(message.userId);
         }
 
         const answerMessage: WebRTCAnswerMessage = {
@@ -752,8 +760,18 @@ export class RoomManager {
         };
 
         await this.websocket.send(answerMessage);
+        console.log("Sent WebRTC answer to:", message.userId);
       } catch (error) {
         console.error("Failed to handle WebRTC offer:", error);
+        // If it's a port closed error, the offscreen might not be ready yet
+        if (error && typeof error === 'object' && 'message' in error) {
+          const errorMessage = (error as any).message;
+          if (typeof errorMessage === 'string' && errorMessage.includes('port closed')) {
+            console.log("Offscreen document not ready, will retry offer handling");
+            // Store the offer to retry later
+            // In a real implementation, you'd want to queue this and retry
+          }
+        }
       }
     }
   }

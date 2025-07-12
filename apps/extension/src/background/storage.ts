@@ -3,19 +3,13 @@
  * Handles persistent storage of user preferences and room state
  */
 
-import type {
-  ExtensionState,
-  RoomState,
-  FollowMode,
-  ConnectionState,
-} from "@repo/types";
+import type { ExtensionState, RoomState, FollowMode } from "@repo/types";
 
 export interface StorageKeys {
   EXTENSION_STATE: "extensionState";
   USER_PREFERENCES: "userPreferences";
   ROOM_HISTORY: "roomHistory";
   WEBRTC_CONFIG: "webrtcConfig";
-  CONNECTION_STATE: "connectionState";
 }
 
 export interface UserPreferences {
@@ -43,7 +37,6 @@ export class StorageManager {
     USER_PREFERENCES: "userPreferences",
     ROOM_HISTORY: "roomHistory",
     WEBRTC_CONFIG: "webrtcConfig",
-    CONNECTION_STATE: "connectionState",
   };
 
   /**
@@ -250,49 +243,6 @@ export class StorageManager {
       return newPreferences;
     } catch (error) {
       console.error("Failed to update user preferences:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get connection state from storage
-   */
-  static async getConnectionState(): Promise<ConnectionState | null> {
-    try {
-      const result = await chrome.storage.local.get(
-        this.STORAGE_KEYS.CONNECTION_STATE,
-      );
-      return result[this.STORAGE_KEYS.CONNECTION_STATE] || null;
-    } catch (error) {
-      console.error("Failed to get connection state from storage:", error);
-      return null;
-    }
-  }
-
-  /**
-   * Save connection state to storage
-   */
-  static async setConnectionState(state: ConnectionState): Promise<void> {
-    try {
-      await chrome.storage.local.set({
-        [this.STORAGE_KEYS.CONNECTION_STATE]: state,
-      });
-      console.log("Connection state saved to storage");
-    } catch (error) {
-      console.error("Failed to save connection state to storage:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Clear connection state from storage
-   */
-  static async clearConnectionState(): Promise<void> {
-    try {
-      await chrome.storage.local.remove(this.STORAGE_KEYS.CONNECTION_STATE);
-      console.log("Connection state cleared from storage");
-    } catch (error) {
-      console.error("Failed to clear connection state from storage:", error);
       throw error;
     }
   }

@@ -218,7 +218,7 @@ export class WebSocketManager {
       return;
     }
 
-    this.setConnectionStatus("RECONNECTING");
+    this.setConnectionStatus("CONNECTING");
 
     // Exponential backoff with jitter
     const delay = Math.min(

@@ -44,7 +44,6 @@ chrome.runtime.onSuspend.addListener(async () => {
   try {
     if (roomManager) {
       await roomManager.leaveRoom();
-      await StorageManager.clearConnectionState();
     }
   } catch (error) {
     console.error("Error during Service Worker suspension cleanup:", error);

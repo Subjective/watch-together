@@ -9,7 +9,6 @@ import type {
   ExtensionState,
   ControlMode,
   FollowMode,
-  ConnectionState,
   CreateRoomMessage,
   JoinRoomMessage,
   LeaveRoomMessage,
@@ -43,7 +42,6 @@ export class RoomManager {
   private currentUser: User | null = null;
   private extensionState: ExtensionState;
   private eventListeners: Map<string, ((data: any) => void)[]> = new Map();
-  private pendingRestoreState: { room: RoomState; user: User } | null = null;
 
   constructor(config: RoomManagerConfig) {
     // Initialize WebSocket manager
@@ -80,209 +78,22 @@ export class RoomManager {
   }
 
   /**
-   * Initialize room manager and restore state from storage
+   * Initialize room manager
    */
   async initialize(): Promise<void> {
     try {
       // Restore extension state from storage
       this.extensionState = await StorageManager.getExtensionState();
 
-      // Check if we have an existing connection to restore
-      const connectionState = await StorageManager.getConnectionState();
-      if (connectionState) {
-        console.log(
-          "Found existing connection state, attempting to restore...",
-        );
-        await this.restoreConnection(connectionState);
-      } else {
-        console.log(
-          "No existing connection state found (WebSocket will connect when room is created/joined)",
-        );
-      }
+      console.log(
+        "No existing connection state found (WebSocket will connect when room is created/joined)",
+      );
 
       console.log("Room manager initialized successfully");
     } catch (error) {
       console.error("Failed to initialize room manager:", error);
       throw error;
     }
-  }
-
-  /**
-   * Restore connection from persisted state
-   */
-  private async restoreConnection(
-    connectionState: ConnectionState,
-  ): Promise<void> {
-    try {
-      // Validate connection state age (don't restore very old states)
-      const maxStateAge = 24 * 60 * 60 * 1000; // 24 hours
-      const stateAge = Date.now() - connectionState.lastActivity;
-      if (stateAge > maxStateAge) {
-        console.log(
-          "Connection state too old, clearing:",
-          Math.round(stateAge / 3600000),
-          "hours",
-        );
-        await StorageManager.clearConnectionState();
-        return;
-      }
-
-      // Validate connection state structure
-      if (!this.validateConnectionState(connectionState)) {
-        console.error("Invalid connection state structure");
-        await StorageManager.clearConnectionState();
-        return;
-      }
-
-      // Update WebSocket URL with room ID
-      const baseUrl = defaultWebSocketConfig.url;
-      this.websocket["config"].url =
-        `${baseUrl}?roomId=${connectionState.roomId}`;
-
-      // Store pending restore state (don't apply until validated)
-      const restoredUser = connectionState.roomState.users.find(
-        (u) => u.id === connectionState.userId,
-      );
-
-      if (!restoredUser) {
-        console.error("Could not find user in restored room state");
-        await StorageManager.clearConnectionState();
-        return;
-      }
-
-      this.pendingRestoreState = {
-        room: connectionState.roomState,
-        user: restoredUser,
-      };
-
-      // Update extension state to show reconnecting without room details
-      this.updateExtensionState({
-        isConnected: false,
-        currentRoom: null, // Don't show room until validated
-        currentUser: null, // Don't show user until validated
-        connectionStatus: "RECONNECTING",
-      });
-
-      // Attempt to reconnect WebSocket
-      await this.websocket.connect();
-
-      // Initialize WebRTC
-      await this.webrtc.initialize(
-        connectionState.userId,
-        connectionState.isHost,
-      );
-
-      // Validate connection with server by sending a PING
-      await this.validateServerConnection();
-
-      // Validation succeeded - apply the pending restore state
-      if (this.pendingRestoreState) {
-        this.currentRoom = this.pendingRestoreState.room;
-        this.currentUser = this.pendingRestoreState.user;
-        this.pendingRestoreState = null;
-
-        // Update extension state with restored room and user
-        this.updateExtensionState({
-          isConnected: true,
-          currentRoom: this.currentRoom,
-          currentUser: this.currentUser,
-          connectionStatus: "CONNECTED",
-        });
-      }
-
-      console.log("Connection restored successfully");
-    } catch (error) {
-      console.error("Failed to restore connection:", error);
-
-      // Clear invalid connection state
-      await StorageManager.clearConnectionState();
-
-      // Clear pending restore state
-      this.pendingRestoreState = null;
-
-      // Reset to disconnected state
-      this.currentRoom = null;
-      this.currentUser = null;
-      this.updateExtensionState({
-        isConnected: false,
-        currentRoom: null,
-        currentUser: null,
-        connectionStatus: "DISCONNECTED",
-      });
-    }
-  }
-
-  /**
-   * Validate connection state structure
-   */
-  private validateConnectionState(state: ConnectionState): boolean {
-    try {
-      // Check required fields
-      if (
-        !state.roomId ||
-        !state.userId ||
-        !state.userName ||
-        !state.websocketUrl
-      ) {
-        console.error("Missing required connection state fields");
-        return false;
-      }
-
-      // Validate room state structure
-      if (!state.roomState || !state.roomState.id || !state.roomState.users) {
-        console.error("Invalid room state structure");
-        return false;
-      }
-
-      // Check if user exists in room state
-      const userExists = state.roomState.users.some(
-        (u) => u.id === state.userId,
-      );
-      if (!userExists) {
-        console.error("User not found in room state");
-        return false;
-      }
-
-      // Check timestamps are reasonable
-      const now = Date.now();
-      if (state.connectedAt > now || state.lastActivity > now) {
-        console.error("Invalid timestamps in connection state");
-        return false;
-      }
-
-      return true;
-    } catch (error) {
-      console.error("Error validating connection state:", error);
-      return false;
-    }
-  }
-
-  /**
-   * Validate connection with server
-   */
-  private async validateServerConnection(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error("Server validation timeout"));
-      }, 5000); // 5 second timeout
-
-      // Listen for PONG response
-      const pongHandler = (data: any) => {
-        if (data.type === "PONG") {
-          clearTimeout(timeout);
-          this.websocket.off("message", pongHandler);
-          resolve();
-        }
-      };
-
-      this.websocket.on("message", pongHandler);
-
-      // Send PING to validate connection
-      this.websocket.send({
-        type: "PING",
-        timestamp: Date.now(),
-      });
-    });
   }
 
   /**
@@ -337,9 +148,6 @@ export class RoomManager {
               currentUser: this.currentUser,
               connectionStatus: "CONNECTED",
             });
-
-            // Save connection state for persistence
-            this.saveConnectionState(roomId, userId, userName, true);
 
             resolve(this.currentRoom!);
           }
@@ -420,9 +228,6 @@ export class RoomManager {
               StorageManager.addRoomToHistory(this.currentRoom);
             }
 
-            // Save connection state for persistence
-            this.saveConnectionState(roomId, userId, userName, false);
-
             resolve(this.currentRoom!);
           }
         };
@@ -464,9 +269,6 @@ export class RoomManager {
 
       // Close WebRTC connections
       this.webrtc.closeAllConnections();
-
-      // Clear persisted connection state
-      await StorageManager.clearConnectionState();
 
       // Reset state
       this.currentRoom = null;
@@ -611,36 +413,6 @@ export class RoomManager {
     this.webrtc.closeAllConnections();
     this.websocket.disconnect();
     this.eventListeners.clear();
-  }
-
-  /**
-   * Save connection state for persistence across Service Worker restarts
-   */
-  private async saveConnectionState(
-    roomId: string,
-    userId: string,
-    userName: string,
-    isHost: boolean,
-  ): Promise<void> {
-    if (!this.currentRoom) return;
-
-    const connectionState: ConnectionState = {
-      roomId,
-      userId,
-      userName,
-      isHost,
-      websocketUrl: this.websocket["config"].url,
-      roomState: this.currentRoom,
-      connectedAt: Date.now(),
-      lastActivity: Date.now(),
-    };
-
-    try {
-      await StorageManager.setConnectionState(connectionState);
-      console.log("Connection state saved for persistence");
-    } catch (error) {
-      console.error("Failed to save connection state:", error);
-    }
   }
 
   private setupEventHandlers(): void {

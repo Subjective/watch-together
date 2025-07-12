@@ -44,8 +44,6 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
         return { text: "Connected", color: "text-green-600", icon: "●" };
       case "CONNECTING":
         return { text: "Connecting", color: "text-yellow-600", icon: "●" };
-      case "RECONNECTING":
-        return { text: "Reconnecting", color: "text-yellow-600", icon: "●" };
       case "DISCONNECTED":
         return { text: "Disconnected", color: "text-red-600", icon: "●" };
       case "ERROR":

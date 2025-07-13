@@ -5,6 +5,7 @@ export default defineConfig({
   ...baseConfig,
   test: {
     ...baseConfig.test,
+    environment: "jsdom", // Use jsdom for DOM testing
     include: ["integration/**/*.test.ts"],
     testTimeout: 30000,
     hookTimeout: 30000,

@@ -23,12 +23,22 @@ describe("AdapterFactory", () => {
   });
 
   describe("initialization", () => {
-    it("should initialize with default HTML5 adapter", () => {
+    it("should initialize with default adapters", () => {
       AdapterFactory.initialize();
       const adapters = AdapterFactory.getAllAdapters();
-      expect(adapters).toHaveLength(1);
-      expect(adapters[0].name).toBe("generic-html5");
-      expect(adapters[0].tier).toBe("HTML5");
+      expect(adapters).toHaveLength(2);
+
+      // Should have Crunchyroll Vilos adapter
+      const crunchyrollAdapter = adapters.find(
+        (a) => a.name === "crunchyroll-vilos",
+      );
+      expect(crunchyrollAdapter).toBeDefined();
+      expect(crunchyrollAdapter?.tier).toBe("HTML5");
+
+      // Should have HTML5 adapter (fallback)
+      const html5Adapter = adapters.find((a) => a.name === "generic-html5");
+      expect(html5Adapter).toBeDefined();
+      expect(html5Adapter?.tier).toBe("HTML5");
     });
 
     it("should not re-initialize if already initialized", () => {

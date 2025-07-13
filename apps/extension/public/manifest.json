@@ -40,6 +40,12 @@
       ],
       "js": ["content.js"],
       "type": "module"
+    },
+    {
+      "matches": ["https://static.crunchyroll.com/*"],
+      "js": ["content.js"],
+      "type": "module",
+      "all_frames": true
     }
   ],
   "action": {

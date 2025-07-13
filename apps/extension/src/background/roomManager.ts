@@ -125,6 +125,11 @@ export class RoomManager {
       // Connect WebSocket with the roomId
       await this.websocket.connect();
 
+      // Only proceed if truly connected
+      if (!this.websocket.isConnected()) {
+        throw new Error("Failed to establish stable WebSocket connection");
+      }
+
       // Initialize WebRTC BEFORE creating the room
       await this.webrtc.initialize(userId, true);
 
@@ -203,6 +208,11 @@ export class RoomManager {
 
       // Connect WebSocket with the roomId
       await this.websocket.connect();
+
+      // Only proceed if truly connected
+      if (!this.websocket.isConnected()) {
+        throw new Error("Failed to establish stable WebSocket connection");
+      }
 
       const userId = this.generateUserId();
 

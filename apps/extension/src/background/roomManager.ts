@@ -523,12 +523,40 @@ export class RoomManager {
     }
   }
 
-  private handleUserLeft(response: any): void {
+  private async handleUserLeft(response: any): Promise<void> {
     if (this.currentRoom && response.roomId === this.currentRoom.id) {
       this.currentRoom = response.roomState;
 
       // Close WebRTC connection to departed user
       this.webrtc.closePeerConnection(response.leftUserId);
+
+      // Handle host promotion
+      if (
+        response.newHostId === this.currentUser?.id &&
+        this.currentUser &&
+        this.currentRoom
+      ) {
+        this.currentUser.isHost = true;
+
+        // Establish connections to all users (following existing pattern)
+        for (const user of this.currentRoom.users) {
+          if (user.id !== this.currentUser.id) {
+            try {
+              const offer = await this.webrtc.createOffer(user.id);
+              await this.websocket.send({
+                type: "WEBRTC_OFFER",
+                roomId: this.currentRoom.id,
+                userId: this.currentUser.id,
+                targetUserId: user.id,
+                offer,
+                timestamp: Date.now(),
+              });
+            } catch (error) {
+              console.error(`Failed to connect to ${user.id}:`, error);
+            }
+          }
+        }
+      }
 
       this.updateExtensionState({
         currentRoom: this.currentRoom,

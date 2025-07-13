@@ -120,7 +120,7 @@ export class RoomManager {
 
       // Update WebSocket URL with roomId
       const baseUrl = defaultWebSocketConfig.url;
-      this.websocket["config"].url = `${baseUrl}?roomId=${roomId}`;
+      this.websocket.updateUrl(`${baseUrl}?roomId=${roomId}`);
 
       // Connect WebSocket with the roomId
       await this.websocket.connect();
@@ -204,7 +204,7 @@ export class RoomManager {
 
       // Update WebSocket URL with roomId
       const baseUrl = defaultWebSocketConfig.url;
-      this.websocket["config"].url = `${baseUrl}?roomId=${roomId}`;
+      this.websocket.updateUrl(`${baseUrl}?roomId=${roomId}`);
 
       // Connect WebSocket with the roomId
       await this.websocket.connect();
@@ -455,6 +455,7 @@ export class RoomManager {
   async cleanup(): Promise<void> {
     this.webrtc.closeAllConnections();
     await this.websocket.disconnect();
+    this.websocket.reset(); // Reset WebSocket state for fresh initialization
     this.eventListeners.clear();
   }
 
@@ -651,6 +652,13 @@ export class RoomManager {
 
   private async handleLocalIceCandidate(data: any): Promise<void> {
     if (this.currentRoom && this.currentUser) {
+      // Validate WebSocket connection before sending ICE candidate
+      if (!this.websocket.isConnected()) {
+        console.warn("WebSocket not connected, deferring ICE candidate");
+        // TODO: Queue ICE candidate for retry when connection is restored
+        return;
+      }
+
       const candidateMessage: WebRTCIceCandidateMessage = {
         type: "WEBRTC_ICE_CANDIDATE",
         roomId: this.currentRoom.id,
@@ -664,6 +672,7 @@ export class RoomManager {
         await this.websocket.send(candidateMessage);
       } catch (error) {
         console.error("Failed to send ICE candidate:", error);
+        // TODO: Queue ICE candidate for retry when connection is restored
       }
     }
   }

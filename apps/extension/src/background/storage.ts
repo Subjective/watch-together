@@ -188,6 +188,19 @@ export class StorageManager {
   }
 
   /**
+   * Clear extension state to reset connection/room state
+   */
+  static async clearExtensionState(): Promise<void> {
+    try {
+      await chrome.storage.local.remove(this.STORAGE_KEYS.EXTENSION_STATE);
+      console.log("Extension state cleared");
+    } catch (error) {
+      console.error("Failed to clear extension state:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Clear all storage data
    */
   static async clearAll(): Promise<void> {

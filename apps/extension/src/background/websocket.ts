@@ -309,6 +309,41 @@ export class WebSocketManager {
       this.pongTimeoutId = null;
     }
   }
+
+  /**
+   * Update WebSocket URL for new room connections
+   */
+  updateUrl(newUrl: string): void {
+    this.config.url = newUrl;
+  }
+
+  /**
+   * Reset WebSocket manager state for fresh initialization
+   */
+  reset(): void {
+    // Close existing connection
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+
+    // Clear all timers
+    this.clearPongTimeout();
+    if (this.heartbeatIntervalId) {
+      clearInterval(this.heartbeatIntervalId);
+      this.heartbeatIntervalId = null;
+    }
+    if (this.retryTimeoutId) {
+      clearTimeout(this.retryTimeoutId);
+      this.retryTimeoutId = null;
+    }
+
+    // Reset state
+    this.connectionStatus = "DISCONNECTED";
+    this.retryCount = 0;
+
+    console.log("WebSocket manager reset");
+  }
 }
 
 /**

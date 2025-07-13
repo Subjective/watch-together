@@ -64,8 +64,22 @@ let isCleaningUp = false;
 /**
  * Initialize the Service Worker
  */
+let isInitializing = false;
+let isInitialized = false;
+
 async function initializeServiceWorker(): Promise<void> {
+  // Prevent multiple initializations
+  if (isInitializing || isInitialized) {
+    console.log("Service Worker already initialized or initializing");
+    return;
+  }
+
+  isInitializing = true;
+
   try {
+    // Clean up any existing instances
+    await cleanupServiceWorker();
+
     // Initialize storage event manager
     StorageEventManager.init();
 
@@ -90,17 +104,40 @@ async function initializeServiceWorker(): Promise<void> {
     // Initialize room manager
     await roomManager.initialize();
 
+    isInitialized = true;
     console.log("Service Worker initialized successfully");
   } catch (error) {
     console.error("Failed to initialize Service Worker:", error);
+  } finally {
+    isInitializing = false;
   }
+}
+
+async function cleanupServiceWorker(): Promise<void> {
+  if (roomManager) {
+    try {
+      await roomManager.cleanup();
+    } catch (error) {
+      console.error("Error during room manager cleanup:", error);
+    }
+    roomManager = null;
+  }
+
+  // Clear potentially stale extension state
+  try {
+    await StorageManager.clearExtensionState();
+  } catch (error) {
+    console.error("Error clearing extension state:", error);
+  }
+
+  isInitialized = false;
 }
 
 /**
  * Ensure room manager is initialized
  */
 async function ensureRoomManagerInitialized(): Promise<void> {
-  if (!roomManager) {
+  if (!isInitialized || !roomManager) {
     await initializeServiceWorker();
   }
 

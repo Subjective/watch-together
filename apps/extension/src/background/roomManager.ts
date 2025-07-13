@@ -92,6 +92,12 @@ export class RoomManager {
         console.log(
           `Restored room state: ${this.currentRoom.name} (${this.currentRoom.id})`,
         );
+
+        // Update connection status to reflect actual state (likely disconnected on startup)
+        this.updateExtensionState({
+          isConnected: false,
+          connectionStatus: "DISCONNECTED",
+        });
       }
 
       console.log("Room manager initialized successfully");
@@ -274,15 +280,23 @@ export class RoomManager {
         return;
       }
 
-      const message: LeaveRoomMessage = {
-        type: "LEAVE_ROOM",
-        roomId: this.currentRoom.id,
-        userId: this.currentUser.id,
-        timestamp: Date.now(),
-      };
+      // Try to send LEAVE_ROOM message, but don't fail if WebSocket is disconnected
+      try {
+        const message: LeaveRoomMessage = {
+          type: "LEAVE_ROOM",
+          roomId: this.currentRoom.id,
+          userId: this.currentUser.id,
+          timestamp: Date.now(),
+        };
 
-      await this.websocket.send(message);
+        await this.websocket.send(message);
+      } catch (sendError) {
+        // WebSocket might be disconnected (server down, etc.)
+        // Continue with cleanup anyway
+        console.warn("Could not send LEAVE_ROOM message:", sendError);
+      }
 
+      // Always perform cleanup regardless of whether message was sent
       // Close WebRTC connections
       this.webrtc.closeAllConnections();
 

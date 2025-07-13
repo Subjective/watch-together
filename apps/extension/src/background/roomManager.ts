@@ -438,6 +438,29 @@ export class RoomManager {
   }
 
   /**
+   * Broadcast navigation to peers (host only)
+   */
+  async broadcastNavigation(url: string): Promise<void> {
+    if (!this.currentRoom || !this.currentUser) {
+      throw new Error("Not in a room");
+    }
+
+    if (!this.currentUser.isHost) {
+      console.warn("Only host can broadcast navigation");
+      return;
+    }
+
+    // Update room state with host's current URL
+    this.currentRoom.hostCurrentUrl = url;
+    this.updateExtensionState({
+      currentRoom: this.currentRoom,
+    });
+
+    await this.webrtc.broadcastNavigation(url);
+    console.log("Navigation broadcasted to peers:", url);
+  }
+
+  /**
    * Get current extension state
    */
   getExtensionState(): ExtensionState {

@@ -100,6 +100,24 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
         </div>
       </div>
 
+      {/* Host Current Location (for participants only) */}
+      {!currentUser.isHost && room.hostCurrentUrl && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+          <h4 className="font-medium text-gray-900 mb-2">
+            Host is currently on
+          </h4>
+          <div className="text-sm text-gray-600 mb-2">
+            <div className="truncate">{room.hostCurrentUrl}</div>
+          </div>
+          <button
+            onClick={() => window.open(room.hostCurrentUrl!, "_blank")}
+            className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+          >
+            Open in new tab →
+          </button>
+        </div>
+      )}
+
       {/* Video State */}
       {room.videoState.url && (
         <div className="bg-white border border-gray-200 rounded-lg p-3 mb-4">

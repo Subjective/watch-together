@@ -19,9 +19,14 @@ import { RoomManager } from "./roomManager";
 import { StorageManager, StorageEventManager } from "./storage";
 import { defaultWebSocketConfig } from "./websocket";
 import { initializeAdapterHandler } from "./adapterHandler";
+import { AdapterFactory } from "@repo/adapters";
 
 // Global room manager instance
 let roomManager: RoomManager | null = null;
+
+// Navigation debouncing
+let lastNavigationTime = 0;
+const NAVIGATION_DEBOUNCE_MS = 500;
 
 // Extension initialization
 console.log("Watch Together Service Worker loaded");
@@ -82,6 +87,9 @@ async function initializeServiceWorker(): Promise<void> {
 
     // Initialize storage event manager
     StorageEventManager.init();
+
+    // Initialize adapter factory
+    AdapterFactory.initialize();
 
     // Initialize adapter handler
     initializeAdapterHandler();
@@ -449,9 +457,18 @@ async function handleHostNavigation(url: string): Promise<void> {
     const state = roomManager.getExtensionState();
 
     if (state.followMode === "AUTO_FOLLOW") {
-      // Validate URL before navigation
-      if (isValidNavigationUrl(url)) {
+      // Only auto-follow to sites with adapter support and valid URLs
+      if (isValidNavigationUrl(url) && hasAdapterSupport(url)) {
+        console.log("Auto-following to supported video site:", url);
         await navigateToUrl(url);
+      } else {
+        console.log("Skipping auto-follow - site not supported or invalid:", url);
+        // Show manual notification even in auto-follow mode if site isn't supported
+        await StorageManager.updateExtensionState({
+          hasFollowNotification: true,
+          followNotificationUrl: url,
+        });
+        broadcastStateUpdate(roomManager.getExtensionState());
       }
     } else {
       // Manual follow mode - show notification
@@ -477,7 +494,7 @@ async function handleClientRequest(data: any): Promise<void> {
 }
 
 /**
- * Navigate to URL with security validation
+ * Navigate to URL with security validation and duplicate tab checking
  */
 async function navigateToUrl(url: string): Promise<void> {
   if (!isValidNavigationUrl(url)) {
@@ -486,13 +503,56 @@ async function navigateToUrl(url: string): Promise<void> {
   }
 
   try {
-    // Get active tab
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tabs[0]?.id) {
-      await chrome.tabs.update(tabs[0].id, { url });
+    // Check if participant already has this URL open in any tab
+    const existingTabs = await chrome.tabs.query({ url });
+    
+    if (existingTabs.length > 0) {
+      // Switch to existing tab instead of creating new one
+      const existingTab = existingTabs[0];
+      await chrome.tabs.update(existingTab.id!, { active: true });
+      if (existingTab.windowId) {
+        await chrome.windows.update(existingTab.windowId, { focused: true });
+      }
+      console.log("Switched to existing tab with URL:", url);
+    } else {
+      // Create new tab for the URL
+      await chrome.tabs.create({ url, active: true });
+      console.log("Created new tab for URL:", url);
     }
   } catch (error) {
     console.error("Failed to navigate to URL:", error);
+    // Fallback: try to update current tab
+    try {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tabs[0]?.id) {
+        await chrome.tabs.update(tabs[0].id, { url });
+        console.log("Fallback: Updated current tab with URL:", url);
+      }
+    } catch (fallbackError) {
+      console.error("Fallback navigation also failed:", fallbackError);
+    }
+  }
+}
+
+/**
+ * Check if a URL has potential adapter support
+ */
+function hasAdapterSupport(url: string): boolean {
+  try {
+    const urlObj = new URL(url);
+    
+    // Get all registered adapters (this runs in the service worker context)
+    const adapters = AdapterFactory.getAllAdapters();
+    
+    // Check if any adapter supports this domain
+    return adapters.some(adapter => {
+      return adapter.domains.some(domain => {
+        if (domain === "*") return true;
+        return urlObj.hostname.includes(domain) || urlObj.hostname.endsWith(`.${domain}`);
+      });
+    });
+  } catch {
+    return false;
   }
 }
 
@@ -503,36 +563,73 @@ function isValidNavigationUrl(url: string): boolean {
   try {
     const urlObj = new URL(url);
 
-    // Allow only HTTPS URLs
+    // Block dangerous protocols first
+    if (urlObj.protocol === "file:" || url.startsWith("data:") || urlObj.protocol === "javascript:") {
+      return false;
+    }
+
+    // Allow only HTTPS URLs for navigation
     if (urlObj.protocol !== "https:") {
       return false;
     }
 
-    // Allow any domain with video elements for testing
-    // In production, you might want to restrict this
-    return true;
+    // Block localhost, private IPs, and suspicious domains
+    const hostname = urlObj.hostname.toLowerCase();
+    
+    // Block localhost and loopback
+    if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") {
+      return false;
+    }
 
-    // Original domain-based validation (commented out for testing)
-    // const allowedDomains = [
-    //   "youtube.com",
-    //   "www.youtube.com",
-    //   "netflix.com",
-    //   "www.netflix.com",
-    //   "vimeo.com",
-    //   "www.vimeo.com",
-    //   "twitch.tv",
-    //   "www.twitch.tv",
-    //   "amazon.com",
-    //   "www.amazon.com",
-    //   "hulu.com",
-    //   "www.hulu.com",
-    //   "disneyplus.com",
-    //   "www.disneyplus.com",
-    // ];
-    // return allowedDomains.some(
-    //   (domain) =>
-    //     urlObj.hostname === domain || urlObj.hostname.endsWith(`.${domain}`),
-    // );
+    // Block private IP ranges (basic check)
+    if (hostname.match(/^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|^192\.168\./)) {
+      return false;
+    }
+
+    // Block URLs with suspicious TLDs that could be used for malicious purposes
+    const suspiciousTlds = [".tk", ".ml", ".ga", ".cf"];
+    if (suspiciousTlds.some(tld => hostname.endsWith(tld))) {
+      return false;
+    }
+
+    // Enhanced domain allowlist for known video streaming sites
+    const allowedDomains = [
+      "youtube.com",
+      "www.youtube.com",
+      "youtu.be",
+      "netflix.com",
+      "www.netflix.com",
+      "vimeo.com",
+      "www.vimeo.com",
+      "player.vimeo.com",
+      "twitch.tv",
+      "www.twitch.tv",
+      "amazon.com",
+      "www.amazon.com",
+      "primevideo.com",
+      "www.primevideo.com",
+      "hulu.com",
+      "www.hulu.com",
+      "disneyplus.com",
+      "www.disneyplus.com",
+      "crunchyroll.com",
+      "www.crunchyroll.com",
+      "funimation.com",
+      "www.funimation.com",
+      "dailymotion.com",
+      "www.dailymotion.com",
+    ];
+
+    const isAllowedDomain = allowedDomains.some(
+      (domain) => hostname === domain || hostname.endsWith(`.${domain}`)
+    );
+
+    // For now, allow any HTTPS domain but log non-allowlisted ones
+    if (!isAllowedDomain) {
+      console.warn("Navigation to non-allowlisted domain:", hostname);
+    }
+
+    return true; // Allow but warn for flexibility during development
   } catch {
     return false;
   }
@@ -577,11 +674,33 @@ chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo, _tab) => {
 
     // Only host can trigger navigation
     if (currentUser?.isHost) {
-      // Check if this is a supported video site
+      // Debounce rapid navigation events
+      const now = Date.now();
+      if (now - lastNavigationTime < NAVIGATION_DEBOUNCE_MS) {
+        console.log("Navigation debounced:", changeInfo.url);
+        return;
+      }
+      lastNavigationTime = now;
+
+      // Check if this is a valid URL
       if (isValidNavigationUrl(changeInfo.url)) {
-        // Broadcast navigation to peers (handled by room manager)
-        console.log("Host navigated to:", changeInfo.url);
-        // The room manager will handle broadcasting to peers
+        const hasAdapter = hasAdapterSupport(changeInfo.url);
+        
+        if (hasAdapter) {
+          console.log("Host navigated to supported video site:", changeInfo.url);
+        } else {
+          console.log("Host navigated to unsupported site (no adapter):", changeInfo.url);
+        }
+        
+        // Broadcast navigation regardless of adapter support
+        // Participants will decide whether to auto-follow based on their settings and adapter availability
+        try {
+          await roomManager.broadcastNavigation(changeInfo.url);
+        } catch (error) {
+          console.error("Failed to broadcast navigation:", error);
+        }
+      } else {
+        console.log("Host navigated to invalid/blocked URL:", changeInfo.url);
       }
     }
   }

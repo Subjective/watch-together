@@ -26,6 +26,7 @@ interface RoomStateData {
   hostId: string;
   users: User[];
   controlMode: ControlMode;
+  hostCurrentUrl: string | null;
   createdAt: number;
   lastActivity: number;
 }
@@ -292,6 +293,7 @@ export class RoomState {
         hostId: message.userId,
         users: [hostUser],
         controlMode: "HOST_ONLY",
+        hostCurrentUrl: null,
         createdAt: now,
         lastActivity: now,
       };
@@ -702,6 +704,7 @@ export class RoomState {
         url: "",
         lastUpdated: Date.now(),
       },
+      hostCurrentUrl: this.roomData.hostCurrentUrl,
       createdAt: this.roomData.createdAt,
       lastActivity: this.roomData.lastActivity,
     };

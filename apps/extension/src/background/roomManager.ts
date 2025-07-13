@@ -537,6 +537,8 @@ export class RoomManager {
         this.currentRoom
       ) {
         this.currentUser.isHost = true;
+        // Update WebRTC bridge host status to enable control mode changes
+        (this.webrtc as any).isHost = true;
 
         // Establish connections to all users (following existing pattern)
         for (const user of this.currentRoom.users) {

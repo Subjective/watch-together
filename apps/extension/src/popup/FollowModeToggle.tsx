@@ -10,6 +10,7 @@ interface FollowModeToggleProps {
   disabled?: boolean;
   hasFollowNotification?: boolean;
   onFollowHost?: () => void;
+  isHost?: boolean;
 }
 
 export const FollowModeToggle: React.FC<FollowModeToggleProps> = ({
@@ -18,6 +19,7 @@ export const FollowModeToggle: React.FC<FollowModeToggleProps> = ({
   disabled = false,
   hasFollowNotification = false,
   onFollowHost,
+  isHost = false,
 }) => {
   const handleToggle = useCallback(() => {
     if (!disabled) {
@@ -30,6 +32,11 @@ export const FollowModeToggle: React.FC<FollowModeToggleProps> = ({
       onFollowHost();
     }
   }, [onFollowHost]);
+
+  // Don't show navigation controls for hosts
+  if (isHost) {
+    return null;
+  }
 
   const isAutoFollow = followMode === "AUTO_FOLLOW";
 

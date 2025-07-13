@@ -140,6 +140,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
           disabled={connectionStatus !== "CONNECTED"}
           hasFollowNotification={hasFollowNotification}
           onFollowHost={onFollowHost}
+          isHost={currentUser.isHost}
         />
       </div>
 

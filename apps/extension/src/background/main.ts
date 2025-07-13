@@ -214,11 +214,6 @@ async function handleMessage(
           return { success: true };
         }
 
-        if ((message as any).type === "VIDEO_CONTROL_REQUEST") {
-          await handleVideoControlRequest(message, sender);
-          return { success: true };
-        }
-
         console.warn("Unknown message type:", message.type);
         return { error: "Unknown message type" };
     }
@@ -403,24 +398,6 @@ async function handleVideoStateChange(
     message.isPlaying ? "PLAY" : "PAUSE",
     message.currentTime,
   );
-}
-
-/**
- * Handle video control requests from content scripts
- */
-async function handleVideoControlRequest(
-  message: any,
-  sender: chrome.runtime.MessageSender,
-): Promise<void> {
-  if (!roomManager || !sender.tab?.id) {
-    return;
-  }
-
-  // Track this tab as active in watch session
-  activeTabs.add(sender.tab.id);
-
-  // Forward control request through room manager
-  await roomManager.sendVideoControl(message.action, message.seekTime);
 }
 
 /**

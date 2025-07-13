@@ -706,6 +706,15 @@ export class RoomManager {
   }
 
   private async handleDirectCommand(message: any): Promise<void> {
+    // Only process direct commands in FREE_FOR_ALL mode
+    if (!this.currentRoom || this.currentRoom.controlMode !== "FREE_FOR_ALL") {
+      console.warn(
+        `[RoomManager] Ignoring direct command in ${this.currentRoom?.controlMode || "unknown"} mode:`,
+        message.type,
+      );
+      return;
+    }
+
     // In free-for-all mode, apply commands directly
     await this.applyVideoState({
       state:
@@ -860,12 +869,16 @@ export class RoomManager {
       case "seeked":
         // For control events, broadcast based on control mode
         if (this.currentRoom.controlMode === "HOST_ONLY") {
-          // In host-only mode, only the host broadcasts state updates
+          // In host-only mode, only the host can trigger control events
           if (this.currentUser.isHost) {
             await this.broadcastHostStateUpdate(detail);
           } else {
-            // Clients send requests to the host
-            await this.sendClientRequest(detail);
+            // Block adapter events from non-host participants in HOST_ONLY mode
+            console.warn(
+              `[RoomManager] Ignoring video control event from non-host participant in HOST_ONLY mode:`,
+              detail.event,
+            );
+            return;
           }
         } else {
           // In free-for-all mode, everyone broadcasts directly
@@ -913,40 +926,6 @@ export class RoomManager {
       type: "HOST_STATE_UPDATE",
       userId: this.currentUser!.id,
       state,
-      time: detail.state.currentTime,
-      timestamp: detail.timestamp,
-    });
-  }
-
-  private async sendClientRequest(detail: AdapterEventDetail): Promise<void> {
-    // Defensive check: don't send requests if not in a room
-    if (!this.currentRoom || !this.currentUser) {
-      return;
-    }
-
-    let messageType:
-      | "CLIENT_REQUEST_PLAY"
-      | "CLIENT_REQUEST_PAUSE"
-      | "CLIENT_REQUEST_SEEK";
-
-    switch (detail.event) {
-      case "play":
-        messageType = "CLIENT_REQUEST_PLAY";
-        break;
-      case "pause":
-        messageType = "CLIENT_REQUEST_PAUSE";
-        break;
-      case "seeking":
-      case "seeked":
-        messageType = "CLIENT_REQUEST_SEEK";
-        break;
-      default:
-        return;
-    }
-
-    this.webrtc.sendSyncMessage({
-      type: messageType,
-      userId: this.currentUser.id,
       time: detail.state.currentTime,
       timestamp: detail.timestamp,
     });

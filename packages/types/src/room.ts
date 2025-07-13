@@ -1,6 +1,7 @@
 /**
  * Room state and user management types
  */
+import type { VideoIdentity } from "./adapter";
 export interface User {
   id: string;
   name: string;
@@ -32,6 +33,8 @@ export interface VideoState {
   playbackRate: number;
   url: string;
   lastUpdated: number;
+  /** Current video identity for content matching */
+  videoIdentity?: VideoIdentity | null;
 }
 
 /**

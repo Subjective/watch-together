@@ -1,4 +1,4 @@
-import type { IPlayerAdapter } from "@repo/types";
+import type { IPlayerAdapter, VideoIdentity } from "@repo/types";
 
 export class MockAdapter implements IPlayerAdapter {
   private _isPlaying = false;
@@ -40,9 +40,21 @@ export class MockAdapter implements IPlayerAdapter {
     return !this._isPlaying;
   }
 
+  async getVideoIdentity(): Promise<VideoIdentity | null> {
+    // For mock adapter, create a deterministic identity
+    return {
+      id: `mock-video-${this._duration}`,
+      platform: "mock",
+      duration: this._duration,
+      title: "Mock Video",
+      source: "mock://video",
+      confidence: 1.0,
+    };
+  }
+
   // Event subscription
   on(
-    event: "play" | "pause" | "seeking" | "timeupdate",
+    event: "play" | "pause" | "seeking" | "seeked" | "timeupdate",
     callback: (payload?: any) => void,
   ): void {
     if (!this._eventCallbacks.has(event)) {
@@ -52,7 +64,7 @@ export class MockAdapter implements IPlayerAdapter {
   }
 
   off(
-    event: "play" | "pause" | "seeking" | "timeupdate",
+    event: "play" | "pause" | "seeking" | "seeked" | "timeupdate",
     callback: (payload?: any) => void,
   ): void {
     const callbacks = this._eventCallbacks.get(event);

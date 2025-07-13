@@ -1,6 +1,7 @@
 /**
  * WebSocket signaling message types for room management and WebRTC negotiation
  */
+import type { VideoIdentity } from "./adapter";
 export interface BaseSignalingMessage {
   type: string;
   roomId: string;
@@ -136,6 +137,8 @@ export interface HostStateUpdateMessage extends BaseSyncMessage {
   type: "HOST_STATE_UPDATE";
   state: "PLAYING" | "PAUSED";
   time: number;
+  /** Video identity for content validation */
+  videoIdentity?: VideoIdentity | null;
 }
 
 export interface ClientRequestPlayMessage extends BaseSyncMessage {
@@ -174,6 +177,11 @@ export interface HostNavigateMessage extends BaseSyncMessage {
   url: string;
 }
 
+export interface VideoIdentityChangeMessage extends BaseSyncMessage {
+  type: "VIDEO_IDENTITY_CHANGE";
+  videoIdentity: VideoIdentity | null;
+}
+
 export type SyncMessage =
   | HostStateUpdateMessage
   | ClientRequestPlayMessage
@@ -183,4 +191,5 @@ export type SyncMessage =
   | DirectPauseMessage
   | DirectSeekMessage
   | ControlModeChangeMessage
-  | HostNavigateMessage;
+  | HostNavigateMessage
+  | VideoIdentityChangeMessage;

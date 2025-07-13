@@ -1,7 +1,7 @@
 /**
  * Test adapter for development and testing purposes
  */
-import type { IPlayerAdapter } from "@repo/types";
+import type { IPlayerAdapter, VideoIdentity } from "@repo/types";
 
 export interface TestAdapterState {
   currentTime: number;
@@ -93,6 +93,18 @@ export class TestAdapter implements IPlayerAdapter {
 
   async isPaused(): Promise<boolean> {
     return this.state.isPaused;
+  }
+
+  async getVideoIdentity(): Promise<VideoIdentity | null> {
+    // For test adapter, create a deterministic identity
+    return {
+      id: `test-video-${this.state.duration}`,
+      platform: "test",
+      duration: this.state.duration,
+      title: "Test Video",
+      source: "test://video",
+      confidence: 1.0,
+    };
   }
 
   on(

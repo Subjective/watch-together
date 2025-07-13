@@ -1,7 +1,7 @@
 /**
  * Generic HTML5 video adapter implementation
  */
-import type { IPlayerAdapter } from "@repo/types";
+import type { IPlayerAdapter, VideoIdentity } from "@repo/types";
 
 export class GenericHTML5Adapter implements IPlayerAdapter {
   private videoElement: HTMLVideoElement | null = null;
@@ -151,6 +151,58 @@ export class GenericHTML5Adapter implements IPlayerAdapter {
   async isPaused(): Promise<boolean> {
     const video = this.ensureVideoElement();
     return video.paused;
+  }
+
+  async getVideoIdentity(): Promise<VideoIdentity | null> {
+    const video = this.ensureVideoElement();
+
+    // For generic HTML5, create identity based on source and page URL
+    const currentSrc = video.currentSrc || video.src;
+    const duration = await this.getDuration();
+
+    if (!currentSrc || !isFinite(duration) || duration <= 0) {
+      return null;
+    }
+
+    // Extract platform from hostname
+    const hostname = window.location.hostname;
+    let platform = "html5";
+
+    if (hostname.includes("youtube.com")) {
+      platform = "youtube";
+    } else if (hostname.includes("netflix.com")) {
+      platform = "netflix";
+    } else if (hostname.includes("crunchyroll.com")) {
+      platform = "crunchyroll";
+    } else if (hostname.includes("vimeo.com")) {
+      platform = "vimeo";
+    }
+
+    // Create a stable ID from source URL + duration
+    const sourceHash = this.hashString(currentSrc);
+    const durationKey = Math.round(duration).toString();
+    const id = `${platform}-${sourceHash}-${durationKey}`;
+
+    return {
+      id,
+      platform,
+      duration,
+      source: currentSrc,
+      confidence: platform === "html5" ? 0.6 : 0.8, // Higher confidence for known platforms
+    };
+  }
+
+  /**
+   * Simple string hash function for creating stable IDs
+   */
+  private hashString(str: string): string {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash).toString(36);
   }
 
   on(

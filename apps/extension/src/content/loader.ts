@@ -179,40 +179,6 @@ async function handleServiceWorkerMessage(message: any): Promise<void> {
         })
         .catch(() => {});
       break;
-    case "GET_VIDEO_IDENTITY":
-      // Get video identity from current adapter
-      if (currentAdapter) {
-        try {
-          const videoIdentity = await currentAdapter.getVideoIdentity();
-          chrome.runtime
-            .sendMessage({
-              type: "VIDEO_IDENTITY_RESPONSE",
-              videoIdentity,
-              timestamp: Date.now(),
-            })
-            .catch(() => {});
-        } catch (error) {
-          console.error("[ContentLoader] Failed to get video identity:", error);
-          chrome.runtime
-            .sendMessage({
-              type: "VIDEO_IDENTITY_RESPONSE",
-              videoIdentity: null,
-              error: error instanceof Error ? error.message : String(error),
-              timestamp: Date.now(),
-            })
-            .catch(() => {});
-        }
-      } else {
-        chrome.runtime
-          .sendMessage({
-            type: "VIDEO_IDENTITY_RESPONSE",
-            videoIdentity: null,
-            error: "No adapter available",
-            timestamp: Date.now(),
-          })
-          .catch(() => {});
-      }
-      break;
   }
 }
 

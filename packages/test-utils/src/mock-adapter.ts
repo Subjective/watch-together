@@ -1,4 +1,4 @@
-import type { IPlayerAdapter, VideoIdentity } from "@repo/types";
+import type { IPlayerAdapter } from "@repo/types";
 
 export class MockAdapter implements IPlayerAdapter {
   private _isPlaying = false;
@@ -38,18 +38,6 @@ export class MockAdapter implements IPlayerAdapter {
 
   async isPaused(): Promise<boolean> {
     return !this._isPlaying;
-  }
-
-  async getVideoIdentity(): Promise<VideoIdentity | null> {
-    // For mock adapter, create a deterministic identity
-    return {
-      id: `mock-video-${this._duration}`,
-      platform: "mock",
-      duration: this._duration,
-      title: "Mock Video",
-      source: "mock://video",
-      confidence: 1.0,
-    };
   }
 
   // Event subscription

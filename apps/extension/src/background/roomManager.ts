@@ -15,7 +15,6 @@ import type {
   WebRTCOfferMessage,
   WebRTCAnswerMessage,
   WebRTCIceCandidateMessage,
-  VideoIdentity,
 } from "@repo/types";
 
 import { WebSocketManager, defaultWebSocketConfig } from "./websocket";
@@ -666,13 +665,7 @@ export class RoomManager {
     // Client receives host state update
     if (!this.currentUser?.isHost) {
       console.log(`[RoomManager] Applying host state as client`);
-      await this.applyVideoState({
-        state: message.state,
-        time: message.time,
-        timestamp: message.timestamp,
-        fromUserId: message.fromUserId,
-        videoIdentity: message.videoIdentity,
-      });
+      await this.applyVideoState(message);
     } else {
       console.log(`[RoomManager] Ignoring host state update - we are the host`);
     }
@@ -715,7 +708,6 @@ export class RoomManager {
       time: message.time,
       timestamp: message.timestamp,
       fromUserId: message.fromUserId,
-      videoIdentity: message.videoIdentity,
     });
   }
 
@@ -724,26 +716,7 @@ export class RoomManager {
     time: number;
     timestamp: number;
     fromUserId?: string;
-    videoIdentity?: VideoIdentity | null;
   }): Promise<void> {
-    // Validate video compatibility first
-    if (message.videoIdentity) {
-      const isCompatible = await this.validateVideoCompatibility(
-        message.videoIdentity,
-      );
-      if (!isCompatible) {
-        console.warn(
-          `[RoomManager] Rejecting sync command due to video incompatibility`,
-        );
-        // Optionally emit a warning event for the UI
-        this.emit("VIDEO_INCOMPATIBILITY_WARNING", {
-          incomingIdentity: message.videoIdentity,
-          fromUserId: message.fromUserId,
-        });
-        return;
-      }
-    }
-
     const activeTab = await this.getActiveAdapterTab();
     if (!activeTab) {
       console.warn(`[RoomManager] No active adapter tab found to apply state`);
@@ -980,16 +953,12 @@ export class RoomManager {
       );
     }
 
-    // Get current video identity to include in broadcast
-    const videoIdentity = await this.getCurrentVideoIdentity();
-
     await this.webrtc.sendSyncMessage({
       type: "HOST_STATE_UPDATE",
       userId: this.currentUser!.id,
       state,
       time: detail.state.currentTime,
       timestamp: detail.timestamp,
-      videoIdentity,
     });
   }
 
@@ -1076,135 +1045,5 @@ export class RoomManager {
 
   private generateRoomId(): string {
     return `room-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  }
-
-  /**
-   * Check if two video identities are compatible for syncing
-   */
-  private areVideosCompatible(
-    identity1: VideoIdentity | null,
-    identity2: VideoIdentity | null,
-  ): boolean {
-    // If either identity is null, we can't verify compatibility
-    if (!identity1 || !identity2) {
-      return false;
-    }
-
-    // Exact match - same video ID
-    if (identity1.id === identity2.id) {
-      return true;
-    }
-
-    // Platform must match
-    if (identity1.platform !== identity2.platform) {
-      return false;
-    }
-
-    // Duration should be similar (within 5% tolerance for encoding differences)
-    const durationTolerance = 0.05;
-    const durationDiff = Math.abs(identity1.duration - identity2.duration);
-    const maxDuration = Math.max(identity1.duration, identity2.duration);
-    const durationCompatible = durationDiff / maxDuration <= durationTolerance;
-
-    return durationCompatible;
-  }
-
-  /**
-   * Get current video identity from active adapter
-   */
-  private async getCurrentVideoIdentity(): Promise<VideoIdentity | null> {
-    const activeTab = await this.getActiveAdapterTab();
-    if (!activeTab) {
-      return null;
-    }
-
-    try {
-      // Request video identity from adapter
-      const adapters = getActiveAdapters();
-      const adapter = adapters.find((a) => a.tabId === activeTab);
-
-      if (!adapter) {
-        return null;
-      }
-
-      // Send identity request to content script and wait for response
-      return new Promise((resolve) => {
-        // Set up a one-time listener for the response
-        const responseHandler = (
-          message: any,
-          sender: chrome.runtime.MessageSender,
-        ) => {
-          if (
-            message.type === "VIDEO_IDENTITY_RESPONSE" &&
-            sender.tab?.id === activeTab
-          ) {
-            chrome.runtime.onMessage.removeListener(responseHandler);
-            resolve(message.videoIdentity || null);
-          }
-        };
-
-        chrome.runtime.onMessage.addListener(responseHandler);
-
-        // Send the request
-        chrome.tabs
-          .sendMessage(activeTab, {
-            type: "GET_VIDEO_IDENTITY",
-            target: "content-adapter",
-          })
-          .catch((error) => {
-            console.error("Failed to send video identity request:", error);
-            chrome.runtime.onMessage.removeListener(responseHandler);
-            resolve(null);
-          });
-
-        // Timeout after 3 seconds
-        setTimeout(() => {
-          chrome.runtime.onMessage.removeListener(responseHandler);
-          resolve(null);
-        }, 3000);
-      });
-    } catch (error) {
-      console.error("Failed to get video identity:", error);
-      return null;
-    }
-  }
-
-  /**
-   * Validate video compatibility before applying sync commands
-   */
-  private async validateVideoCompatibility(
-    incomingIdentity: VideoIdentity | null,
-  ): Promise<boolean> {
-    const currentIdentity = await this.getCurrentVideoIdentity();
-
-    // If we don't have current identity, allow sync (fallback to old behavior)
-    if (!currentIdentity) {
-      console.warn(
-        "[RoomManager] No current video identity available, allowing sync",
-      );
-      return true;
-    }
-
-    // If incoming identity is missing, warn but allow
-    if (!incomingIdentity) {
-      console.warn(
-        "[RoomManager] Incoming sync has no video identity, allowing sync",
-      );
-      return true;
-    }
-
-    const compatible = this.areVideosCompatible(
-      currentIdentity,
-      incomingIdentity,
-    );
-
-    if (!compatible) {
-      console.warn("[RoomManager] Video compatibility mismatch:", {
-        current: currentIdentity,
-        incoming: incomingIdentity,
-      });
-    }
-
-    return compatible;
   }
 }

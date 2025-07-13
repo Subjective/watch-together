@@ -1,22 +1,4 @@
 /**
- * Video identity and content information
- */
-export interface VideoIdentity {
-  /** Unique identifier for the video content */
-  id: string;
-  /** Platform identifier (youtube, netflix, crunchyroll, etc.) */
-  platform: string;
-  /** Video duration in seconds (for compatibility checking) */
-  duration: number;
-  /** Optional human-readable title */
-  title?: string;
-  /** Video source URL or identifier */
-  source?: string;
-  /** Confidence level in the identity match (0-1) */
-  confidence: number;
-}
-
-/**
  * Video player adapter interface and related types
  */
 export interface IPlayerAdapter {
@@ -34,11 +16,6 @@ export interface IPlayerAdapter {
   getCurrentTime(): Promise<number>;
   getDuration(): Promise<number>;
   isPaused(): Promise<boolean>;
-
-  /**
-   * Video identity
-   */
-  getVideoIdentity(): Promise<VideoIdentity | null>;
 
   /**
    * Event subscription

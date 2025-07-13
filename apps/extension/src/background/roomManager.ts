@@ -160,6 +160,18 @@ export class RoomManager {
               null;
 
             // WebRTC already initialized before creating room
+            // Ensure WebRTC bridge knows we're the host
+            if (this.currentUser?.isHost) {
+              this.webrtc.setHostStatus(true);
+              console.log(
+                "[RoomManager] Set WebRTC host status to true for room creator",
+              );
+            } else {
+              console.log(
+                "[RoomManager] User is not host when creating room:",
+                this.currentUser,
+              );
+            }
 
             this.updateExtensionState({
               isConnected: true,
@@ -247,6 +259,26 @@ export class RoomManager {
               null;
 
             // WebRTC already initialized before joining
+            // Ensure WebRTC bridge knows our host status
+            console.log(
+              "[RoomManager] Join response - current user:",
+              this.currentUser,
+            );
+            console.log(
+              "[RoomManager] Join response - all users:",
+              response.roomState.users,
+            );
+            if (this.currentUser?.isHost) {
+              this.webrtc.setHostStatus(true);
+              console.log(
+                "[RoomManager] Set WebRTC host status to true for room joiner",
+              );
+            } else {
+              console.log(
+                "[RoomManager] User is not host when joining room, isHost:",
+                this.currentUser?.isHost,
+              );
+            }
 
             this.updateExtensionState({
               isConnected: true,
@@ -549,7 +581,7 @@ export class RoomManager {
       ) {
         this.currentUser.isHost = true;
         // Update WebRTC bridge host status to enable control mode changes
-        (this.webrtc as any).isHost = true;
+        this.webrtc.setHostStatus(true);
 
         // Establish connections to all users (following existing pattern)
         for (const user of this.currentRoom.users) {
@@ -842,7 +874,11 @@ export class RoomManager {
   private seekTolerance = 0.5; // Don't seek if within 0.5 seconds
 
   private handleControlModeChange(message: any): void {
+    console.log("[RoomManager] Received control mode change:", message);
     if (this.currentRoom) {
+      console.log(
+        `[RoomManager] Updating control mode from ${this.currentRoom.controlMode} to ${message.mode}`,
+      );
       this.currentRoom.controlMode = message.mode;
       this.webrtc.setControlMode(message.mode);
 
@@ -854,6 +890,11 @@ export class RoomManager {
         mode: message.mode,
         fromUserId: message.fromUserId,
       });
+      console.log("[RoomManager] Control mode change processed successfully");
+    } else {
+      console.warn(
+        "[RoomManager] Cannot process control mode change - no current room",
+      );
     }
   }
 

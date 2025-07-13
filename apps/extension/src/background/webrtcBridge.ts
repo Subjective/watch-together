@@ -322,8 +322,14 @@ export class WebRTCManager {
   }
 
   async broadcastControlModeChange(mode: ControlMode): Promise<void> {
+    console.log(
+      `[WebRTC] broadcastControlModeChange called with mode: ${mode}, isHost: ${this.isHost}`,
+    );
     if (!this.isHost) {
-      console.warn("Only host can change control mode");
+      console.warn(
+        "Only host can change control mode - current isHost:",
+        this.isHost,
+      );
       return;
     }
 
@@ -336,7 +342,11 @@ export class WebRTCManager {
       mode,
     };
 
+    console.log("[WebRTC] Sending control mode change message:", message);
     await this.sendSyncMessage(message);
+    console.log(
+      `[WebRTC] Successfully broadcasted control mode change to ${mode}`,
+    );
   }
 
   async broadcastNavigation(url: string): Promise<void> {
@@ -406,6 +416,14 @@ export class WebRTCManager {
         },
       );
     }
+  }
+
+  /**
+   * Update host status - used when user becomes host after room creation
+   */
+  setHostStatus(isHost: boolean): void {
+    this.isHost = isHost;
+    console.log(`[WebRTC] Host status updated to: ${isHost}`);
   }
 
   getControlMode(): ControlMode {

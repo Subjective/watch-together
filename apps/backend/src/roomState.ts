@@ -437,6 +437,9 @@ export class RoomState {
   ): Promise<void> {
     try {
       await this.removeUserFromRoom(message.userId, false);
+
+      // Explicitly close WebSocket with normal closure to prevent reconnection
+      websocket.close(1000, "User left room");
     } catch (error) {
       console.error("Leave room error:", error);
       this.sendError(

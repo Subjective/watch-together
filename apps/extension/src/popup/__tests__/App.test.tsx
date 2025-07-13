@@ -71,12 +71,10 @@ describe("App", () => {
     expect(screen.getByLabelText("Room ID")).toBeInTheDocument();
   });
 
-  it("should send GET_STATE message on mount", () => {
+  it("should load state from chrome storage on mount", async () => {
     render(<App />);
 
-    expect(mockSendMessage).toHaveBeenCalledWith({
-      type: "GET_STATE",
-      timestamp: expect.any(Number),
-    });
+    expect(chrome.storage.local.get).toHaveBeenCalledWith("extensionState");
+    expect(chrome.storage.onChanged.addListener).toHaveBeenCalled();
   });
 });

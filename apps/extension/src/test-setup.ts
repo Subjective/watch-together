@@ -16,6 +16,10 @@ const mockChrome = {
     },
   },
   storage: {
+    onChanged: {
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+    },
     local: {
       get: vi.fn().mockResolvedValue({}),
       set: vi.fn().mockResolvedValue(undefined),

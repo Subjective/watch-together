@@ -12,7 +12,6 @@ import type {
   ToggleControlModeRequest,
   SetFollowModeRequest,
   FollowHostRequest,
-  GetStateRequest,
   StateUpdateMessage,
 } from "@repo/types";
 
@@ -195,9 +194,6 @@ async function handleMessage(
 ): Promise<any> {
   try {
     switch (message.type) {
-      case "GET_STATE":
-        return await handleGetState(message as GetStateRequest);
-
       case "CREATE_ROOM":
         return await handleCreateRoom(message as CreateRoomRequest);
 
@@ -239,15 +235,6 @@ async function handleMessage(
       error: error instanceof Error ? error.message : "Unknown error",
     };
   }
-}
-
-/**
- * Handle GET_STATE request
- */
-async function handleGetState(_message: GetStateRequest): Promise<any> {
-  await ensureRoomManagerInitialized();
-  const state = roomManager!.getExtensionState();
-  return { state };
 }
 
 /**

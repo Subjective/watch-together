@@ -11,7 +11,6 @@ import type {
   ToggleControlModeRequest,
   SetFollowModeRequest,
   FollowHostRequest,
-  GetStateRequest,
 } from "@repo/types";
 import { RoomCreate } from "./RoomCreate";
 import { RoomJoin } from "./RoomJoin";
@@ -44,29 +43,15 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // Load initial state from Service Worker
+  // Load initial state from chrome storage
   useEffect(() => {
     const loadInitialState = async () => {
       try {
-        const message: GetStateRequest = {
-          type: "GET_STATE",
-          timestamp: Date.now(),
-        };
-        const response = await sendMessage(message);
-        if (response?.state) {
-          setExtensionState(response.state);
-          // Set view based on current room state
-          if (response.state.currentRoom) {
-            setCurrentView("room");
-          }
-        } else {
-          // Fallback: Direct Chrome storage access
-          const storageResult =
-            await chrome.storage.local.get("extensionState");
-          const storedState = storageResult.extensionState;
-
-          if (storedState?.currentRoom && storedState?.currentUser) {
-            setExtensionState(storedState);
+        const result = await chrome.storage.local.get("extensionState");
+        const storedState = result.extensionState as ExtensionState | undefined;
+        if (storedState) {
+          setExtensionState(storedState);
+          if (storedState.currentRoom) {
             setCurrentView("room");
           }
         }
@@ -76,24 +61,21 @@ export const App: React.FC = () => {
     };
 
     loadInitialState();
-  }, [sendMessage]);
+  }, []);
 
-  // Listen for real-time storage changes
+  // Keep extension state in sync with storage updates
   useEffect(() => {
     const handleStorageChange = (
       changes: { [key: string]: chrome.storage.StorageChange },
-      namespace: string,
+      areaName: string,
     ) => {
-      if (namespace === "local" && changes.extensionState) {
-        const newState = changes.extensionState.newValue;
-        if (newState) {
-          setExtensionState(newState);
-          // Update view based on room state
-          if (newState.currentRoom && currentView !== "room") {
-            setCurrentView("room");
-          } else if (!newState.currentRoom && currentView === "room") {
-            setCurrentView("home");
-          }
+      if (areaName === "local" && changes.extensionState) {
+        const newState = changes.extensionState.newValue as ExtensionState;
+        setExtensionState(newState);
+        if (newState.currentRoom) {
+          setCurrentView("room");
+        } else {
+          setCurrentView("home");
         }
       }
     };
@@ -102,9 +84,9 @@ export const App: React.FC = () => {
     return () => {
       chrome.storage.onChanged.removeListener(handleStorageChange);
     };
-  }, [currentView]);
+  }, []);
 
-  // Keep listening for state updates from Service Worker as backup
+  // Listen for state updates from Service Worker
   useEffect(() => {
     const handleMessage = (
       message: ExtensionMessage,

@@ -90,10 +90,6 @@ export interface FollowHostRequest extends BaseExtensionMessage {
   type: "FOLLOW_HOST";
 }
 
-export interface GetStateRequest extends BaseExtensionMessage {
-  type: "GET_STATE";
-}
-
 export interface StateUpdateMessage extends BaseExtensionMessage {
   type: "STATE_UPDATE";
   state: ExtensionState;
@@ -106,5 +102,4 @@ export type ExtensionMessage =
   | ToggleControlModeRequest
   | SetFollowModeRequest
   | FollowHostRequest
-  | GetStateRequest
   | StateUpdateMessage;

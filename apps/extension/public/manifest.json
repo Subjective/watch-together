@@ -35,7 +35,8 @@
         "https://*.hulu.com/*",
         "https://*.disneyplus.com/*",
         "https://*/*",
-        "http://localhost/*"
+        "http://localhost/*",
+        "file://*/*"
       ],
       "js": ["content.js"],
       "type": "module"

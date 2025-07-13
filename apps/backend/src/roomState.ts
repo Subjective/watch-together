@@ -371,13 +371,20 @@ export class RoomState {
       }
 
       const now = Date.now();
+      const isFirstUserInRoom = this.roomData.users.length === 0;
+
       const newUser: User = {
         id: message.userId,
         name: message.userName,
-        isHost: false,
+        isHost: isFirstUserInRoom, // Make first user in empty room the host
         isConnected: true,
         joinedAt: now,
       };
+
+      // Update hostId if this user becomes host
+      if (isFirstUserInRoom) {
+        this.roomData.hostId = message.userId;
+      }
 
       // Add user to room data
       this.roomData.users.push(newUser);

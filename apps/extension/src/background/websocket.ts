@@ -220,7 +220,8 @@ export class WebSocketManager {
       return;
     }
 
-    this.setConnectionStatus("CONNECTING");
+    // Don't set status to CONNECTING here - let connect() handle it
+    // This prevents the connection guard from blocking retries
 
     // Exponential backoff with jitter
     const delay = Math.min(

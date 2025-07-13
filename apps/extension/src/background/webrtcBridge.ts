@@ -362,15 +362,21 @@ export class WebRTCManager {
   }
 
   closePeerConnection(userId: string): void {
-    this.sendToOffscreen("WEBRTC_CLOSE_PEER", { userId }).catch((error) => {
-      console.error("Failed to close peer connection:", error);
-    });
+    // Only try to close connections if offscreen document already exists
+    if (this.offscreenDocumentCreated) {
+      this.sendToOffscreen("WEBRTC_CLOSE_PEER", { userId }).catch((error) => {
+        console.error("Failed to close peer connection:", error);
+      });
+    }
   }
 
   closeAllConnections(): void {
-    this.sendToOffscreen("WEBRTC_CLOSE_ALL").catch((error) => {
-      console.error("Failed to close all connections:", error);
-    });
+    // Only try to close connections if offscreen document already exists
+    if (this.offscreenDocumentCreated) {
+      this.sendToOffscreen("WEBRTC_CLOSE_ALL").catch((error) => {
+        console.error("Failed to close all connections:", error);
+      });
+    }
   }
 
   on(messageType: string, callback: (data: unknown) => void): void {
@@ -392,9 +398,14 @@ export class WebRTCManager {
 
   setControlMode(mode: ControlMode): void {
     this.controlMode = mode;
-    this.sendToOffscreen("WEBRTC_SET_CONTROL_MODE", { mode }).catch((error) => {
-      console.error("Failed to set control mode:", error);
-    });
+    // Only send to offscreen if document exists
+    if (this.offscreenDocumentCreated) {
+      this.sendToOffscreen("WEBRTC_SET_CONTROL_MODE", { mode }).catch(
+        (error) => {
+          console.error("Failed to set control mode:", error);
+        },
+      );
+    }
   }
 
   getControlMode(): ControlMode {
@@ -402,11 +413,14 @@ export class WebRTCManager {
   }
 
   markPeerAsHost(userId: string): void {
-    this.sendToOffscreen("WEBRTC_MARK_PEER_AS_HOST", { userId }).catch(
-      (error) => {
-        console.error("Failed to mark peer as host:", error);
-      },
-    );
+    // Only send to offscreen if document exists
+    if (this.offscreenDocumentCreated) {
+      this.sendToOffscreen("WEBRTC_MARK_PEER_AS_HOST", { userId }).catch(
+        (error) => {
+          console.error("Failed to mark peer as host:", error);
+        },
+      );
+    }
   }
 
   private emit(eventType: string, data: unknown): void {

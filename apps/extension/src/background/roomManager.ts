@@ -919,6 +919,11 @@ export class RoomManager {
   }
 
   private async sendClientRequest(detail: AdapterEventDetail): Promise<void> {
+    // Defensive check: don't send requests if not in a room
+    if (!this.currentRoom || !this.currentUser) {
+      return;
+    }
+
     let messageType:
       | "CLIENT_REQUEST_PLAY"
       | "CLIENT_REQUEST_PAUSE"
@@ -941,7 +946,7 @@ export class RoomManager {
 
     this.webrtc.sendSyncMessage({
       type: messageType,
-      userId: this.currentUser!.id,
+      userId: this.currentUser.id,
       time: detail.state.currentTime,
       timestamp: detail.timestamp,
     });
@@ -950,6 +955,11 @@ export class RoomManager {
   private async broadcastDirectCommand(
     detail: AdapterEventDetail,
   ): Promise<void> {
+    // Defensive check: don't broadcast if not in a room
+    if (!this.currentRoom || !this.currentUser) {
+      return;
+    }
+
     let messageType: "DIRECT_PLAY" | "DIRECT_PAUSE" | "DIRECT_SEEK";
 
     switch (detail.event) {
@@ -969,7 +979,7 @@ export class RoomManager {
 
     this.webrtc.sendSyncMessage({
       type: messageType,
-      userId: this.currentUser!.id,
+      userId: this.currentUser.id,
       time: detail.state.currentTime,
       timestamp: detail.timestamp,
     });

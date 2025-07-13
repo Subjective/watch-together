@@ -44,15 +44,5 @@
         ]
       }
     ]
-  },
-  "mcpServers": {
-    "context7": {
-      "command": "npx",
-      "args": ["-y", "@context7/mcp-server"]
-    },
-    "sequential-thinking": {
-      "command": "npx",
-      "args": ["-y", "@sequential-thinking/mcp-server"]
-    }
   }
 }

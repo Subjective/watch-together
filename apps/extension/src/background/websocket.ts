@@ -90,16 +90,10 @@ export class WebSocketManager {
     this.stopHeartbeat();
 
     if (this.ws) {
-      return new Promise<void>((resolve) => {
-        const ws = this.ws!;
-        const onClose = () => {
-          ws.removeEventListener("close", onClose);
-          resolve();
-        };
-        ws.addEventListener("close", onClose);
-        ws.close(1000, "Client disconnect");
-        this.ws = null;
-      });
+      // Close WebSocket immediately without waiting for close event
+      // This prevents hanging when server is down
+      this.ws.close(1000, "Client disconnect");
+      this.ws = null;
     }
 
     this.setConnectionStatus("DISCONNECTED");

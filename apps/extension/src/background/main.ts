@@ -161,19 +161,12 @@ chrome.runtime.onMessage.addListener(
       return false;
     }
 
-    // Handle messages with timeout protection
-    const timeout = setTimeout(() => {
-      console.warn("Message handler timeout for:", message.type);
-      sendResponse({ error: "Request timeout" });
-    }, 5000);
-
+    // Handle messages asynchronously
     handleMessage(message, sender)
       .then((response) => {
-        clearTimeout(timeout);
         sendResponse(response);
       })
       .catch((error) => {
-        clearTimeout(timeout);
         console.error("Error handling message:", error);
         sendResponse({
           error: error instanceof Error ? error.message : String(error),
@@ -284,6 +277,19 @@ async function handleLeaveRoom(_message: LeaveRoomRequest): Promise<any> {
     if (!roomManager) {
       return { success: true }; // Nothing to leave
     }
+
+    // Immediately clear storage state to prevent race conditions
+    // This ensures popup always sees clean state, even if room cleanup takes time
+    const currentState = await StorageManager.getExtensionState();
+    await StorageManager.setExtensionState({
+      isConnected: false,
+      currentRoom: null,
+      connectionStatus: "DISCONNECTED",
+      currentUser: null,
+      followMode: currentState.followMode, // Preserve user preference
+      hasFollowNotification: false,
+      followNotificationUrl: null,
+    });
 
     await roomManager.leaveRoom();
     return { success: true };

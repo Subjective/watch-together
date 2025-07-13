@@ -360,6 +360,16 @@ export class RoomState {
         return;
       }
 
+      // Clean up any users from storage who don't have active connections
+      // This happens when the server restarts and users are loaded from storage
+      // but their connections are lost
+      if (this.roomData.users.length > 0 && this.connections.size === 0) {
+        console.log(
+          `Cleaning up ${this.roomData.users.length} disconnected users from storage`,
+        );
+        this.roomData.users = [];
+      }
+
       const now = Date.now();
       const newUser: User = {
         id: message.userId,

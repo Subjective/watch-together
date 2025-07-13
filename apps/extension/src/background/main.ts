@@ -162,11 +162,24 @@ chrome.runtime.onMessage.addListener(
       return false;
     }
 
-    // Handle messages asynchronously
-    handleMessage(message, sender, sendResponse).catch((error) => {
-      console.error("Error handling message:", error);
-      sendResponse({ error: error.message });
-    });
+    // Handle messages with timeout protection
+    const timeout = setTimeout(() => {
+      console.warn("Message handler timeout for:", message.type);
+      sendResponse({ error: "Request timeout" });
+    }, 5000);
+
+    handleMessage(message, sender)
+      .then((response) => {
+        clearTimeout(timeout);
+        sendResponse(response);
+      })
+      .catch((error) => {
+        clearTimeout(timeout);
+        console.error("Error handling message:", error);
+        sendResponse({
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
 
     // Return true to indicate we will send a response asynchronously
     return true;
@@ -179,89 +192,68 @@ chrome.runtime.onMessage.addListener(
 async function handleMessage(
   message: ExtensionMessage,
   sender: chrome.runtime.MessageSender,
-  sendResponse: (response?: any) => void,
-): Promise<void> {
+): Promise<any> {
   try {
     switch (message.type) {
       case "GET_STATE":
-        await handleGetState(message as GetStateRequest, sendResponse);
-        break;
+        return await handleGetState(message as GetStateRequest);
 
       case "CREATE_ROOM":
-        await handleCreateRoom(message as CreateRoomRequest, sendResponse);
-        break;
+        return await handleCreateRoom(message as CreateRoomRequest);
 
       case "JOIN_ROOM":
-        await handleJoinRoom(message as JoinRoomRequest, sendResponse);
-        break;
+        return await handleJoinRoom(message as JoinRoomRequest);
 
       case "LEAVE_ROOM":
-        await handleLeaveRoom(message as LeaveRoomRequest, sendResponse);
-        break;
+        return await handleLeaveRoom(message as LeaveRoomRequest);
 
       case "TOGGLE_CONTROL_MODE":
-        await handleToggleControlMode(
+        return await handleToggleControlMode(
           message as ToggleControlModeRequest,
-          sendResponse,
         );
-        break;
 
       case "SET_FOLLOW_MODE":
-        await handleSetFollowMode(
-          message as SetFollowModeRequest,
-          sendResponse,
-        );
-        break;
+        return await handleSetFollowMode(message as SetFollowModeRequest);
 
       case "FOLLOW_HOST":
-        await handleFollowHost(message as FollowHostRequest, sendResponse);
-        break;
+        return await handleFollowHost(message as FollowHostRequest);
 
       default:
         // Handle unknown message types from content scripts
         if ((message as any).type === "VIDEO_STATE_CHANGE") {
           await handleVideoStateChange(message, sender);
-          sendResponse({ success: true });
-          return;
+          return { success: true };
         }
 
         if ((message as any).type === "VIDEO_CONTROL_REQUEST") {
           await handleVideoControlRequest(message, sender);
-          sendResponse({ success: true });
-          return;
+          return { success: true };
         }
 
         console.warn("Unknown message type:", message.type);
-        sendResponse({ error: "Unknown message type" });
+        return { error: "Unknown message type" };
     }
   } catch (error) {
     console.error("Error in message handler:", error);
-    sendResponse({
+    return {
       error: error instanceof Error ? error.message : "Unknown error",
-    });
+    };
   }
 }
 
 /**
  * Handle GET_STATE request
  */
-async function handleGetState(
-  _message: GetStateRequest,
-  sendResponse: (response: any) => void,
-): Promise<void> {
+async function handleGetState(_message: GetStateRequest): Promise<any> {
   await ensureRoomManagerInitialized();
-
   const state = roomManager!.getExtensionState();
-  sendResponse({ state });
+  return { state };
 }
 
 /**
  * Handle CREATE_ROOM request
  */
-async function handleCreateRoom(
-  message: CreateRoomRequest,
-  sendResponse: (response: any) => void,
-): Promise<void> {
+async function handleCreateRoom(message: CreateRoomRequest): Promise<any> {
   try {
     await ensureRoomManagerInitialized();
 
@@ -269,58 +261,51 @@ async function handleCreateRoom(
       message.roomName,
       message.userName,
     );
-    sendResponse({ success: true, room });
+    return { success: true, room };
   } catch (error) {
     console.error("Failed to create room:", error);
-    sendResponse({
+    return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to create room",
-    });
+    };
   }
 }
 
 /**
  * Handle JOIN_ROOM request
  */
-async function handleJoinRoom(
-  message: JoinRoomRequest,
-  sendResponse: (response: any) => void,
-): Promise<void> {
+async function handleJoinRoom(message: JoinRoomRequest): Promise<any> {
   try {
     await ensureRoomManagerInitialized();
 
     const room = await roomManager!.joinRoom(message.roomId, message.userName);
-    sendResponse({ success: true, room });
+    return { success: true, room };
   } catch (error) {
     console.error("Failed to join room:", error);
-    sendResponse({
+    return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to join room",
-    });
+    };
   }
 }
 
 /**
  * Handle LEAVE_ROOM request
  */
-async function handleLeaveRoom(
-  _message: LeaveRoomRequest,
-  sendResponse: (response: any) => void,
-): Promise<void> {
+async function handleLeaveRoom(_message: LeaveRoomRequest): Promise<any> {
   try {
     if (!roomManager) {
-      sendResponse({ success: true }); // Nothing to leave
-      return;
+      return { success: true }; // Nothing to leave
     }
 
     await roomManager.leaveRoom();
-    sendResponse({ success: true });
+    return { success: true };
   } catch (error) {
     console.error("Failed to leave room:", error);
-    sendResponse({
+    return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to leave room",
-    });
+    };
   }
 }
 
@@ -329,24 +314,23 @@ async function handleLeaveRoom(
  */
 async function handleToggleControlMode(
   _message: ToggleControlModeRequest,
-  sendResponse: (response: any) => void,
-): Promise<void> {
+): Promise<any> {
   try {
     if (!roomManager) {
       throw new Error("Not in a room");
     }
 
     await roomManager.toggleControlMode();
-    sendResponse({ success: true });
+    return { success: true };
   } catch (error) {
     console.error("Failed to toggle control mode:", error);
-    sendResponse({
+    return {
       success: false,
       error:
         error instanceof Error
           ? error.message
           : "Failed to toggle control mode",
-    });
+    };
   }
 }
 
@@ -355,30 +339,26 @@ async function handleToggleControlMode(
  */
 async function handleSetFollowMode(
   message: SetFollowModeRequest,
-  sendResponse: (response: any) => void,
-): Promise<void> {
+): Promise<any> {
   try {
     await ensureRoomManagerInitialized();
 
     await roomManager!.setFollowMode(message.mode);
-    sendResponse({ success: true });
+    return { success: true };
   } catch (error) {
     console.error("Failed to set follow mode:", error);
-    sendResponse({
+    return {
       success: false,
       error:
         error instanceof Error ? error.message : "Failed to set follow mode",
-    });
+    };
   }
 }
 
 /**
  * Handle FOLLOW_HOST request
  */
-async function handleFollowHost(
-  _message: FollowHostRequest,
-  sendResponse: (response: any) => void,
-): Promise<void> {
+async function handleFollowHost(_message: FollowHostRequest): Promise<any> {
   try {
     const state = roomManager?.getExtensionState();
     if (!state?.hasFollowNotification || !state.followNotificationUrl) {
@@ -396,13 +376,13 @@ async function handleFollowHost(
       });
     }
 
-    sendResponse({ success: true });
+    return { success: true };
   } catch (error) {
     console.error("Failed to follow host:", error);
-    sendResponse({
+    return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to follow host",
-    });
+    };
   }
 }
 

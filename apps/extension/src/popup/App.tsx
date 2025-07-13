@@ -59,6 +59,16 @@ export const App: React.FC = () => {
           if (response.state.currentRoom) {
             setCurrentView("room");
           }
+        } else {
+          // Fallback: Direct Chrome storage access
+          const storageResult =
+            await chrome.storage.local.get("extensionState");
+          const storedState = storageResult.extensionState;
+
+          if (storedState?.currentRoom && storedState?.currentUser) {
+            setExtensionState(storedState);
+            setCurrentView("room");
+          }
         }
       } catch (error) {
         console.error("Failed to load initial state:", error);
@@ -68,7 +78,33 @@ export const App: React.FC = () => {
     loadInitialState();
   }, [sendMessage]);
 
-  // Listen for state updates from Service Worker
+  // Listen for real-time storage changes
+  useEffect(() => {
+    const handleStorageChange = (
+      changes: { [key: string]: chrome.storage.StorageChange },
+      namespace: string,
+    ) => {
+      if (namespace === "local" && changes.extensionState) {
+        const newState = changes.extensionState.newValue;
+        if (newState) {
+          setExtensionState(newState);
+          // Update view based on room state
+          if (newState.currentRoom && currentView !== "room") {
+            setCurrentView("room");
+          } else if (!newState.currentRoom && currentView === "room") {
+            setCurrentView("home");
+          }
+        }
+      }
+    };
+
+    chrome.storage.onChanged.addListener(handleStorageChange);
+    return () => {
+      chrome.storage.onChanged.removeListener(handleStorageChange);
+    };
+  }, [currentView]);
+
+  // Keep listening for state updates from Service Worker as backup
   useEffect(() => {
     const handleMessage = (
       message: ExtensionMessage,

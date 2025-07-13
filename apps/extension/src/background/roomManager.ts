@@ -85,9 +85,14 @@ export class RoomManager {
       // Restore extension state from storage
       this.extensionState = await StorageManager.getExtensionState();
 
-      console.log(
-        "No existing connection state found (WebSocket will connect when room is created/joined)",
-      );
+      // Restore internal room manager state from persisted extension state
+      if (this.extensionState.currentRoom && this.extensionState.currentUser) {
+        this.currentRoom = this.extensionState.currentRoom;
+        this.currentUser = this.extensionState.currentUser;
+        console.log(
+          `Restored room state: ${this.currentRoom.name} (${this.currentRoom.id})`,
+        );
+      }
 
       console.log("Room manager initialized successfully");
     } catch (error) {

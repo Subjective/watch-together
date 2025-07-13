@@ -331,3 +331,50 @@ export function getActiveAdapters(): Array<{
 export function isAdapterActive(tabId: number): boolean {
   return activeAdapters.has(`tab-${tabId}`);
 }
+
+/**
+ * Trigger adapter refresh for a specific tab
+ */
+export async function refreshAdapter(tabId: number): Promise<boolean> {
+  try {
+    // Send reload adapter message to content script
+    await chrome.tabs.sendMessage(tabId, {
+      type: "RELOAD_ADAPTER",
+      target: "content-adapter",
+    });
+
+    // Wait a moment for adapter creation
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // Check if adapter is now available
+    return isAdapterActive(tabId);
+  } catch (error) {
+    console.error(
+      `[AdapterHandler] Failed to refresh adapter for tab ${tabId}:`,
+      error,
+    );
+    return false;
+  }
+}
+
+/**
+ * Check if adapter exists on a tab (for verification)
+ */
+export async function checkAdapterExists(tabId: number): Promise<boolean> {
+  try {
+    await chrome.tabs.sendMessage(tabId, {
+      type: "CHECK_ADAPTER",
+      target: "content-adapter",
+    });
+
+    // The response will come via onMessage handler
+    // For now, just check if we have the adapter registered
+    return isAdapterActive(tabId);
+  } catch (error) {
+    console.error(
+      `[AdapterHandler] Failed to check adapter for tab ${tabId}:`,
+      error,
+    );
+    return false;
+  }
+}

@@ -168,6 +168,17 @@ async function handleServiceWorkerMessage(message: any): Promise<void> {
     case "RELOAD_ADAPTER":
       detectAndCreateAdapter();
       break;
+    case "CHECK_ADAPTER":
+      // Check if adapter exists and respond
+      chrome.runtime
+        .sendMessage({
+          type: "ADAPTER_CHECK_RESPONSE",
+          hasAdapter: !!currentAdapter,
+          url: window.location.href,
+          timestamp: Date.now(),
+        })
+        .catch(() => {});
+      break;
   }
 }
 
@@ -175,7 +186,27 @@ async function handleServiceWorkerMessage(message: any): Promise<void> {
  * Handle adapter commands from Service Worker
  */
 async function handleAdapterCommand(message: AdapterMessage): Promise<void> {
-  if (!currentAdapter || message.type !== "ADAPTER_COMMAND") return;
+  if (message.type !== "ADAPTER_COMMAND") return;
+
+  // If no adapter exists, try to create one
+  if (!currentAdapter) {
+    console.log(
+      "[ContentLoader] No adapter available, attempting to create one",
+    );
+    detectAndCreateAdapter();
+
+    // Wait a short time for adapter creation
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    if (!currentAdapter) {
+      console.error(
+        "[ContentLoader] Failed to create adapter for command:",
+        message.command,
+      );
+      sendAdapterError(new Error("No adapter available"));
+      return;
+    }
+  }
 
   try {
     switch (message.command) {
@@ -206,7 +237,26 @@ async function handleAdapterCommand(message: AdapterMessage): Promise<void> {
  * Handle state request from Service Worker
  */
 async function handleStateRequest(message: AdapterMessage): Promise<void> {
-  if (!currentAdapter || message.type !== "ADAPTER_STATE_REQUEST") return;
+  if (message.type !== "ADAPTER_STATE_REQUEST") return;
+
+  // If no adapter exists, try to create one
+  if (!currentAdapter) {
+    console.log(
+      "[ContentLoader] No adapter available for state request, attempting to create one",
+    );
+    detectAndCreateAdapter();
+
+    // Wait a short time for adapter creation
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    if (!currentAdapter) {
+      console.error(
+        "[ContentLoader] Failed to create adapter for state request",
+      );
+      sendAdapterError(new Error("No adapter available"));
+      return;
+    }
+  }
 
   try {
     const state = {
@@ -249,6 +299,35 @@ function observePageChanges(): void {
   });
 
   observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
+
+  // Also observe for video elements specifically
+  const videoObserver = new MutationObserver((mutations) => {
+    // Check if any video elements were added
+    const hasVideoElements = mutations.some((mutation) =>
+      Array.from(mutation.addedNodes).some(
+        (node) =>
+          node instanceof Element &&
+          (node.tagName === "VIDEO" || node.querySelector("video")),
+      ),
+    );
+
+    if (hasVideoElements) {
+      clearTimeout(observeTimeout);
+      observeTimeout = setTimeout(() => {
+        console.log(
+          "[ContentLoader] Video elements detected, checking for adapter",
+        );
+        if (!currentAdapter) {
+          detectAndCreateAdapter();
+        }
+      }, 500); // Shorter delay for video element detection
+    }
+  });
+
+  videoObserver.observe(document.documentElement, {
     childList: true,
     subtree: true,
   });

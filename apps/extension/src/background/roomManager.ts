@@ -25,6 +25,7 @@ import {
   type AdapterEventDetail,
   sendAdapterCommand,
   getActiveAdapters,
+  refreshAdapter,
 } from "./adapterHandler";
 
 export interface RoomManagerConfig {
@@ -774,10 +775,45 @@ export class RoomManager {
   }
 
   private async getActiveAdapterTab(): Promise<number | null> {
-    const adapters = getActiveAdapters();
+    let adapters = getActiveAdapters();
+
+    // If no adapters found, try to refresh adapters on potential video tabs
     if (adapters.length === 0) {
-      console.warn("No active adapters found");
-      return null;
+      console.warn("No active adapters found, attempting to refresh adapters");
+
+      // Get all tabs that might have video content
+      const allTabs = await chrome.tabs.query({});
+      const videoTabs = allTabs.filter(
+        (tab) =>
+          tab.url &&
+          (tab.url.includes("youtube.com") ||
+            tab.url.includes("netflix.com") ||
+            tab.url.includes("crunchyroll.com") ||
+            tab.url.includes("video") ||
+            tab.url.includes("watch")),
+      );
+
+      // Try to refresh adapters on these tabs
+      for (const tab of videoTabs.slice(0, 3)) {
+        // Limit to first 3 tabs
+        if (tab.id) {
+          try {
+            const refreshed = await refreshAdapter(tab.id);
+            if (refreshed) {
+              console.log(`Successfully refreshed adapter for tab ${tab.id}`);
+            }
+          } catch (error) {
+            console.warn(`Failed to refresh adapter for tab ${tab.id}:`, error);
+          }
+        }
+      }
+
+      // Check again after refresh attempts
+      adapters = getActiveAdapters();
+      if (adapters.length === 0) {
+        console.warn("No active adapters found even after refresh attempts");
+        return null;
+      }
     }
 
     // Try to find an adapter in the current active tab first
@@ -788,6 +824,24 @@ export class RoomManager {
       const activeAdapter = adapters.find((a) => a.tabId === activeTabId);
       if (activeAdapter) {
         return activeAdapter.tabId;
+      }
+
+      // If current tab doesn't have adapter but could have video, try to refresh it
+      if (
+        tabs[0]?.url &&
+        (tabs[0].url.includes("youtube.com") ||
+          tabs[0].url.includes("netflix.com") ||
+          tabs[0].url.includes("crunchyroll.com") ||
+          tabs[0].url.includes("video") ||
+          tabs[0].url.includes("watch"))
+      ) {
+        console.log(
+          `Attempting to refresh adapter for current tab ${activeTabId}`,
+        );
+        const refreshed = await refreshAdapter(activeTabId);
+        if (refreshed) {
+          return activeTabId;
+        }
       }
     }
 

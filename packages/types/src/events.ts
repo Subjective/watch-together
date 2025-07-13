@@ -120,7 +120,8 @@ export type ResponseMessage =
   | UserJoinedMessage
   | UserLeftMessage
   | UserDisconnectedMessage
-  | ErrorMessage;
+  | ErrorMessage
+  | PongMessage;
 
 /**
  * WebRTC Data Channel message types for video synchronization

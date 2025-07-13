@@ -24,6 +24,8 @@ export class WebSocketManager {
   private retryCount = 0;
   private retryTimeoutId: number | null = null;
   private heartbeatIntervalId: number | null = null;
+  private pongTimeoutId: number | null = null;
+  private readonly PONG_TIMEOUT = 10000; // 10 seconds
   private eventListeners: Map<string, ((data: any) => void)[]> = new Map();
 
   constructor(config: WebSocketConfig) {
@@ -168,6 +170,12 @@ export class WebSocketManager {
         const message: ResponseMessage = JSON.parse(event.data);
         console.log("WebSocket message received:", message.type);
 
+        // Handle PONG response
+        if (message.type === "PONG") {
+          this.handlePongReceived();
+          return;
+        }
+
         // Emit to registered listeners
         const listeners = this.eventListeners.get(message.type);
         if (listeners) {
@@ -253,13 +261,24 @@ export class WebSocketManager {
     this.stopHeartbeat();
     this.heartbeatIntervalId = setInterval(() => {
       if (this.isConnected()) {
-        // Send ping message
+        // Send ping message and set timeout for PONG response
         try {
           this.ws?.send(
             JSON.stringify({ type: "PING", timestamp: Date.now() }),
           );
+          console.log("PING sent to server");
+
+          // Set timeout for PONG response
+          this.clearPongTimeout();
+          this.pongTimeoutId = setTimeout(() => {
+            console.log("PONG timeout - server not responding");
+            this.setConnectionStatus("ERROR");
+            this.scheduleReconnection();
+          }, this.PONG_TIMEOUT) as unknown as number;
         } catch (error) {
           console.error("Failed to send heartbeat:", error);
+          this.setConnectionStatus("ERROR");
+          this.scheduleReconnection();
         }
       }
     }, this.config.heartbeatInterval) as unknown as number;
@@ -269,6 +288,25 @@ export class WebSocketManager {
     if (this.heartbeatIntervalId) {
       clearInterval(this.heartbeatIntervalId);
       this.heartbeatIntervalId = null;
+    }
+    this.clearPongTimeout();
+  }
+
+  /**
+   * Handle PONG response from server
+   */
+  private handlePongReceived(): void {
+    console.log("PONG received from server");
+    this.clearPongTimeout();
+  }
+
+  /**
+   * Clear PONG timeout timer
+   */
+  private clearPongTimeout(): void {
+    if (this.pongTimeoutId) {
+      clearTimeout(this.pongTimeoutId);
+      this.pongTimeoutId = null;
     }
   }
 }
@@ -283,5 +321,5 @@ export const defaultWebSocketConfig: WebSocketConfig = {
   maxRetries: 5,
   baseRetryDelay: 1000,
   maxRetryDelay: 30000,
-  heartbeatInterval: 30000,
+  heartbeatInterval: 30000, // 15 seconds for server failure detection
 };

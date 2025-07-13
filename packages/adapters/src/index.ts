@@ -4,9 +4,7 @@
 
 export * from "./IPlayerAdapter";
 export * from "./GenericHTML5Adapter";
-export * from "./CrunchyrollVilosAdapter";
 export * from "./AdapterFactory";
-export * from "./utils/IframePlayerBase";
 
 // Diagnostic utilities (only in development)
 export {

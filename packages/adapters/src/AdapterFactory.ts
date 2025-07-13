@@ -7,7 +7,6 @@ import type {
   AdapterTier,
 } from "@repo/types";
 import { GenericHTML5Adapter } from "./GenericHTML5Adapter";
-import { CrunchyrollVilosAdapter } from "./CrunchyrollVilosAdapter";
 
 export interface AdapterConfig {
   name: string;
@@ -26,15 +25,6 @@ export class AdapterFactory {
    */
   static initialize(): void {
     if (this.initialized) return;
-
-    // Register Crunchyroll Vilos adapter (runs inside static.crunchyroll.com iframe)
-    this.register({
-      name: "crunchyroll-vilos",
-      tier: "HTML5",
-      domains: ["static.crunchyroll.com"],
-      detect: () => CrunchyrollVilosAdapter.detect(),
-      create: () => CrunchyrollVilosAdapter.create(),
-    });
 
     // Register default HTML5 adapter (lowest priority)
     this.register({

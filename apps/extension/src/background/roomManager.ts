@@ -109,6 +109,9 @@ export class RoomManager {
       const userId = this.generateUserId();
       const roomId = this.generateRoomId();
 
+      // Disconnect any existing WebSocket connection
+      await this.websocket.disconnect();
+
       // Update WebSocket URL with roomId
       const baseUrl = defaultWebSocketConfig.url;
       this.websocket["config"].url = `${baseUrl}?roomId=${roomId}`;
@@ -185,6 +188,9 @@ export class RoomManager {
    */
   async joinRoom(roomId: string, userName: string): Promise<RoomState> {
     try {
+      // Disconnect any existing WebSocket connection
+      await this.websocket.disconnect();
+
       // Update WebSocket URL with roomId
       const baseUrl = defaultWebSocketConfig.url;
       this.websocket["config"].url = `${baseUrl}?roomId=${roomId}`;
@@ -279,6 +285,9 @@ export class RoomManager {
 
       // Close WebRTC connections
       this.webrtc.closeAllConnections();
+
+      // Disconnect WebSocket to clean up connection state
+      await this.websocket.disconnect();
 
       // Reset state
       this.currentRoom = null;
@@ -419,9 +428,9 @@ export class RoomManager {
   /**
    * Cleanup resources
    */
-  cleanup(): void {
+  async cleanup(): Promise<void> {
     this.webrtc.closeAllConnections();
-    this.websocket.disconnect();
+    await this.websocket.disconnect();
     this.eventListeners.clear();
   }
 

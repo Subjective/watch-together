@@ -85,13 +85,21 @@ export class WebSocketManager {
   /**
    * Disconnect from WebSocket server
    */
-  disconnect(): void {
+  async disconnect(): Promise<void> {
     this.clearReconnectionTimer();
     this.stopHeartbeat();
 
     if (this.ws) {
-      this.ws.close(1000, "Client disconnect");
-      this.ws = null;
+      return new Promise<void>((resolve) => {
+        const ws = this.ws!;
+        const onClose = () => {
+          ws.removeEventListener("close", onClose);
+          resolve();
+        };
+        ws.addEventListener("close", onClose);
+        ws.close(1000, "Client disconnect");
+        this.ws = null;
+      });
     }
 
     this.setConnectionStatus("DISCONNECTED");

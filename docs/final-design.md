@@ -480,6 +480,10 @@ The popup should communicate with the service worker via chrome.runtime.sendMess
 Implement the Service Worker (background/main.ts) as the extension's brain:
 
 1. Set up WebSocket connection management to the signaling server
+   - Configure the WebSocket endpoint via the `VITE_WS_URL` environment variable.
+     Vite loads `.env.development` or `.env.production` depending on the build
+     mode so the extension connects to the local server in development and the
+     deployed Cloudflare Worker in production.
 2. Implement room state management using chrome.storage for persistence
 3. Create message routing between popup and content scripts
 4. Handle WebRTC peer connection establishment and management

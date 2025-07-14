@@ -350,9 +350,10 @@ export class WebSocketManager {
  * Default WebSocket configuration
  */
 export const defaultWebSocketConfig: WebSocketConfig = {
-  // For local testing, use a mock WebSocket server or disable connection
-  // In production, this should be your Cloudflare Workers URL
-  url: "ws://localhost:8787/ws", // Local development server
+  // Read from Vite environment variable. During development this comes from
+  // `.env.development`, and production builds use `.env.production`.
+  // Fallback to localhost if the variable is undefined (useful for tests).
+  url: import.meta.env.VITE_WS_URL || "ws://localhost:8787/ws",
   maxRetries: 5,
   baseRetryDelay: 1000,
   maxRetryDelay: 30000,

@@ -30,6 +30,10 @@
       "inputs": ["tests/e2e/**", "dist/**"],
       "outputs": ["test-results/**", "playwright-report/**"]
     },
+    "deploy": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
     "//#merge-json-reports": {
       "inputs": ["**/coverage.json"],
       "outputs": ["coverage/merged/**"]

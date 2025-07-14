@@ -8,6 +8,7 @@ import type {
   JoinRoomMessage,
   LeaveRoomMessage,
   RenameRoomMessage,
+  RenameUserMessage,
   WebRTCOfferMessage,
   WebRTCAnswerMessage,
   WebRTCIceCandidateMessage,
@@ -212,6 +213,9 @@ export class RoomState {
           break;
         case "RENAME_ROOM":
           await this.handleRenameRoom(websocket, message as RenameRoomMessage);
+          break;
+        case "RENAME_USER":
+          await this.handleRenameUser(websocket, message as RenameUserMessage);
           break;
         case "WEBRTC_OFFER":
           await this.handleWebRTCOffer(
@@ -531,6 +535,86 @@ export class RoomState {
       this.sendError(
         websocket,
         "Failed to rename room",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  /**
+   * Handle RENAME_USER messages
+   */
+  private async handleRenameUser(
+    websocket: WebSocket,
+    message: RenameUserMessage,
+  ): Promise<void> {
+    try {
+      if (!this.roomData) {
+        this.sendError(websocket, "Room not found", message.roomId);
+        return;
+      }
+
+      // Validate room ID matches
+      if (this.roomData.id !== message.roomId) {
+        this.sendError(websocket, "Room ID mismatch", message.roomId);
+        return;
+      }
+
+      // Find the user making the request
+      const user = this.findUserByWebSocket(websocket);
+      if (!user) {
+        this.sendError(websocket, "User not found", message.userId);
+        return;
+      }
+
+      // Validate user can only rename themselves
+      if (user.id !== message.userId) {
+        this.sendError(websocket, "Can only rename yourself", message.userId);
+        return;
+      }
+
+      // Validate user name
+      const trimmedName = message.newUserName.trim();
+      if (!trimmedName || trimmedName.length < 2 || trimmedName.length > 30) {
+        this.sendError(
+          websocket,
+          "Invalid user name",
+          "Name must be 2-30 characters",
+        );
+        return;
+      }
+
+      // Update user name in room data
+      const roomUser = this.roomData.users.find((u) => u.id === message.userId);
+      if (roomUser) {
+        roomUser.name = trimmedName;
+      }
+
+      // Update user name in connections
+      if (user) {
+        user.name = trimmedName;
+      }
+
+      this.roomData.lastActivity = Date.now();
+
+      // Persist to storage
+      await this.state.storage.put("roomData", this.roomData);
+
+      // Broadcast to all users
+      this.broadcast({
+        type: "USER_RENAMED",
+        roomId: this.roomData.id,
+        userId: message.userId,
+        newUserName: trimmedName,
+        timestamp: Date.now(),
+        roomState: this.getRoomStateForClient(),
+      });
+
+      console.log(`User renamed: ${message.userId} -> "${trimmedName}"`);
+    } catch (error) {
+      console.error("Rename user error:", error);
+      this.sendError(
+        websocket,
+        "Failed to rename user",
         error instanceof Error ? error.message : String(error),
       );
     }

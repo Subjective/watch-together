@@ -11,6 +11,7 @@ import type {
 import { ControlModeToggle } from "./ControlModeToggle";
 import { FollowModeToggle } from "./FollowModeToggle";
 import { EditableRoomName } from "./EditableRoomName";
+import { EditableUserName } from "./EditableUserName";
 
 // Icon components
 const PlayIcon: React.FC<{ className?: string }> = ({
@@ -56,6 +57,7 @@ interface RoomManagerProps {
   onToggleControlMode: () => void;
   onToggleFollowMode: () => void;
   onFollowHost: () => void;
+  onRenameUser: (newUserName: string) => void;
 }
 
 export const RoomManager: React.FC<RoomManagerProps> = ({
@@ -68,6 +70,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
   onToggleControlMode,
   onToggleFollowMode,
   onFollowHost,
+  onRenameUser,
 }) => {
   const connectedUsers = useMemo(() => {
     return room.users.filter((user) => user.isConnected);
@@ -130,6 +133,19 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
       throw error;
     }
   }, []);
+
+  const handleUserRename = useCallback(
+    async (newName: string) => {
+      try {
+        // Use the prop function passed from parent
+        await onRenameUser(newName);
+      } catch (error) {
+        console.error("Failed to send user rename request:", error);
+        throw error;
+      }
+    },
+    [onRenameUser],
+  );
 
   return (
     <div className="p-4 h-full flex flex-col space-y-4 overflow-hidden">
@@ -297,7 +313,12 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
               >
                 <div className="flex items-center">
                   <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                  <span className="text-sm text-gray-900">{user.name}</span>
+                  <EditableUserName
+                    currentName={user.name}
+                    onRename={handleUserRename}
+                    isCurrentUser={user.id === currentUser.id}
+                    disabled={false}
+                  />
                   {user.isHost && (
                     <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
                       Host

@@ -13,6 +13,7 @@ import type {
   JoinRoomMessage,
   LeaveRoomMessage,
   RenameRoomMessage,
+  RenameUserMessage,
   WebRTCOfferMessage,
   WebRTCAnswerMessage,
   WebRTCIceCandidateMessage,
@@ -452,6 +453,64 @@ export class RoomManager {
   }
 
   /**
+   * Rename the current user
+   */
+  async renameUser(newUserName: string): Promise<void> {
+    if (!this.currentRoom || !this.currentUser) {
+      throw new Error("Not in a room");
+    }
+
+    const trimmedName = newUserName.trim();
+    if (!trimmedName || trimmedName.length < 2 || trimmedName.length > 30) {
+      throw new Error("User name must be 2-30 characters");
+    }
+
+    const roomId = this.currentRoom.id;
+    const message: RenameUserMessage = {
+      type: "RENAME_USER",
+      roomId,
+      userId: this.currentUser.id,
+      newUserName: trimmedName,
+      timestamp: Date.now(),
+    };
+
+    await this.websocket.send(message);
+
+    // Wait for server confirmation with shorter timeout
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.websocket.off("USER_RENAMED", onUserRenamed);
+        this.websocket.off("ERROR", onError);
+        reject(
+          new Error("User rename timeout - server took too long to respond"),
+        );
+      }, 5000); // Shorter 5-second timeout
+
+      const onUserRenamed = (response: any) => {
+        if (
+          response.roomId === roomId &&
+          response.userId === this.currentUser?.id
+        ) {
+          clearTimeout(timeout);
+          this.websocket.off("USER_RENAMED", onUserRenamed);
+          this.websocket.off("ERROR", onError);
+          resolve();
+        }
+      };
+
+      const onError = (response: any) => {
+        clearTimeout(timeout);
+        this.websocket.off("USER_RENAMED", onUserRenamed);
+        this.websocket.off("ERROR", onError);
+        reject(new Error(response.error || "Server error during rename"));
+      };
+
+      this.websocket.on("USER_RENAMED", onUserRenamed);
+      this.websocket.on("ERROR", onError);
+    });
+  }
+
+  /**
    * Set follow mode
    */
   async setFollowMode(mode: FollowMode): Promise<void> {
@@ -706,6 +765,7 @@ export class RoomManager {
     this.websocket.on("USER_JOINED", this.handleUserJoined.bind(this));
     this.websocket.on("USER_LEFT", this.handleUserLeft.bind(this));
     this.websocket.on("ROOM_RENAMED", this.handleRoomRenamed.bind(this));
+    this.websocket.on("USER_RENAMED", this.handleUserRenamed.bind(this));
     this.websocket.on("WEBRTC_OFFER", this.handleWebRTCOffer.bind(this));
     this.websocket.on("WEBRTC_ANSWER", this.handleWebRTCAnswer.bind(this));
     this.websocket.on(
@@ -831,6 +891,34 @@ export class RoomManager {
       }
 
       console.log("Room renamed to:", response.newRoomName);
+    }
+  }
+
+  /**
+   * Handle USER_RENAMED WebSocket messages
+   */
+  private async handleUserRenamed(response: any): Promise<void> {
+    if (this.currentRoom && response.roomId === this.currentRoom.id) {
+      this.currentRoom = response.roomState;
+
+      // Update current user if they were the one renamed
+      if (this.currentUser && response.userId === this.currentUser.id) {
+        this.currentUser.name = response.newUserName;
+
+        // Update user preferences with new name
+        await StorageManager.updateUserPreferences({
+          defaultUserName: response.newUserName,
+        });
+      }
+
+      this.updateExtensionState({
+        currentRoom: this.currentRoom,
+        currentUser: this.currentUser,
+      });
+
+      console.log(
+        `User renamed: ${response.userId} -> "${response.newUserName}"`,
+      );
     }
   }
 

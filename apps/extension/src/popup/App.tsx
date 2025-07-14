@@ -11,6 +11,7 @@ import type {
   ToggleControlModeRequest,
   SetFollowModeRequest,
   FollowHostRequest,
+  RenameUserRequest,
 } from "@repo/types";
 import { RoomCreate } from "./RoomCreate";
 import { RoomJoin } from "./RoomJoin";
@@ -207,6 +208,22 @@ export const App: React.FC = () => {
     }
   }, [sendMessage]);
 
+  const handleRenameUser = useCallback(
+    async (newUserName: string) => {
+      try {
+        const message: RenameUserRequest = {
+          type: "RENAME_USER",
+          newUserName,
+          timestamp: Date.now(),
+        };
+        await sendMessage(message);
+      } catch (error) {
+        console.error("Failed to rename user:", error);
+      }
+    },
+    [sendMessage],
+  );
+
   // Render appropriate view
   const renderView = useMemo(() => {
     switch (currentView) {
@@ -242,6 +259,7 @@ export const App: React.FC = () => {
             onToggleControlMode={handleToggleControlMode}
             onToggleFollowMode={handleToggleFollowMode}
             onFollowHost={handleFollowHost}
+            onRenameUser={handleRenameUser}
           />
         );
       default:
@@ -294,6 +312,7 @@ export const App: React.FC = () => {
     handleToggleControlMode,
     handleToggleFollowMode,
     handleFollowHost,
+    handleRenameUser,
   ]);
 
   return <div className="w-full h-full bg-gray-100">{renderView}</div>;

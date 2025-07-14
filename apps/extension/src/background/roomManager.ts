@@ -843,50 +843,109 @@ export class RoomManager {
     fromUserId?: string;
     hostVideoUrl?: string | null;
   }): Promise<void> {
-    const activeTab = await this.getActiveAdapterTab();
-    if (!activeTab) {
-      console.warn(`[RoomManager] No active adapter tab found to apply state`);
-      return;
+    // Check user preference for background sync
+    const userPreferences = await StorageManager.getUserPreferences();
+
+    // Determine which tabs to sync based on whether hostVideoUrl is provided
+    let targetTabs: number[] = [];
+
+    if (message.hostVideoUrl && userPreferences.backgroundSyncEnabled) {
+      // Use background sync: find all tabs with matching video URL
+      targetTabs = await this.getAllMatchingAdapterTabs(message.hostVideoUrl);
+
+      if (targetTabs.length === 0) {
+        console.warn(
+          `[RoomManager] No tabs found matching host video URL: ${message.hostVideoUrl}`,
+        );
+        return;
+      }
+    } else {
+      // Fallback to single active tab behavior (for direct commands or disabled background sync)
+      const activeTab = await this.getActiveAdapterTab();
+      if (!activeTab) {
+        console.warn(
+          `[RoomManager] No active adapter tab found to apply state`,
+        );
+        return;
+      }
+
+      // If hostVideoUrl is provided but background sync is disabled, validate URL
+      if (message.hostVideoUrl && !userPreferences.backgroundSyncEnabled) {
+        const currentUrl = await this.getCurrentTabUrl();
+        if (currentUrl !== message.hostVideoUrl) {
+          console.warn(
+            `[RoomManager] Background sync disabled - ignoring command for different video:`,
+            `current: ${currentUrl}, host: ${message.hostVideoUrl}`,
+          );
+          return;
+        }
+      }
+
+      targetTabs = [activeTab];
     }
 
-    // Get current tab URL for validation
-    const currentUrl = await this.getCurrentTabUrl();
+    console.log(
+      `[RoomManager] Applying video state to ${targetTabs.length} tab(s):`,
+      {
+        state: message.state,
+        time: message.time,
+        fromUser: message.fromUserId,
+        hostVideoUrl: message.hostVideoUrl,
+        backgroundSyncEnabled: userPreferences.backgroundSyncEnabled,
+        targetTabs,
+      },
+    );
 
-    // Only apply sync commands if watching the same video as host
-    if (message.hostVideoUrl && currentUrl !== message.hostVideoUrl) {
-      console.warn(
-        `[RoomManager] Ignoring sync command - participant watching different video:`,
-        `participant: ${currentUrl}, host: ${message.hostVideoUrl}`,
-      );
-      return;
+    // Apply latency compensation
+    const latency = this.calculateLatency(message.timestamp);
+    const compensatedTime = message.time + latency / 1000; // Convert ms to seconds
+
+    // Apply state to all matching tabs
+    const promises: Promise<void>[] = [];
+
+    for (const tabId of targetTabs) {
+      promises.push(this.applyVideoStateToTab(tabId, message, compensatedTime));
     }
-
-    console.log(`[RoomManager] Applying video state to tab ${activeTab}:`, {
-      state: message.state,
-      time: message.time,
-      fromUser: message.fromUserId,
-      hostVideoUrl: message.hostVideoUrl,
-    });
 
     try {
-      // Apply latency compensation
-      const latency = this.calculateLatency(message.timestamp);
-      const compensatedTime = message.time + latency / 1000; // Convert ms to seconds
+      await Promise.all(promises);
+      console.log(
+        `[RoomManager] Successfully applied video state to ${targetTabs.length} tab(s)`,
+      );
+    } catch (error) {
+      console.error("Failed to apply video state to some tabs:", error);
+    }
+  }
 
+  /**
+   * Apply video state commands to a specific tab
+   */
+  private async applyVideoStateToTab(
+    tabId: number,
+    message: {
+      state: string;
+      time: number;
+      timestamp: number;
+      fromUserId?: string;
+      hostVideoUrl?: string | null;
+    },
+    compensatedTime: number,
+  ): Promise<void> {
+    try {
       // Apply the state
       if (message.state === "PLAYING") {
-        console.log(`[RoomManager] Sending play command to adapter`);
-        await sendAdapterCommand(activeTab, "play");
+        console.log(`[RoomManager] Sending play command to tab ${tabId}`);
+        await sendAdapterCommand(tabId, "play");
       } else if (message.state === "PAUSED") {
-        console.log(`[RoomManager] Sending pause command to adapter`);
-        await sendAdapterCommand(activeTab, "pause");
+        console.log(`[RoomManager] Sending pause command to tab ${tabId}`);
+        await sendAdapterCommand(tabId, "pause");
       }
 
       // Only sync the time if there's a significant difference
       if (message.time !== undefined) {
         // Get current adapter state to check time difference
         const adapters = getActiveAdapters();
-        const currentAdapter = adapters.find((a) => a.tabId === activeTab);
+        const currentAdapter = adapters.find((a) => a.tabId === tabId);
 
         if (currentAdapter) {
           const timeDiff = Math.abs(
@@ -896,20 +955,21 @@ export class RoomManager {
           // Only seek if the difference is greater than tolerance
           if (timeDiff > this.seekTolerance) {
             console.log(
-              `[RoomManager] Seeking to time: ${compensatedTime}s (diff: ${timeDiff}s)`,
+              `[RoomManager] Seeking tab ${tabId} to time: ${compensatedTime}s (diff: ${timeDiff}s)`,
             );
-            await sendAdapterCommand(activeTab, "seek", {
+            await sendAdapterCommand(tabId, "seek", {
               time: compensatedTime,
             });
           } else {
             console.log(
-              `[RoomManager] Skipping seek, within tolerance (diff: ${timeDiff}s)`,
+              `[RoomManager] Skipping seek for tab ${tabId}, within tolerance (diff: ${timeDiff}s)`,
             );
           }
         }
       }
     } catch (error) {
-      console.error("Failed to apply video state:", error);
+      console.error(`Failed to apply video state to tab ${tabId}:`, error);
+      throw error; // Re-throw to be caught by Promise.all
     }
   }
 
@@ -939,6 +999,52 @@ export class RoomManager {
 
     // Fallback to first adapter
     return adapters[0].tabId;
+  }
+
+  /**
+   * Get all adapter tabs that match the target video URL
+   * Used for background tab synchronization
+   */
+  private async getAllMatchingAdapterTabs(
+    targetUrl: string | null,
+  ): Promise<number[]> {
+    if (!targetUrl) {
+      return [];
+    }
+
+    const adapters = getActiveAdapters();
+    if (adapters.length === 0) {
+      return [];
+    }
+
+    const matchingTabIds: number[] = [];
+
+    // Get URLs for all adapter tabs
+    for (const adapter of adapters) {
+      if (!adapter.connected) {
+        continue;
+      }
+
+      try {
+        const tab = await chrome.tabs.get(adapter.tabId);
+        if (tab.url === targetUrl) {
+          matchingTabIds.push(adapter.tabId);
+        }
+      } catch (error) {
+        // Tab might have been closed or is inaccessible
+        console.warn(
+          `[RoomManager] Failed to get tab ${adapter.tabId}:`,
+          error,
+        );
+      }
+    }
+
+    console.log(
+      `[RoomManager] Found ${matchingTabIds.length} tabs matching URL: ${targetUrl}`,
+      matchingTabIds,
+    );
+
+    return matchingTabIds;
   }
 
   private calculateLatency(remoteTimestamp: number): number {

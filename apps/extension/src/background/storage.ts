@@ -17,6 +17,7 @@ export interface UserPreferences {
   autoJoinRooms: boolean;
   notificationsEnabled: boolean;
   defaultUserName: string;
+  backgroundSyncEnabled: boolean;
 }
 
 export interface RoomHistoryEntry {
@@ -278,6 +279,7 @@ export class StorageManager {
       autoJoinRooms: false,
       notificationsEnabled: true,
       defaultUserName: "",
+      backgroundSyncEnabled: true,
     };
   }
 

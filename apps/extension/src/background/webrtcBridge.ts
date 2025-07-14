@@ -22,7 +22,6 @@ import type {
   DirectPauseMessage,
   DirectSeekMessage,
   ControlModeChangeMessage,
-  HostNavigateMessage,
   ControlMode,
 } from "@repo/types";
 
@@ -349,22 +348,6 @@ export class WebRTCManager {
     console.log(
       `[WebRTC] Successfully broadcasted control mode change to ${mode}`,
     );
-  }
-
-  async broadcastNavigation(url: string): Promise<void> {
-    if (!this.isHost) {
-      console.warn("Only host can broadcast navigation");
-      return;
-    }
-
-    const message: HostNavigateMessage = {
-      type: "HOST_NAVIGATE",
-      userId: this.currentUserId!,
-      timestamp: Date.now(),
-      url,
-    };
-
-    await this.sendSyncMessage(message);
   }
 
   getConnectedPeers(): unknown[] {

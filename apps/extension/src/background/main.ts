@@ -166,10 +166,7 @@ function setupRoomManagerEventHandlers(): void {
     forwardToContentScript("VIDEO_CONTROL", data);
   });
 
-  // Listen for host navigation events
-  roomManager.on("HOST_NAVIGATE", async (data: any) => {
-    await handleHostNavigation(data.url);
-  });
+  // Navigation-based auto-follow has been replaced with video state-based auto-follow
 
   // Listen for control mode changes
   roomManager.on("CONTROL_MODE_CHANGED", (_data: any) => {
@@ -394,8 +391,8 @@ async function handleFollowHost(_message: FollowHostRequest): Promise<any> {
       throw new Error("No follow notification available");
     }
 
-    // Navigate to the URL
-    await navigateToUrl(state.followNotificationUrl);
+    // Navigate to the video URL (trusted video URLs don't need domain validation)
+    await navigateToVideoUrl(state.followNotificationUrl);
 
     // Clear the notification
     if (roomManager) {
@@ -442,49 +439,6 @@ async function handleVideoStateChange(
 }
 
 /**
- * Handle host navigation
- */
-async function handleHostNavigation(url: string): Promise<void> {
-  try {
-    if (!roomManager) {
-      return;
-    }
-
-    const state = roomManager.getExtensionState();
-
-    if (state.followMode === "AUTO_FOLLOW") {
-      // Only auto-follow to sites with known video adapter support
-      if (isValidNavigationUrl(url)) {
-        console.log("Auto-following to supported video site:", url);
-        await navigateToUrl(url);
-      } else {
-        console.log(
-          "Skipping auto-follow - site not supported or invalid:",
-          url,
-        );
-        // Show manual notification even in auto-follow mode if site isn't supported
-        await StorageManager.updateExtensionState({
-          hasFollowNotification: true,
-          followNotificationUrl: url,
-        });
-        broadcastStateUpdate(roomManager.getExtensionState());
-      }
-    } else {
-      // Manual follow mode - show notification
-      await StorageManager.updateExtensionState({
-        hasFollowNotification: true,
-        followNotificationUrl: url,
-      });
-
-      // Broadcast state update
-      broadcastStateUpdate(roomManager.getExtensionState());
-    }
-  } catch (error) {
-    console.error("Failed to handle host navigation:", error);
-  }
-}
-
-/**
  * Handle client requests when acting as host
  */
 async function handleClientRequest(data: any): Promise<void> {
@@ -493,15 +447,20 @@ async function handleClientRequest(data: any): Promise<void> {
 }
 
 /**
- * Navigate to URL with security validation and duplicate tab checking
+ * Navigate to trusted video URL without domain validation (for host video state URLs)
  */
-async function navigateToUrl(url: string): Promise<void> {
-  if (!isValidNavigationUrl(url)) {
-    console.warn("Invalid navigation URL blocked:", url);
-    return;
-  }
-
+async function navigateToVideoUrl(url: string): Promise<void> {
   try {
+    // Basic security check for dangerous protocols only
+    if (
+      url.startsWith("data:") ||
+      url.startsWith("javascript:") ||
+      url.startsWith("file:")
+    ) {
+      console.warn("Dangerous video URL blocked:", url);
+      return;
+    }
+
     // Check if participant already has this URL open in any tab
     const existingTabs = await chrome.tabs.query({ url });
 
@@ -512,14 +471,14 @@ async function navigateToUrl(url: string): Promise<void> {
       if (existingTab.windowId) {
         await chrome.windows.update(existingTab.windowId, { focused: true });
       }
-      console.log("Switched to existing tab with URL:", url);
+      console.log("Switched to existing tab with video URL:", url);
     } else {
       // Create new tab for the URL
       await chrome.tabs.create({ url, active: true });
-      console.log("Created new tab for URL:", url);
+      console.log("Created new tab for video URL:", url);
     }
   } catch (error) {
-    console.error("Failed to navigate to URL:", error);
+    console.error("Failed to navigate to video URL:", error);
     // Fallback: try to update current tab
     try {
       const tabs = await chrome.tabs.query({
@@ -528,93 +487,14 @@ async function navigateToUrl(url: string): Promise<void> {
       });
       if (tabs[0]?.id) {
         await chrome.tabs.update(tabs[0].id, { url });
-        console.log("Fallback: Updated current tab with URL:", url);
+        console.log("Fallback: Updated current tab with video URL:", url);
       }
     } catch (fallbackError) {
-      console.error("Fallback navigation also failed:", fallbackError);
+      console.error(
+        "Fallback navigation for video URL also failed:",
+        fallbackError,
+      );
     }
-  }
-}
-
-/**
- * Validate URL for navigation security and adapter support
- * Only allows navigation to known video streaming sites with potential adapter support
- */
-function isValidNavigationUrl(url: string): boolean {
-  try {
-    const urlObj = new URL(url);
-
-    // Block dangerous protocols first
-    if (
-      urlObj.protocol === "file:" ||
-      url.startsWith("data:") ||
-      urlObj.protocol === "javascript:"
-    ) {
-      return false;
-    }
-
-    // Allow only HTTPS URLs for navigation
-    if (urlObj.protocol !== "https:") {
-      return false;
-    }
-
-    // Block localhost, private IPs, and suspicious domains
-    const hostname = urlObj.hostname.toLowerCase();
-
-    // Block localhost and loopback
-    if (
-      hostname === "localhost" ||
-      hostname === "127.0.0.1" ||
-      hostname === "::1"
-    ) {
-      return false;
-    }
-
-    // Block private IP ranges (basic check)
-    if (hostname.match(/^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|^192\.168\./)) {
-      return false;
-    }
-
-    // Block URLs with suspicious TLDs that could be used for malicious purposes
-    const suspiciousTlds = [".tk", ".ml", ".ga", ".cf"];
-    if (suspiciousTlds.some((tld) => hostname.endsWith(tld))) {
-      return false;
-    }
-
-    // Restrictive allowlist for known video streaming sites with adapter support
-    const allowedDomains = [
-      "youtube.com",
-      "www.youtube.com",
-      "youtu.be",
-      "netflix.com",
-      "www.netflix.com",
-      "vimeo.com",
-      "www.vimeo.com",
-      "player.vimeo.com",
-      "twitch.tv",
-      "www.twitch.tv",
-      "amazon.com",
-      "www.amazon.com",
-      "primevideo.com",
-      "www.primevideo.com",
-      "hulu.com",
-      "www.hulu.com",
-      "disneyplus.com",
-      "www.disneyplus.com",
-      "crunchyroll.com",
-      "www.crunchyroll.com",
-      "funimation.com",
-      "www.funimation.com",
-      "dailymotion.com",
-      "www.dailymotion.com",
-    ];
-
-    // Only allow known video streaming domains (conservative approach)
-    return allowedDomains.some(
-      (domain) => hostname === domain || hostname.endsWith(`.${domain}`),
-    );
-  } catch {
-    return false;
   }
 }
 
@@ -649,13 +529,14 @@ function broadcastStateUpdate(state: ExtensionState): void {
 }
 
 /**
- * Handle tab updates for navigation detection
+ * Handle tab updates for host current location tracking
+ * Note: Auto-follow is now handled via video state updates, not navigation events
  */
 chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo, _tab) => {
   if (changeInfo.url && roomManager) {
     const currentUser = roomManager.getCurrentUser();
 
-    // Only host can trigger navigation
+    // Track host current location for "Host Current Location" display
     if (currentUser?.isHost) {
       // Debounce rapid navigation events
       const now = Date.now();
@@ -665,21 +546,11 @@ chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo, _tab) => {
       }
       lastNavigationTime = now;
 
-      // Check if this is a valid URL with adapter support
-      if (isValidNavigationUrl(changeInfo.url)) {
-        console.log("Host navigated to supported video site:", changeInfo.url);
-
-        // Broadcast navigation to known video sites only
-        try {
-          await roomManager.broadcastNavigation(changeInfo.url);
-        } catch (error) {
-          console.error("Failed to broadcast navigation:", error);
-        }
-      } else {
-        console.log(
-          "Host navigated to unsupported site, not broadcasting:",
-          changeInfo.url,
-        );
+      // Update host current location in room state (for display purposes only)
+      try {
+        await roomManager.updateHostCurrentUrl(changeInfo.url);
+      } catch (error) {
+        console.error("Failed to update host current URL:", error);
       }
     }
   }

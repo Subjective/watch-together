@@ -42,6 +42,7 @@ export class RoomManager {
   private currentUser: User | null = null;
   private extensionState: ExtensionState;
   private eventListeners: Map<string, ((data: any) => void)[]> = new Map();
+  private lastHostVideoUrl: string | null = null;
 
   constructor(config: RoomManagerConfig) {
     // Initialize WebSocket manager
@@ -438,26 +439,132 @@ export class RoomManager {
   }
 
   /**
-   * Broadcast navigation to peers (host only)
+   * Update host current URL for display purposes only (no auto-follow)
    */
-  async broadcastNavigation(url: string): Promise<void> {
+  async updateHostCurrentUrl(url: string): Promise<void> {
     if (!this.currentRoom || !this.currentUser) {
       throw new Error("Not in a room");
     }
-
     if (!this.currentUser.isHost) {
-      console.warn("Only host can broadcast navigation");
+      console.warn("Only host can update current URL");
       return;
     }
-
-    // Update room state with host's current URL
+    // Update room state with host's current URL (for display only)
     this.currentRoom.hostCurrentUrl = url;
     this.updateExtensionState({
       currentRoom: this.currentRoom,
     });
+    console.log("Host current URL updated for display:", url);
+  }
 
-    await this.webrtc.broadcastNavigation(url);
-    console.log("Navigation broadcasted to peers:", url);
+  /**
+   * Handle host video switch for auto-follow functionality
+   */
+  private async handleHostVideoSwitch(hostVideoUrl: string): Promise<void> {
+    try {
+      if (this.extensionState.followMode === "AUTO_FOLLOW") {
+        // Check if participant already has this video URL open
+        const hasExistingTab = await this.hasTabWithVideoUrl(hostVideoUrl);
+
+        if (hasExistingTab) {
+          console.log(
+            "Auto-follow: Switching to existing tab with host's video",
+          );
+          await this.switchToTabWithVideoUrl(hostVideoUrl);
+        } else {
+          console.log("Auto-follow: Creating new tab for host's video");
+          await this.createTabForVideo(hostVideoUrl);
+        }
+      } else {
+        // Manual follow mode - show notification
+        console.log("Manual follow: Showing notification for host's video");
+        await StorageManager.updateExtensionState({
+          hasFollowNotification: true,
+          followNotificationUrl: hostVideoUrl,
+        });
+
+        // Broadcast state update to trigger UI refresh
+        this.emit("STATE_UPDATE", this.getExtensionState());
+      }
+    } catch (error) {
+      console.error("Failed to handle host video switch:", error);
+    }
+  }
+
+  /**
+   * Check if participant has a tab with the given video URL
+   */
+  private async hasTabWithVideoUrl(videoUrl: string): Promise<boolean> {
+    try {
+      // Basic security check for dangerous protocols only
+      if (
+        videoUrl.startsWith("data:") ||
+        videoUrl.startsWith("javascript:") ||
+        videoUrl.startsWith("file:")
+      ) {
+        console.warn("Dangerous video URL blocked:", videoUrl);
+        return false;
+      }
+
+      const tabs = await chrome.tabs.query({ url: videoUrl });
+      return tabs.length > 0;
+    } catch (error) {
+      console.error("Failed to check for existing tab:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Switch to existing tab with the given video URL
+   */
+  private async switchToTabWithVideoUrl(videoUrl: string): Promise<void> {
+    try {
+      // Basic security check for dangerous protocols only
+      if (
+        videoUrl.startsWith("data:") ||
+        videoUrl.startsWith("javascript:") ||
+        videoUrl.startsWith("file:")
+      ) {
+        console.warn("Dangerous video URL blocked:", videoUrl);
+        return;
+      }
+
+      const tabs = await chrome.tabs.query({ url: videoUrl });
+      if (tabs.length > 0) {
+        const tab = tabs[0];
+        await chrome.tabs.update(tab.id!, { active: true });
+        if (tab.windowId) {
+          await chrome.windows.update(tab.windowId, { focused: true });
+        }
+        console.log("Switched to existing tab with video URL:", videoUrl);
+      } else {
+        console.warn("No tab found with video URL:", videoUrl);
+      }
+    } catch (error) {
+      console.error("Failed to switch to tab:", error);
+    }
+  }
+
+  /**
+   * Create new tab for the given video URL
+   */
+  private async createTabForVideo(videoUrl: string): Promise<void> {
+    try {
+      // Basic security check for dangerous protocols only
+      if (
+        videoUrl.startsWith("data:") ||
+        videoUrl.startsWith("javascript:") ||
+        videoUrl.startsWith("file:")
+      ) {
+        console.warn("Dangerous video URL blocked:", videoUrl);
+        return;
+      }
+
+      await chrome.tabs.create({ url: videoUrl, active: true });
+      console.log("Created new tab for video URL:", videoUrl);
+    } catch (error) {
+      console.error("Failed to create tab for video:", error);
+    }
   }
 
   /**
@@ -561,7 +668,6 @@ export class RoomManager {
       "CONTROL_MODE_CHANGE",
       this.handleControlModeChange.bind(this),
     );
-    this.webrtc.on("HOST_NAVIGATE", this.handleHostNavigate.bind(this));
 
     // Adapter event handlers
     adapterEventTarget.addEventListener("adapter:event", (event) => {
@@ -767,6 +873,15 @@ export class RoomManager {
         };
 
         this.currentRoom.hostVideoState = hostVideoState;
+
+        // Check if host switched to a new video and trigger auto-follow
+        if (this.lastHostVideoUrl !== message.hostVideoUrl) {
+          console.log(
+            `[RoomManager] Host switched video: ${this.lastHostVideoUrl} -> ${message.hostVideoUrl}`,
+          );
+          await this.handleHostVideoSwitch(message.hostVideoUrl);
+          this.lastHostVideoUrl = message.hostVideoUrl;
+        }
 
         // Update extension state to trigger UI refresh
         this.updateExtensionState({
@@ -1082,13 +1197,6 @@ export class RoomManager {
         "[RoomManager] Cannot process control mode change - no current room",
       );
     }
-  }
-
-  private handleHostNavigate(message: any): void {
-    this.emit("HOST_NAVIGATE", {
-      url: message.url,
-      fromUserId: message.fromUserId,
-    });
   }
 
   private async handleAdapterEvent(detail: AdapterEventDetail): Promise<void> {

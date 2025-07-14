@@ -843,7 +843,7 @@ export class RoomManager {
 
   private async handleUserJoined(response: any): Promise<void> {
     if (this.currentRoom && response.roomId === this.currentRoom.id) {
-      this.currentRoom = response.roomState;
+      this.updateRoomFromServer(response.roomState);
 
       this.updateExtensionState({
         currentRoom: this.currentRoom,
@@ -878,7 +878,7 @@ export class RoomManager {
 
   private async handleUserLeft(response: any): Promise<void> {
     if (this.currentRoom && response.roomId === this.currentRoom.id) {
-      this.currentRoom = response.roomState;
+      this.updateRoomFromServer(response.roomState);
 
       // Close WebRTC connection to departed user
       this.webrtc.closePeerConnection(response.leftUserId);
@@ -926,7 +926,7 @@ export class RoomManager {
    */
   private async handleRoomRenamed(response: any): Promise<void> {
     if (this.currentRoom && response.roomId === this.currentRoom.id) {
-      this.currentRoom = response.roomState;
+      this.updateRoomFromServer(response.roomState);
 
       this.updateExtensionState({
         currentRoom: this.currentRoom,
@@ -946,7 +946,7 @@ export class RoomManager {
    */
   private async handleUserRenamed(response: any): Promise<void> {
     if (this.currentRoom && response.roomId === this.currentRoom.id) {
-      this.currentRoom = response.roomState;
+      this.updateRoomFromServer(response.roomState);
 
       // Update current user if they were the one renamed
       if (this.currentUser && response.userId === this.currentUser.id) {
@@ -1622,6 +1622,32 @@ export class RoomManager {
         videoUrl ? `on ${videoUrl}` : "",
       );
     }
+  }
+
+  /**
+   * Update room state from server response, preserving client-managed fields
+   */
+  private updateRoomFromServer(serverRoomState: any): void {
+    if (!this.currentRoom) {
+      // First time - accept everything
+      this.currentRoom = serverRoomState;
+      return;
+    }
+
+    // Subsequent updates - only update server-managed fields
+    this.currentRoom.id = serverRoomState.id;
+    this.currentRoom.name = serverRoomState.name;
+    this.currentRoom.hostId = serverRoomState.hostId;
+    this.currentRoom.users = serverRoomState.users;
+    this.currentRoom.createdAt = serverRoomState.createdAt;
+    this.currentRoom.lastActivity = serverRoomState.lastActivity;
+
+    // Preserve client-managed fields:
+    // - controlMode (managed by WebRTC)
+    // - followMode (managed by user preferences)
+    // - videoState (managed by adapter events)
+    // - hostVideoState (managed by WebRTC messages)
+    // - hostCurrentUrl (managed by tab navigation)
   }
 
   private async updateExtensionState(

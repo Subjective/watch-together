@@ -17,6 +17,7 @@ import { RoomCreate } from "./RoomCreate";
 import { RoomJoin } from "./RoomJoin";
 import { RoomManager } from "./RoomManager";
 import { RecentRooms } from "./RecentRooms";
+import { StorageManager } from "../background/storage";
 
 type View = "home" | "create" | "join" | "room";
 
@@ -32,6 +33,8 @@ export const App: React.FC = () => {
     followNotificationUrl: null,
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [roomIdCopied, setRoomIdCopied] = useState(false);
+  const [justCreatedRoom, setJustCreatedRoom] = useState(false);
 
   // Service Worker communication
   const sendMessage = useCallback(async (message: ExtensionMessage) => {
@@ -110,6 +113,24 @@ export const App: React.FC = () => {
       chrome.runtime.onMessage.removeListener(handleMessage);
     };
   }, [currentView]);
+
+  // Auto-copy room ID when room is created
+  useEffect(() => {
+    if (justCreatedRoom && extensionState.currentRoom) {
+      const copyRoomId = async () => {
+        try {
+          await navigator.clipboard.writeText(extensionState.currentRoom!.id);
+          setRoomIdCopied(true);
+          setTimeout(() => setRoomIdCopied(false), 3000);
+        } catch (error) {
+          console.error("Failed to copy room ID:", error);
+        }
+      };
+      
+      copyRoomId();
+      setJustCreatedRoom(false);
+    }
+  }, [justCreatedRoom, extensionState.currentRoom]);
 
   // Navigation handlers
   const handleCreateRoom = useCallback(
@@ -224,6 +245,41 @@ export const App: React.FC = () => {
     [sendMessage],
   );
 
+  const handleQuickCreateRoom = useCallback(async () => {
+    setIsLoading(true);
+    setJustCreatedRoom(true);
+    try {
+      const preferences = await StorageManager.getUserPreferences();
+      const roomName = preferences.defaultRoomName || "My Room";
+      const userName = preferences.defaultUserName || "Guest";
+
+      const message: CreateRoomRequest = {
+        type: "CREATE_ROOM",
+        roomName,
+        userName,
+        timestamp: Date.now(),
+      };
+      await sendMessage(message);
+    } catch (error) {
+      console.error("Failed to create room:", error);
+      setJustCreatedRoom(false);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [sendMessage]);
+
+  const handleCopyRoomId = useCallback(async () => {
+    if (!extensionState.currentRoom) return;
+
+    try {
+      await navigator.clipboard.writeText(extensionState.currentRoom.id);
+      setRoomIdCopied(true);
+      setTimeout(() => setRoomIdCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy room ID:", error);
+    }
+  }, [extensionState.currentRoom]);
+
   // Render appropriate view
   const renderView = useMemo(() => {
     switch (currentView) {
@@ -249,18 +305,25 @@ export const App: React.FC = () => {
           return null;
         }
         return (
-          <RoomManager
-            room={extensionState.currentRoom}
-            currentUser={extensionState.currentUser}
-            connectionStatus={extensionState.connectionStatus}
-            followMode={extensionState.followMode}
-            hasFollowNotification={extensionState.hasFollowNotification}
-            onLeaveRoom={handleLeaveRoom}
-            onToggleControlMode={handleToggleControlMode}
-            onToggleFollowMode={handleToggleFollowMode}
-            onFollowHost={handleFollowHost}
-            onRenameUser={handleRenameUser}
-          />
+          <div className="h-full flex flex-col">
+            {roomIdCopied && (
+              <div className="bg-green-100 border border-green-400 text-green-700 px-3 py-2 text-sm font-medium">
+                ✅ Room ID copied to clipboard!
+              </div>
+            )}
+            <RoomManager
+              room={extensionState.currentRoom}
+              currentUser={extensionState.currentUser}
+              connectionStatus={extensionState.connectionStatus}
+              followMode={extensionState.followMode}
+              hasFollowNotification={extensionState.hasFollowNotification}
+              onLeaveRoom={handleLeaveRoom}
+              onToggleControlMode={handleToggleControlMode}
+              onToggleFollowMode={handleToggleFollowMode}
+              onFollowHost={handleFollowHost}
+              onRenameUser={handleRenameUser}
+            />
+          </div>
         );
       default:
         return (
@@ -279,10 +342,11 @@ export const App: React.FC = () => {
 
               <div className="space-y-4">
                 <button
-                  onClick={() => setCurrentView("create")}
-                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                  onClick={handleQuickCreateRoom}
+                  disabled={isLoading}
+                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Create Room
+                  {isLoading ? "Creating Room..." : "Create Room"}
                 </button>
 
                 <button
@@ -294,9 +358,28 @@ export const App: React.FC = () => {
               </div>
 
               <div className="mt-6 text-center">
-                <p className="text-xs text-gray-500">
-                  Create or join a room to watch videos together
-                </p>
+                {extensionState.currentRoom ? (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                    <p className="text-sm font-medium text-blue-900 mb-2">
+                      Room Created Successfully!
+                    </p>
+                    <div className="flex items-center justify-center space-x-2">
+                      <span className="text-xs text-blue-700 font-mono">
+                        {extensionState.currentRoom.id}
+                      </span>
+                      <button
+                        onClick={handleCopyRoomId}
+                        className="text-blue-600 hover:text-blue-800 text-xs bg-blue-100 px-2 py-1 rounded"
+                      >
+                        {roomIdCopied ? "Copied!" : "Copy"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">
+                    Create or join a room to watch videos together
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -313,6 +396,9 @@ export const App: React.FC = () => {
     handleToggleFollowMode,
     handleFollowHost,
     handleRenameUser,
+    handleQuickCreateRoom,
+    handleCopyRoomId,
+    roomIdCopied,
   ]);
 
   return <div className="w-full h-full bg-gray-100">{renderView}</div>;

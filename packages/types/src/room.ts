@@ -17,6 +17,7 @@ export interface RoomState {
   controlMode: ControlMode;
   followMode: FollowMode;
   videoState: VideoState;
+  hostVideoState: VideoState | null;
   hostCurrentUrl: string | null;
   createdAt: number;
   lastActivity: number;

@@ -806,6 +806,7 @@ export class RoomManager {
       time: message.time,
       timestamp: message.timestamp,
       fromUserId: message.fromUserId,
+      hostVideoUrl: undefined, // Direct commands don't require URL matching
     });
   }
 
@@ -814,6 +815,7 @@ export class RoomManager {
     time: number;
     timestamp: number;
     fromUserId?: string;
+    hostVideoUrl?: string | null;
   }): Promise<void> {
     const activeTab = await this.getActiveAdapterTab();
     if (!activeTab) {
@@ -821,10 +823,23 @@ export class RoomManager {
       return;
     }
 
+    // Get current tab URL for validation
+    const currentUrl = await this.getCurrentTabUrl();
+
+    // Only apply sync commands if watching the same video as host
+    if (message.hostVideoUrl && currentUrl !== message.hostVideoUrl) {
+      console.warn(
+        `[RoomManager] Ignoring sync command - participant watching different video:`,
+        `participant: ${currentUrl}, host: ${message.hostVideoUrl}`,
+      );
+      return;
+    }
+
     console.log(`[RoomManager] Applying video state to tab ${activeTab}:`, {
       state: message.state,
       time: message.time,
       fromUser: message.fromUserId,
+      hostVideoUrl: message.hostVideoUrl,
     });
 
     try {
@@ -1006,11 +1021,13 @@ export class RoomManager {
     detail: AdapterEventDetail,
   ): Promise<void> {
     const state = detail.state.isPaused ? "PAUSED" : "PLAYING";
+    const currentUrl = await this.getCurrentTabUrl();
 
     // Only log significant events, not timeupdate
     if (detail.event !== "timeupdate") {
       console.log(
         `[RoomManager] Broadcasting host state: ${state} at ${detail.state.currentTime}s`,
+        currentUrl ? `on ${currentUrl}` : "",
       );
     }
 
@@ -1020,6 +1037,7 @@ export class RoomManager {
       state,
       time: detail.state.currentTime,
       timestamp: detail.timestamp,
+      hostVideoUrl: currentUrl,
     });
   }
 
@@ -1069,15 +1087,24 @@ export class RoomManager {
     // Get current tab URL for video URL
     const currentUrl = await this.getCurrentTabUrl();
 
-    // Update the room's video state
-    this.currentRoom.videoState = {
+    const videoState = {
       isPlaying: !detail.state.isPaused,
       currentTime: detail.state.currentTime,
       duration: detail.state.duration || 0,
       playbackRate: detail.state.playbackRate || 1,
-      url: currentUrl || this.currentRoom.videoState.url || "",
+      url: currentUrl || "",
       lastUpdated: detail.timestamp,
     };
+
+    // Update different video states based on user role
+    if (this.currentUser?.isHost) {
+      // Host updates both host video state (for participants to see) and own video state
+      this.currentRoom.hostVideoState = videoState;
+      this.currentRoom.videoState = videoState;
+    } else {
+      // Participants only update their own local video state
+      this.currentRoom.videoState = videoState;
+    }
 
     // Update extension state to trigger UI refresh
     this.updateExtensionState({
@@ -1086,8 +1113,9 @@ export class RoomManager {
 
     // Only log significant events, not timeupdate
     if (detail.event !== "timeupdate") {
+      const role = this.currentUser?.isHost ? "host" : "participant";
       console.log(
-        `[RoomManager] Updated local video state: ${this.currentRoom.videoState.isPlaying ? "Playing" : "Paused"} at ${this.currentRoom.videoState.currentTime}s`,
+        `[RoomManager] Updated ${role} video state: ${videoState.isPlaying ? "Playing" : "Paused"} at ${videoState.currentTime}s`,
         currentUrl ? `on ${currentUrl}` : "",
       );
     }

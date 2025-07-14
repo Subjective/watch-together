@@ -13,6 +13,7 @@ import type {
   RoomState as RoomStateType,
   User,
   ControlMode,
+  VideoState,
 } from "@repo/types";
 
 interface ConnectedUser extends User {
@@ -27,6 +28,7 @@ interface RoomStateData {
   users: User[];
   controlMode: ControlMode;
   hostCurrentUrl: string | null;
+  hostVideoState: VideoState | null;
   createdAt: number;
   lastActivity: number;
 }
@@ -294,6 +296,7 @@ export class RoomState {
         users: [hostUser],
         controlMode: "HOST_ONLY",
         hostCurrentUrl: null,
+        hostVideoState: null,
         createdAt: now,
         lastActivity: now,
       };
@@ -704,6 +707,7 @@ export class RoomState {
         url: "",
         lastUpdated: Date.now(),
       },
+      hostVideoState: this.roomData.hostVideoState,
       hostCurrentUrl: this.roomData.hostCurrentUrl,
       createdAt: this.roomData.createdAt,
       lastActivity: this.roomData.lastActivity,

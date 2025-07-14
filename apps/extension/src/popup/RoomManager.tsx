@@ -118,27 +118,50 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
         </div>
       )}
 
-      {/* Video State */}
-      {room.videoState.url && (
-        <div className="bg-white border border-gray-200 rounded-lg p-3 mb-4">
-          <h4 className="font-medium text-gray-900 mb-2">Current Video</h4>
-          <div className="text-sm text-gray-600 mb-2">
-            <div className="truncate">{room.videoState.url}</div>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span
-              className={`flex items-center ${room.videoState.isPlaying ? "text-green-600" : "text-gray-600"}`}
-            >
-              {room.videoState.isPlaying ? "▶️" : "⏸️"}
-              {room.videoState.isPlaying ? "Playing" : "Paused"}
-            </span>
-            <span className="text-gray-500">
-              {formatTime(room.videoState.currentTime)} /{" "}
-              {formatTime(room.videoState.duration)}
-            </span>
-          </div>
-        </div>
-      )}
+      {/* Video State - Show host's video for participants, own video for host */}
+      {currentUser.isHost
+        ? room.videoState.url && (
+            <div className="bg-white border border-gray-200 rounded-lg p-3 mb-4">
+              <h4 className="font-medium text-gray-900 mb-2">Your Video</h4>
+              <div className="text-sm text-gray-600 mb-2">
+                <div className="truncate">{room.videoState.url}</div>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span
+                  className={`flex items-center ${room.videoState.isPlaying ? "text-green-600" : "text-gray-600"}`}
+                >
+                  {room.videoState.isPlaying ? "▶️" : "⏸️"}
+                  {room.videoState.isPlaying ? "Playing" : "Paused"}
+                </span>
+                <span className="text-gray-500">
+                  {formatTime(room.videoState.currentTime)} /{" "}
+                  {formatTime(room.videoState.duration)}
+                </span>
+              </div>
+            </div>
+          )
+        : room.hostVideoState?.url && (
+            <div className="bg-white border border-gray-200 rounded-lg p-3 mb-4">
+              <h4 className="font-medium text-gray-900 mb-2">
+                Host&apos;s Video
+              </h4>
+              <div className="text-sm text-gray-600 mb-2">
+                <div className="truncate">{room.hostVideoState.url}</div>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span
+                  className={`flex items-center ${room.hostVideoState.isPlaying ? "text-green-600" : "text-gray-600"}`}
+                >
+                  {room.hostVideoState.isPlaying ? "▶️" : "⏸️"}
+                  {room.hostVideoState.isPlaying ? "Playing" : "Paused"}
+                </span>
+                <span className="text-gray-500">
+                  {formatTime(room.hostVideoState.currentTime)} /{" "}
+                  {formatTime(room.hostVideoState.duration)}
+                </span>
+              </div>
+            </div>
+          )}
 
       {/* Control Mode Toggle (Host Only) */}
       <div className="mb-4">

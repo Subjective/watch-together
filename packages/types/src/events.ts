@@ -136,6 +136,7 @@ export interface HostStateUpdateMessage extends BaseSyncMessage {
   type: "HOST_STATE_UPDATE";
   state: "PLAYING" | "PAUSED";
   time: number;
+  hostVideoUrl?: string | null;
 }
 
 export interface ClientRequestPlayMessage extends BaseSyncMessage {

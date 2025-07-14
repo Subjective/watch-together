@@ -10,6 +10,7 @@ import type {
 } from "@repo/types";
 import { ControlModeToggle } from "./ControlModeToggle";
 import { FollowModeToggle } from "./FollowModeToggle";
+import { EditableRoomName } from "./EditableRoomName";
 
 // Icon components
 const PlayIcon: React.FC<{ className?: string }> = ({
@@ -109,6 +110,27 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
     window.open(url, "_blank");
   }, []);
 
+  const handleRename = useCallback(async (newName: string) => {
+    try {
+      // Send message without waiting for response (fire-and-forget)
+      chrome.runtime
+        .sendMessage({
+          type: "RENAME_ROOM",
+          newRoomName: newName,
+          timestamp: Date.now(),
+        })
+        .catch(() => {
+          // Expected - Chrome extension messaging timeout, but operation still succeeds
+        });
+
+      // The UI will update automatically when the ROOM_RENAMED WebSocket event
+      // is received and processed by the background script's handleRoomRenamed
+    } catch (error) {
+      console.error("Failed to send rename request:", error);
+      throw error;
+    }
+  }, []);
+
   return (
     <div className="p-4 h-full flex flex-col space-y-4 overflow-hidden">
       <div className="flex items-center justify-between">
@@ -124,7 +146,11 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
       {/* Room Information */}
       <div className="bg-white border border-gray-200 rounded-lg p-3 flex-shrink-0">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="font-medium text-gray-900">{room.name}</h3>
+          <EditableRoomName
+            currentName={room.name}
+            onRename={handleRename}
+            disabled={!currentUser.isHost}
+          />
           <span className={`text-xs ${connectionStatusDisplay.color}`}>
             {connectionStatusDisplay.icon} {connectionStatusDisplay.text}
           </span>

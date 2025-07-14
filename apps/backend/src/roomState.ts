@@ -7,6 +7,7 @@ import type {
   CreateRoomMessage,
   JoinRoomMessage,
   LeaveRoomMessage,
+  RenameRoomMessage,
   WebRTCOfferMessage,
   WebRTCAnswerMessage,
   WebRTCIceCandidateMessage,
@@ -208,6 +209,9 @@ export class RoomState {
           break;
         case "LEAVE_ROOM":
           await this.handleLeaveRoom(websocket, message as LeaveRoomMessage);
+          break;
+        case "RENAME_ROOM":
+          await this.handleRenameRoom(websocket, message as RenameRoomMessage);
           break;
         case "WEBRTC_OFFER":
           await this.handleWebRTCOffer(
@@ -457,6 +461,76 @@ export class RoomState {
       this.sendError(
         websocket,
         "Failed to leave room",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  /**
+   * Handle RENAME_ROOM messages
+   */
+  private async handleRenameRoom(
+    websocket: WebSocket,
+    message: RenameRoomMessage,
+  ): Promise<void> {
+    try {
+      if (!this.roomData) {
+        this.sendError(websocket, "Room not found", message.roomId);
+        return;
+      }
+
+      // Validate room ID matches
+      if (this.roomData.id !== message.roomId) {
+        this.sendError(websocket, "Room ID mismatch", message.roomId);
+        return;
+      }
+
+      // Find the user making the request
+      const user = this.findUserByWebSocket(websocket);
+      if (!user) {
+        this.sendError(websocket, "User not found", message.userId);
+        return;
+      }
+
+      // Validate user is the host
+      if (user.id !== this.roomData.hostId) {
+        this.sendError(websocket, "Only host can rename room", message.userId);
+        return;
+      }
+
+      // Validate room name
+      const trimmedName = message.newRoomName.trim();
+      if (!trimmedName || trimmedName.length < 3 || trimmedName.length > 50) {
+        this.sendError(
+          websocket,
+          "Invalid room name",
+          "Name must be 3-50 characters",
+        );
+        return;
+      }
+
+      // Update room name
+      this.roomData.name = trimmedName;
+      this.roomData.lastActivity = Date.now();
+
+      // Persist to storage
+      await this.state.storage.put("roomData", this.roomData);
+
+      // Broadcast to all users
+      this.broadcast({
+        type: "ROOM_RENAMED",
+        roomId: this.roomData.id,
+        newRoomName: trimmedName,
+        timestamp: Date.now(),
+        roomState: this.getRoomStateForClient(),
+      });
+
+      console.log(`Room renamed: ${message.roomId} -> "${trimmedName}"`);
+    } catch (error) {
+      console.error("Rename room error:", error);
+      this.sendError(
+        websocket,
+        "Failed to rename room",
         error instanceof Error ? error.message : String(error),
       );
     }

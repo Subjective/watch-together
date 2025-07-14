@@ -9,6 +9,7 @@ import type {
   CreateRoomRequest,
   JoinRoomRequest,
   LeaveRoomRequest,
+  RenameRoomRequest,
   ToggleControlModeRequest,
   SetFollowModeRequest,
   FollowHostRequest,
@@ -234,6 +235,9 @@ async function handleMessage(
       case "LEAVE_ROOM":
         return await handleLeaveRoom(message as LeaveRoomRequest);
 
+      case "RENAME_ROOM":
+        return await handleRenameRoom(message as RenameRoomRequest);
+
       case "TOGGLE_CONTROL_MODE":
         return await handleToggleControlMode(
           message as ToggleControlModeRequest,
@@ -331,6 +335,26 @@ async function handleLeaveRoom(_message: LeaveRoomRequest): Promise<any> {
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to leave room",
+    };
+  }
+}
+
+/**
+ * Handle RENAME_ROOM request
+ */
+async function handleRenameRoom(message: RenameRoomRequest): Promise<any> {
+  try {
+    if (!roomManager) {
+      throw new Error("Not in a room");
+    }
+
+    await roomManager.renameRoom(message.newRoomName);
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to rename room:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to rename room",
     };
   }
 }

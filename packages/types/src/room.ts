@@ -92,6 +92,11 @@ export interface FollowHostRequest extends BaseExtensionMessage {
   type: "FOLLOW_HOST";
 }
 
+export interface RenameRoomRequest extends BaseExtensionMessage {
+  type: "RENAME_ROOM";
+  newRoomName: string;
+}
+
 export interface StateUpdateMessage extends BaseExtensionMessage {
   type: "STATE_UPDATE";
   state: ExtensionState;
@@ -104,4 +109,5 @@ export type ExtensionMessage =
   | ToggleControlModeRequest
   | SetFollowModeRequest
   | FollowHostRequest
+  | RenameRoomRequest
   | StateUpdateMessage;

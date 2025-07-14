@@ -23,6 +23,11 @@ export interface LeaveRoomMessage extends BaseSignalingMessage {
   type: "LEAVE_ROOM";
 }
 
+export interface RenameRoomMessage extends BaseSignalingMessage {
+  type: "RENAME_ROOM";
+  newRoomName: string;
+}
+
 export interface WebRTCOfferMessage extends BaseSignalingMessage {
   type: "WEBRTC_OFFER";
   targetUserId: string;
@@ -55,6 +60,7 @@ export type SignalingMessage =
   | CreateRoomMessage
   | JoinRoomMessage
   | LeaveRoomMessage
+  | RenameRoomMessage
   | WebRTCOfferMessage
   | WebRTCAnswerMessage
   | WebRTCIceCandidateMessage
@@ -109,6 +115,13 @@ export interface UserDisconnectedMessage extends BaseResponseMessage {
   newHostId?: string;
 }
 
+export interface RoomRenamedMessage extends BaseResponseMessage {
+  type: "ROOM_RENAMED";
+  roomId: string;
+  newRoomName: string;
+  roomState: import("./room").RoomState;
+}
+
 export interface ErrorMessage extends BaseResponseMessage {
   type: "ERROR";
   error: string;
@@ -121,6 +134,7 @@ export type ResponseMessage =
   | UserJoinedMessage
   | UserLeftMessage
   | UserDisconnectedMessage
+  | RoomRenamedMessage
   | ErrorMessage
   | PongMessage;
 

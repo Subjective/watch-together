@@ -45,6 +45,7 @@ export class RoomManager {
   private extensionState: ExtensionState;
   private eventListeners: Map<string, ((data: any) => void)[]> = new Map();
   private lastHostVideoUrl: string | null = null;
+  private lastVideoAdapterUrl: string | null = null;
   private isApplyingRemoteCommand: boolean = false;
 
   constructor(config: RoomManagerConfig) {
@@ -723,6 +724,46 @@ export class RoomManager {
     } catch (error) {
       console.error("[RoomManager] Failed to get current tab URL:", error);
       return null;
+    }
+  }
+
+  /**
+   * Update the last video adapter URL based on current active adapters
+   */
+  private async updateLastVideoAdapterUrl(): Promise<void> {
+    const adapters = getActiveAdapters();
+    if (adapters.length === 0) return;
+
+    // Priority 1: Current active tab with adapter (most common case)
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const activeTabId = tabs[0]?.id;
+
+    if (activeTabId) {
+      const activeAdapter = adapters.find((a) => a.tabId === activeTabId);
+      if (activeAdapter) {
+        try {
+          const tab = await chrome.tabs.get(activeTabId);
+          if (tab.url) {
+            this.lastVideoAdapterUrl = tab.url;
+            return;
+          }
+        } catch {
+          // Tab closed, fall through to backup
+        }
+      }
+    }
+
+    // Priority 2: Any connected adapter tab (handles background videos)
+    const connectedAdapter = adapters.find((a) => a.connected);
+    if (connectedAdapter) {
+      try {
+        const tab = await chrome.tabs.get(connectedAdapter.tabId);
+        if (tab.url) {
+          this.lastVideoAdapterUrl = tab.url;
+        }
+      } catch {
+        // Tab closed
+      }
     }
   }
 
@@ -1408,6 +1449,9 @@ export class RoomManager {
       return;
     }
 
+    // Update the last video adapter URL when video events occur
+    await this.updateLastVideoAdapterUrl();
+
     // Skip broadcasting events that originated from remote commands to prevent infinite loops
     if (this.isApplyingRemoteCommand) {
       console.log(
@@ -1477,20 +1521,22 @@ export class RoomManager {
     detail: AdapterEventDetail,
   ): Promise<void> {
     const state = detail.state.isPaused ? "PAUSED" : "PLAYING";
-    const currentUrl = await this.getCurrentTabUrl();
+
+    // Use tracked video adapter URL instead of current tab
+    const videoUrl = this.lastVideoAdapterUrl;
 
     // Only log significant events, not timeupdate
     if (detail.event !== "timeupdate") {
       console.log(
         `[RoomManager] Broadcasting host state: ${state} at ${detail.state.currentTime}s`,
-        currentUrl ? `on ${currentUrl}` : "",
+        videoUrl ? `on ${videoUrl}` : "",
       );
     }
 
     await this.webrtc.broadcastHostState(
       state,
       detail.state.currentTime,
-      currentUrl,
+      videoUrl,
     );
   }
 
@@ -1519,14 +1565,15 @@ export class RoomManager {
         return;
     }
 
-    const currentUrl = await this.getCurrentTabUrl();
+    // Use tracked video adapter URL instead of current tab
+    const videoUrl = this.lastVideoAdapterUrl;
 
     this.webrtc.sendSyncMessage({
       type: messageType,
       userId: this.currentUser.id,
       time: detail.state.currentTime,
       timestamp: detail.timestamp,
-      videoUrl: currentUrl || undefined,
+      videoUrl: videoUrl || undefined,
     });
   }
 
@@ -1540,15 +1587,15 @@ export class RoomManager {
       return;
     }
 
-    // Get current tab URL for video URL
-    const currentUrl = await this.getCurrentTabUrl();
+    // Use tracked video adapter URL for video state
+    const videoUrl = this.lastVideoAdapterUrl || "";
 
     const videoState = {
       isPlaying: !detail.state.isPaused,
       currentTime: detail.state.currentTime,
       duration: detail.state.duration || 0,
       playbackRate: detail.state.playbackRate || 1,
-      url: currentUrl || "",
+      url: videoUrl,
       lastUpdated: detail.timestamp,
     };
 
@@ -1572,7 +1619,7 @@ export class RoomManager {
       const role = this.currentUser?.isHost ? "host" : "participant";
       console.log(
         `[RoomManager] Updated ${role} video state: ${videoState.isPlaying ? "Playing" : "Paused"} at ${videoState.currentTime}s`,
-        currentUrl ? `on ${currentUrl}` : "",
+        videoUrl ? `on ${videoUrl}` : "",
       );
     }
   }

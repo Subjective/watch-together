@@ -550,7 +550,12 @@ export class RoomManager {
       }
     } else {
       // FREE_FOR_ALL mode - send direct command
-      await this.webrtc.sendDirectCommand(action, seekTime);
+      const currentUrl = await this.getCurrentTabUrl();
+      await this.webrtc.sendDirectCommand(
+        action,
+        seekTime,
+        currentUrl || undefined,
+      );
     }
   }
 
@@ -1113,7 +1118,7 @@ export class RoomManager {
       time: message.time,
       timestamp: message.timestamp,
       fromUserId: message.fromUserId,
-      hostVideoUrl: undefined, // Direct commands don't require URL matching
+      hostVideoUrl: message.videoUrl, // Use videoUrl from direct command for URL validation
     });
   }
 
@@ -1469,11 +1474,14 @@ export class RoomManager {
         return;
     }
 
+    const currentUrl = await this.getCurrentTabUrl();
+
     this.webrtc.sendSyncMessage({
       type: messageType,
       userId: this.currentUser.id,
       time: detail.state.currentTime,
       timestamp: detail.timestamp,
+      videoUrl: currentUrl || undefined,
     });
   }
 

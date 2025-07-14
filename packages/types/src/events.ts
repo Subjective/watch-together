@@ -184,15 +184,18 @@ export interface ClientRequestSeekMessage extends BaseSyncMessage {
 
 export interface DirectPlayMessage extends BaseSyncMessage {
   type: "DIRECT_PLAY";
+  videoUrl?: string;
 }
 
 export interface DirectPauseMessage extends BaseSyncMessage {
   type: "DIRECT_PAUSE";
+  videoUrl?: string;
 }
 
 export interface DirectSeekMessage extends BaseSyncMessage {
   type: "DIRECT_SEEK";
   time: number;
+  videoUrl?: string;
 }
 
 export interface ControlModeChangeMessage extends BaseSyncMessage {

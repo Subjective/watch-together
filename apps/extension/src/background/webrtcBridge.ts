@@ -286,6 +286,7 @@ export class WebRTCManager {
   async sendDirectCommand(
     commandType: "PLAY" | "PAUSE" | "SEEK",
     seekTime?: number,
+    videoUrl?: string | null,
   ): Promise<void> {
     if (this.controlMode !== "FREE_FOR_ALL") {
       console.warn("Direct commands only available in FREE_FOR_ALL mode");
@@ -300,6 +301,7 @@ export class WebRTCManager {
           type: "DIRECT_PLAY",
           userId: this.currentUserId!,
           timestamp: Date.now(),
+          videoUrl: videoUrl || undefined,
         };
         break;
       case "PAUSE":
@@ -307,6 +309,7 @@ export class WebRTCManager {
           type: "DIRECT_PAUSE",
           userId: this.currentUserId!,
           timestamp: Date.now(),
+          videoUrl: videoUrl || undefined,
         };
         break;
       case "SEEK":
@@ -315,6 +318,7 @@ export class WebRTCManager {
           userId: this.currentUserId!,
           timestamp: Date.now(),
           time: seekTime || 0,
+          videoUrl: videoUrl || undefined,
         };
         break;
     }

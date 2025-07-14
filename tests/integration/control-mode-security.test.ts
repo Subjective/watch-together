@@ -154,6 +154,9 @@ describe("Control Mode Security", () => {
         isHost: true,
       };
 
+      // Initialize WebRTC bridge properly
+      await (roomManager as any).webrtc.initialize("host-user", true);
+
       // Clear previous mocks
       vi.clearAllMocks();
 

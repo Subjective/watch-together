@@ -11,6 +11,7 @@ export interface BaseSignalingMessage {
 export interface CreateRoomMessage extends BaseSignalingMessage {
   type: "CREATE_ROOM";
   userName: string;
+  roomName: string;
 }
 
 export interface JoinRoomMessage extends BaseSignalingMessage {

@@ -124,6 +124,9 @@ describe("Room Sync Integration", () => {
         name: "Host",
         isHost: true,
       };
+
+      // Initialize WebRTC bridge properly for host
+      await (roomManager as any).webrtc.initialize("host-user", true);
     });
 
     it("should broadcast host state update when host plays video", async () => {
@@ -170,6 +173,9 @@ describe("Room Sync Integration", () => {
         name: "Host",
         isHost: true,
       };
+
+      // Re-initialize WebRTC bridge as host
+      await (roomManager as any).webrtc.initialize("host-user", true);
 
       const adapterEvent: AdapterEventDetail = {
         tabId: 1,
@@ -266,6 +272,9 @@ describe("Room Sync Integration", () => {
         name: "Client",
         isHost: false,
       };
+
+      // Initialize WebRTC bridge for client in FREE_FOR_ALL mode
+      await (roomManager as any).webrtc.initialize("client-user", false);
     });
 
     it("should broadcast direct commands in free-for-all mode", async () => {
@@ -354,6 +363,9 @@ describe("Room Sync Integration", () => {
         name: "Host",
         isHost: true,
       };
+
+      // Initialize WebRTC bridge as host
+      await (roomManager as any).webrtc.initialize("host-user", true);
 
       // Simulate receiving CLIENT_REQUEST_SEEK
       await (roomManager as any).handleClientRequest({
@@ -523,6 +535,9 @@ describe("Room Sync Integration", () => {
         isHost: true,
       };
 
+      // Initialize WebRTC bridge properly for host
+      await (roomManager as any).webrtc.initialize("host-user", true);
+
       // Clear previous mocks
       vi.clearAllMocks();
 
@@ -573,6 +588,9 @@ describe("Room Sync Integration", () => {
         name: "Client",
         isHost: false,
       };
+
+      // Initialize WebRTC bridge for client in FREE_FOR_ALL mode
+      await (roomManager as any).webrtc.initialize("client-user", false);
 
       // Clear previous mocks
       vi.clearAllMocks();

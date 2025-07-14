@@ -111,7 +111,7 @@ export class RoomManager {
   /**
    * Create a new room
    */
-  async createRoom(_roomName: string, userName: string): Promise<RoomState> {
+  async createRoom(roomName: string, userName: string): Promise<RoomState> {
     try {
       const userId = this.generateUserId();
       const roomId = this.generateRoomId();
@@ -139,6 +139,7 @@ export class RoomManager {
         roomId,
         userId,
         userName,
+        roomName: roomName,
         timestamp: Date.now(),
       };
 

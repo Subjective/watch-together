@@ -291,7 +291,7 @@ export class RoomState {
 
       this.roomData = {
         id: message.roomId,
-        name: message.roomId, // Use roomId as default name
+        name: message.roomName || message.roomId, // Use roomName or fallback to roomId
         hostId: message.userId,
         users: [hostUser],
         controlMode: "HOST_ONLY",

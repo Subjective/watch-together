@@ -1107,6 +1107,18 @@ export class RoomManager {
       return;
     }
 
+    // Check if this direct command contains a video URL change for auto-follow
+    // Only trigger auto-follow if we're not the sender of this command
+    if (message.videoUrl && message.fromUserId !== this.currentUser?.id) {
+      if (this.lastHostVideoUrl !== message.videoUrl) {
+        console.log(
+          `[RoomManager] Video URL change detected in FREE_FOR_ALL mode: ${this.lastHostVideoUrl} -> ${message.videoUrl}`,
+        );
+        await this.handleHostVideoSwitch(message.videoUrl);
+        this.lastHostVideoUrl = message.videoUrl;
+      }
+    }
+
     // In free-for-all mode, apply commands directly
     await this.applyVideoState({
       state:

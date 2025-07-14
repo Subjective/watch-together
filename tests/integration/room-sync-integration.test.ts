@@ -166,7 +166,7 @@ describe("Room Sync Integration", () => {
       );
     });
 
-    it("should handle seeking events from host", async () => {
+    it("should handle seeking events from host but NOT broadcast sync messages", async () => {
       // Ensure user is set back to host
       (roomManager as any).currentUser = {
         id: "host-user",
@@ -190,13 +190,76 @@ describe("Room Sync Integration", () => {
         timestamp: Date.now(),
       };
 
+      // Mock console.log to verify the seeking event is logged but not synced
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+      // Clear previous mocks
+      vi.clearAllMocks();
+
       // Simulate adapter event
       const event = new CustomEvent("adapter:event", { detail: adapterEvent });
       adapterEventTarget.dispatchEvent(event);
 
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      // Verify message was sent to offscreen document
+      // Verify NO sync message was sent for seeking event
+      expect(mockChrome.runtime.sendMessage).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "WEBRTC_SEND_SYNC_MESSAGE",
+          data: expect.objectContaining({
+            message: expect.objectContaining({
+              type: "HOST_STATE_UPDATE",
+              userId: "host-user",
+              state: "PLAYING",
+              time: 200,
+            }),
+          }),
+        }),
+        expect.any(Function),
+      );
+
+      // Verify the seeking event was logged but not synced
+      expect(logSpy).toHaveBeenCalledWith(
+        "[RoomManager] Seeking event received but not broadcasting for sync (waiting for seeked)",
+      );
+
+      logSpy.mockRestore();
+    });
+
+    it("should handle seeked events from host and broadcast sync messages", async () => {
+      // Ensure user is set back to host
+      (roomManager as any).currentUser = {
+        id: "host-user",
+        name: "Host",
+        isHost: true,
+      };
+
+      // Re-initialize WebRTC bridge as host
+      await (roomManager as any).webrtc.initialize("host-user", true);
+
+      const adapterEvent: AdapterEventDetail = {
+        tabId: 1,
+        event: "seeked",
+        payload: { currentTime: 200 },
+        state: {
+          currentTime: 200,
+          duration: 600,
+          isPaused: false,
+          playbackRate: 1,
+        },
+        timestamp: Date.now(),
+      };
+
+      // Clear previous mocks
+      vi.clearAllMocks();
+
+      // Simulate adapter event
+      const event = new CustomEvent("adapter:event", { detail: adapterEvent });
+      adapterEventTarget.dispatchEvent(event);
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Verify sync message was sent for seeked event
       expect(mockChrome.runtime.sendMessage).toHaveBeenCalledWith(
         expect.objectContaining({
           type: "WEBRTC_SEND_SYNC_MESSAGE",
@@ -598,7 +661,7 @@ describe("Room Sync Integration", () => {
       // Simulate adapter event from non-host participant in FREE_FOR_ALL mode (should be allowed)
       const adapterEvent: AdapterEventDetail = {
         tabId: 1,
-        event: "seeking",
+        event: "seeked",
         state: {
           isPaused: false,
           currentTime: 120,
@@ -625,6 +688,76 @@ describe("Room Sync Integration", () => {
       );
 
       expect(directSeekCall).toBeDefined();
+    });
+
+    it("should NOT broadcast sync messages for seeking events in FREE_FOR_ALL mode", async () => {
+      // Set up room with FREE_FOR_ALL mode and non-host user
+      (roomManager as any).currentRoom = {
+        id: "test-room",
+        name: "Security Test Room",
+        hostId: "host-user",
+        users: [
+          { id: "host-user", name: "Host", isHost: true },
+          { id: "client-user", name: "Client", isHost: false },
+        ],
+        controlMode: "FREE_FOR_ALL" as ControlMode,
+        createdAt: Date.now(),
+      };
+
+      (roomManager as any).currentUser = {
+        id: "client-user",
+        name: "Client",
+        isHost: false,
+      };
+
+      // Initialize WebRTC bridge for client in FREE_FOR_ALL mode
+      await (roomManager as any).webrtc.initialize("client-user", false);
+
+      // Clear previous mocks
+      vi.clearAllMocks();
+
+      // Mock console.log to verify the seeking event is logged but not synced
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+      // Simulate seeking event from non-host participant in FREE_FOR_ALL mode
+      const adapterEvent: AdapterEventDetail = {
+        tabId: 1,
+        event: "seeking",
+        state: {
+          isPaused: false,
+          currentTime: 120,
+          duration: 300,
+          playbackRate: 1,
+        },
+        timestamp: Date.now(),
+      };
+
+      // Simulate adapter event using event dispatcher
+      const event = new CustomEvent("adapter:event", { detail: adapterEvent });
+      adapterEventTarget.dispatchEvent(event);
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Verify NO sync message was sent for seeking event
+      expect(mockChrome.runtime.sendMessage).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "WEBRTC_SEND_SYNC_MESSAGE",
+          data: expect.objectContaining({
+            message: expect.objectContaining({
+              type: "DIRECT_SEEK",
+              userId: "client-user",
+            }),
+          }),
+        }),
+        expect.any(Function),
+      );
+
+      // Verify the seeking event was logged but not synced
+      expect(logSpy).toHaveBeenCalledWith(
+        "[RoomManager] Seeking event received but not broadcasting for sync (waiting for seeked)",
+      );
+
+      logSpy.mockRestore();
     });
   });
 });

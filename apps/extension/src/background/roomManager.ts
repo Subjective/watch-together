@@ -1380,7 +1380,6 @@ export class RoomManager {
     switch (detail.event) {
       case "play":
       case "pause":
-      case "seeking":
       case "seeked":
         // For control events, broadcast based on control mode
         if (this.currentRoom.controlMode === "HOST_ONLY") {
@@ -1399,6 +1398,14 @@ export class RoomManager {
           // In free-for-all mode, everyone broadcasts directly
           await this.broadcastDirectCommand(detail);
         }
+        break;
+
+      case "seeking":
+        // Handle seeking events for UI updates but don't broadcast for sync
+        // This prevents duplicate sync messages during continuous scrubbing
+        console.log(
+          `[RoomManager] Seeking event received but not broadcasting for sync (waiting for seeked)`,
+        );
         break;
 
       case "timeupdate": {
@@ -1466,7 +1473,6 @@ export class RoomManager {
       case "pause":
         messageType = "DIRECT_PAUSE";
         break;
-      case "seeking":
       case "seeked":
         messageType = "DIRECT_SEEK";
         break;

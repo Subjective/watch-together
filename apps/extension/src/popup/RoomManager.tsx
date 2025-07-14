@@ -11,6 +11,40 @@ import type {
 import { ControlModeToggle } from "./ControlModeToggle";
 import { FollowModeToggle } from "./FollowModeToggle";
 
+// Icon components
+const PlayIcon: React.FC<{ className?: string }> = ({
+  className = "w-4 h-4",
+}) => (
+  <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+    <path d="M8 5v14l11-7z" />
+  </svg>
+);
+
+const PauseIcon: React.FC<{ className?: string }> = ({
+  className = "w-4 h-4",
+}) => (
+  <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+  </svg>
+);
+
+// Progress bar component
+const VideoProgressBar: React.FC<{ currentTime: number; duration: number }> = ({
+  currentTime,
+  duration,
+}) => {
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  return (
+    <div className="w-full bg-gray-200 rounded-full h-1.5 mb-2">
+      <div
+        className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+        style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+      />
+    </div>
+  );
+};
+
 interface RoomManagerProps {
   room: RoomState;
   currentUser: User;
@@ -63,14 +97,21 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
   }, [room.id]);
 
   const formatTime = useCallback((seconds: number) => {
+    if (seconds === 0 || !isFinite(seconds)) {
+      return "--:--";
+    }
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   }, []);
 
+  const handleVideoUrlClick = useCallback((url: string) => {
+    window.open(url, "_blank");
+  }, []);
+
   return (
-    <div className="p-4 h-full flex flex-col">
-      <div className="flex items-center justify-between mb-4">
+    <div className="p-4 h-full flex flex-col space-y-4 overflow-hidden">
+      <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-gray-900">Watch Together</h2>
         <button
           onClick={onLeaveRoom}
@@ -81,7 +122,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
       </div>
 
       {/* Room Information */}
-      <div className="bg-white border border-gray-200 rounded-lg p-3 mb-4">
+      <div className="bg-white border border-gray-200 rounded-lg p-3 flex-shrink-0">
         <div className="flex items-center justify-between mb-2">
           <h3 className="font-medium text-gray-900">{room.name}</h3>
           <span className={`text-xs ${connectionStatusDisplay.color}`}>
@@ -102,7 +143,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
 
       {/* Host Current Location (for participants only) */}
       {!currentUser.isHost && room.hostCurrentUrl && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex-shrink-0">
           <h4 className="font-medium text-gray-900 mb-2">
             Host is currently on
           </h4>
@@ -121,16 +162,30 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
       {/* Video State - Show host's video for participants, own video for host */}
       {currentUser.isHost
         ? room.videoState.url && (
-            <div className="bg-white border border-gray-200 rounded-lg p-3 mb-4">
+            <div className="bg-white border border-gray-200 rounded-lg p-3 flex-shrink-0">
               <h4 className="font-medium text-gray-900 mb-2">Your Video</h4>
               <div className="text-sm text-gray-600 mb-2">
-                <div className="truncate">{room.videoState.url}</div>
+                <button
+                  onClick={() => handleVideoUrlClick(room.videoState.url!)}
+                  className="text-blue-600 hover:text-blue-800 hover:underline truncate w-full text-left"
+                  title={room.videoState.url}
+                >
+                  {room.videoState.url}
+                </button>
               </div>
+              <VideoProgressBar
+                currentTime={room.videoState.currentTime}
+                duration={room.videoState.duration}
+              />
               <div className="flex items-center justify-between text-sm">
                 <span
-                  className={`flex items-center ${room.videoState.isPlaying ? "text-green-600" : "text-gray-600"}`}
+                  className={`flex items-center gap-1 ${room.videoState.isPlaying ? "text-green-600" : "text-gray-600"}`}
                 >
-                  {room.videoState.isPlaying ? "▶️" : "⏸️"}
+                  {room.videoState.isPlaying ? (
+                    <PlayIcon className="w-3 h-3" />
+                  ) : (
+                    <PauseIcon className="w-3 h-3" />
+                  )}
                   {room.videoState.isPlaying ? "Playing" : "Paused"}
                 </span>
                 <span className="text-gray-500">
@@ -141,18 +196,32 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
             </div>
           )
         : room.hostVideoState?.url && (
-            <div className="bg-white border border-gray-200 rounded-lg p-3 mb-4">
+            <div className="bg-white border border-gray-200 rounded-lg p-3 flex-shrink-0">
               <h4 className="font-medium text-gray-900 mb-2">
                 Host&apos;s Video
               </h4>
               <div className="text-sm text-gray-600 mb-2">
-                <div className="truncate">{room.hostVideoState.url}</div>
+                <button
+                  onClick={() => handleVideoUrlClick(room.hostVideoState!.url!)}
+                  className="text-blue-600 hover:text-blue-800 hover:underline truncate w-full text-left"
+                  title={room.hostVideoState.url}
+                >
+                  {room.hostVideoState.url}
+                </button>
               </div>
+              <VideoProgressBar
+                currentTime={room.hostVideoState.currentTime}
+                duration={room.hostVideoState.duration}
+              />
               <div className="flex items-center justify-between text-sm">
                 <span
-                  className={`flex items-center ${room.hostVideoState.isPlaying ? "text-green-600" : "text-gray-600"}`}
+                  className={`flex items-center gap-1 ${room.hostVideoState.isPlaying ? "text-green-600" : "text-gray-600"}`}
                 >
-                  {room.hostVideoState.isPlaying ? "▶️" : "⏸️"}
+                  {room.hostVideoState.isPlaying ? (
+                    <PlayIcon className="w-3 h-3" />
+                  ) : (
+                    <PauseIcon className="w-3 h-3" />
+                  )}
                   {room.hostVideoState.isPlaying ? "Playing" : "Paused"}
                 </span>
                 <span className="text-gray-500">
@@ -164,7 +233,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
           )}
 
       {/* Control Mode Toggle (Host Only) */}
-      <div className="mb-4">
+      <div className="flex-shrink-0">
         <ControlModeToggle
           controlMode={room.controlMode}
           onToggle={onToggleControlMode}
@@ -174,7 +243,7 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
       </div>
 
       {/* Follow Mode Toggle */}
-      <div className="mb-4">
+      <div className="flex-shrink-0">
         <FollowModeToggle
           followMode={followMode}
           onToggle={onToggleFollowMode}
@@ -186,32 +255,37 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
       </div>
 
       {/* Participants */}
-      <div className="flex-1 bg-white border border-gray-200 rounded-lg p-3">
-        <h4 className="font-medium text-gray-900 mb-3">
+      <div
+        className="flex-1 bg-white border border-gray-200 rounded-lg p-3 flex flex-col"
+        style={{ minHeight: "120px" }}
+      >
+        <h4 className="font-medium text-gray-900 mb-3 flex-shrink-0">
           Participants ({connectedUsers.length})
         </h4>
-        <div className="space-y-2">
-          {connectedUsers.map((user) => (
-            <div
-              key={user.id}
-              className="flex items-center justify-between p-2 bg-gray-50 rounded"
-            >
-              <div className="flex items-center">
-                <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                <span className="text-sm text-gray-900">{user.name}</span>
-                {user.isHost && (
-                  <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                    Host
-                  </span>
-                )}
-                {user.id === currentUser.id && (
-                  <span className="ml-2 text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded">
-                    You
-                  </span>
-                )}
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="space-y-2">
+            {connectedUsers.map((user) => (
+              <div
+                key={user.id}
+                className="flex items-center justify-between p-2 bg-gray-50 rounded"
+              >
+                <div className="flex items-center">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                  <span className="text-sm text-gray-900">{user.name}</span>
+                  {user.isHost && (
+                    <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                      Host
+                    </span>
+                  )}
+                  {user.id === currentUser.id && (
+                    <span className="ml-2 text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded">
+                      You
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     </div>

@@ -28,12 +28,18 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     if (currentUser?.isHost) {
       // Check if this tab actually has an active adapter
       const hasActiveAdapter = await checkActiveAdapter(tabId);
-      
+
       if (hasActiveAdapter && isValidNavigationUrl(changeInfo.url)) {
-        console.log("Host navigated to site with active adapter:", changeInfo.url);
+        console.log(
+          "Host navigated to site with active adapter:",
+          changeInfo.url,
+        );
         await roomManager.broadcastNavigation(changeInfo.url);
       } else {
-        console.log("Host navigated to site without adapter, not broadcasting:", changeInfo.url);
+        console.log(
+          "Host navigated to site without adapter, not broadcasting:",
+          changeInfo.url,
+        );
       }
     }
   }
@@ -44,7 +50,9 @@ async function checkActiveAdapter(tabId: number): Promise<boolean> {
   try {
     // Use the existing adapter handler to check active adapters
     const activeAdapters = getActiveAdapters();
-    return activeAdapters.some(adapter => adapter.tabId === tabId && adapter.connected);
+    return activeAdapters.some(
+      (adapter) => adapter.tabId === tabId && adapter.connected,
+    );
   } catch {
     return false;
   }
@@ -86,11 +94,20 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     if (currentUser?.isHost) {
       // Wait a moment for adapter to initialize on new page
       setTimeout(async () => {
-        if (tabsWithAdapters.has(tabId) && isValidNavigationUrl(changeInfo.url)) {
-          console.log("Broadcasting navigation - adapter confirmed:", changeInfo.url);
+        if (
+          tabsWithAdapters.has(tabId) &&
+          isValidNavigationUrl(changeInfo.url)
+        ) {
+          console.log(
+            "Broadcasting navigation - adapter confirmed:",
+            changeInfo.url,
+          );
           await roomManager.broadcastNavigation(changeInfo.url);
         } else {
-          console.log("Not broadcasting - no adapter confirmed for tab:", tabId);
+          console.log(
+            "Not broadcasting - no adapter confirmed for tab:",
+            tabId,
+          );
         }
       }, 1000); // Give adapter time to initialize
     }
@@ -115,26 +132,30 @@ const adapterCache = new Map<string, boolean>();
 async function hasAdapterSupport(url: string): Promise<boolean> {
   const urlObj = new URL(url);
   const hostname = urlObj.hostname.toLowerCase();
-  
+
   // Fast path: check known video sites
-  const knownVideoSites = ["youtube.com", "netflix.com", /* ... */];
-  if (knownVideoSites.some(domain => hostname === domain || hostname.endsWith(`.${domain}`))) {
+  const knownVideoSites = ["youtube.com", "netflix.com" /* ... */];
+  if (
+    knownVideoSites.some(
+      (domain) => hostname === domain || hostname.endsWith(`.${domain}`),
+    )
+  ) {
     return true;
   }
-  
+
   // Check cache
   if (adapterCache.has(hostname)) {
     return adapterCache.get(hostname)!;
   }
-  
+
   // Slow path: check for active adapter
   const tabs = await chrome.tabs.query({ url: `https://${hostname}/*` });
-  const hasAdapter = tabs.some(tab => tab.id && isAdapterActive(tab.id));
-  
+  const hasAdapter = tabs.some((tab) => tab.id && isAdapterActive(tab.id));
+
   // Cache result for 5 minutes
   adapterCache.set(hostname, hasAdapter);
   setTimeout(() => adapterCache.delete(hostname), 5 * 60 * 1000);
-  
+
   return hasAdapter;
 }
 ```
@@ -145,17 +166,20 @@ async function hasAdapterSupport(url: string): Promise<boolean> {
 ## Implementation Notes
 
 ### Prerequisites for Options 2-4:
+
 - Content scripts must send `ADAPTER_READY`/`NO_ADAPTER` messages
 - Service worker must import `getActiveAdapters` from `adapterHandler`
 - Timing considerations for adapter initialization
 
 ### Testing Strategy:
+
 - Unit tests for each detection method
 - Integration tests with multiple video sites
 - Performance tests for caching approaches
 - E2E tests for real browser behavior
 
 ### Migration Path:
+
 1. Start with current domain-based approach (Option 1)
 2. Implement message-based tracking (Option 3) for better accuracy
 3. Add real-time detection (Option 2) for unknown sites

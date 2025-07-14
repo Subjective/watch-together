@@ -536,7 +536,6 @@ async function navigateToUrl(url: string): Promise<void> {
   }
 }
 
-
 /**
  * Validate URL for navigation security and adapter support
  * Only allows navigation to known video streaming sites with potential adapter support
@@ -669,7 +668,7 @@ chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo, _tab) => {
       // Check if this is a valid URL with adapter support
       if (isValidNavigationUrl(changeInfo.url)) {
         console.log("Host navigated to supported video site:", changeInfo.url);
-        
+
         // Broadcast navigation to known video sites only
         try {
           await roomManager.broadcastNavigation(changeInfo.url);
@@ -677,7 +676,10 @@ chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo, _tab) => {
           console.error("Failed to broadcast navigation:", error);
         }
       } else {
-        console.log("Host navigated to unsupported site, not broadcasting:", changeInfo.url);
+        console.log(
+          "Host navigated to unsupported site, not broadcasting:",
+          changeInfo.url,
+        );
       }
     }
   }

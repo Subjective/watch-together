@@ -482,6 +482,22 @@ export class RoomManager {
   }
 
   /**
+   * Get current tab URL
+   */
+  private async getCurrentTabUrl(): Promise<string | null> {
+    try {
+      const tabs = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      return tabs[0]?.url || null;
+    } catch (error) {
+      console.error("[RoomManager] Failed to get current tab URL:", error);
+      return null;
+    }
+  }
+
+  /**
    * Add event listener
    */
   on(eventType: string, callback: (data: any) => void): void {
@@ -981,6 +997,9 @@ export class RoomManager {
         break;
       }
     }
+
+    // Update local room video state for UI display
+    await this.updateLocalVideoState(detail);
   }
 
   private async broadcastHostStateUpdate(
@@ -1035,6 +1054,43 @@ export class RoomManager {
       time: detail.state.currentTime,
       timestamp: detail.timestamp,
     });
+  }
+
+  /**
+   * Update local room video state for UI display
+   */
+  private async updateLocalVideoState(
+    detail: AdapterEventDetail,
+  ): Promise<void> {
+    if (!this.currentRoom) {
+      return;
+    }
+
+    // Get current tab URL for video URL
+    const currentUrl = await this.getCurrentTabUrl();
+
+    // Update the room's video state
+    this.currentRoom.videoState = {
+      isPlaying: !detail.state.isPaused,
+      currentTime: detail.state.currentTime,
+      duration: detail.state.duration || 0,
+      playbackRate: detail.state.playbackRate || 1,
+      url: currentUrl || this.currentRoom.videoState.url || "",
+      lastUpdated: detail.timestamp,
+    };
+
+    // Update extension state to trigger UI refresh
+    this.updateExtensionState({
+      currentRoom: this.currentRoom,
+    });
+
+    // Only log significant events, not timeupdate
+    if (detail.event !== "timeupdate") {
+      console.log(
+        `[RoomManager] Updated local video state: ${this.currentRoom.videoState.isPlaying ? "Playing" : "Paused"} at ${this.currentRoom.videoState.currentTime}s`,
+        currentUrl ? `on ${currentUrl}` : "",
+      );
+    }
   }
 
   private async updateExtensionState(

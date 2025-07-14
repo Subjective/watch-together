@@ -264,39 +264,36 @@ The synchronization protocol supports two distinct control modes:
 
 **Synchronization Event Schema:**
 
-| Event Type           | Direction        | Payload                                                        | Description                              |
-| :------------------- | :--------------- | :------------------------------------------------------------- | :--------------------------------------- |
-| HOST_STATE_UPDATE    | Host → Clients   | { state: 'PLAYING'/'PAUSED', time: number, timestamp: number } | Authoritative state broadcast            |
-| CLIENT_REQUEST_PLAY  | Client → Host    | {}                                                             | Request to play (Host-Only mode)         |
-| CLIENT_REQUEST_PAUSE | Client → Host    | {}                                                             | Request to pause (Host-Only mode)        |
-| CLIENT_REQUEST_SEEK  | Client → Host    | { time: number }                                               | Request to seek (Host-Only mode)         |
-| DIRECT_PLAY          | Any → All Others | { userId: string, timestamp: number }                          | Direct play command (Free-For-All mode)  |
-| DIRECT_PAUSE         | Any → All Others | { userId: string, timestamp: number }                          | Direct pause command (Free-For-All mode) |
-| DIRECT_SEEK          | Any → All Others | { userId: string, time: number, timestamp: number }            | Direct seek command (Free-For-All mode)  |
-| CONTROL_MODE_CHANGE  | Host → Clients   | { mode: 'HOST_ONLY'/'FREE_FOR_ALL' }                           | Control mode toggle notification         |
-| HOST_NAVIGATE        | Host → Clients   | { url: string }                                                | Navigation command                       |
+| Event Type          | Direction        | Payload                                                           | Description                              |
+| :------------------ | :--------------- | :---------------------------------------------------------------- | :--------------------------------------- |
+| HOST_STATE_UPDATE   | Host → Clients   | { state: 'PLAYING'/'PAUSED', time: number, timestamp: number }    | Authoritative state broadcast            |
+| UNIFIED_SYNC        | Any → All Others | { action: 'PLAY'/'PAUSE'/'SEEK', time: number, videoUrl: string } | Unified sync command (Free-For-All mode) |
+| CONTROL_MODE_CHANGE | Host → Clients   | { mode: 'HOST_ONLY'/'FREE_FOR_ALL' }                              | Control mode toggle notification         |
+| HOST_NAVIGATE       | Host → Clients   | { url: string }                                                   | Navigation command                       |
 
 **Control Mode Implementation Details:**
 
 **Host-Only Control Mode (Default):**
 
-- All client playback actions (play/pause/seek) are sent as requests to the host
-- Host processes requests and broadcasts authoritative state updates to all clients
+- Only the host's video player interactions (play/pause/seek) are synchronized
+- Host broadcasts authoritative state updates to all clients via HOST_STATE_UPDATE
+- Participant video interactions are ignored/blocked in this mode
 - Provides consistent single-source-of-truth behavior
 - Prevents conflicting actions from multiple users
 
 **Free-For-All Control Mode:**
 
-- Any participant can send direct control commands to all other participants
-- Uses last-writer-wins conflict resolution with 500ms debounce window
-- Commands include timestamp for conflict resolution
+- Any participant's video player interactions are synchronized via UNIFIED_SYNC
+- Direct peer-to-peer command distribution with URL-based filtering
+- Uses last-writer-wins conflict resolution with timestamp-based ordering
+- Commands include videoUrl for cross-tab synchronization and auto-follow
 - Provides more interactive experience for close-knit groups
 
 **Mode Switching Logic:**
 
 - Only the room host can toggle between control modes
-- Mode changes are broadcast to all participants immediately
-- Existing pending requests are cleared when switching modes
+- Mode changes are broadcast to all participants immediately via CONTROL_MODE_CHANGE
+- No pending requests to clear (system is based on direct video interactions)
 - UI updates reflect the current control mode capabilities
 
 ### **3.3 User-Controlled 'Follow the Host' Navigation**
@@ -529,8 +526,8 @@ ultrathink. This is complex. Implement the core synchronization logic with dual 
 1. Complete WebRTC Data Channel setup in Service Worker
 2. Implement host state broadcasting (HOST_STATE_UPDATE events)
 3. Create client synchronization logic with latency compensation
-4. Handle Host-Only mode: client requests (play/pause/seek) routing through host
-5. Handle Free-For-All mode: direct commands with conflict resolution
+4. Handle Host-Only mode: only host video interactions are synchronized
+5. Handle Free-For-All mode: unified sync commands with URL-based filtering
 6. Implement control mode switching and state management
 7. Add sync tolerance to prevent jittery seeking
 8. Add heartbeat mechanism for connection health
@@ -1175,13 +1172,14 @@ ultrathink. Implement the core video synchronization system:
 1. Complete WebRTC Data Channel setup in Service Worker
 2. Implement host state broadcasting system (HOST_STATE_UPDATE events)
 3. Create client synchronization logic with network latency compensation
-4. Handle client requests (play/pause/seek) that route through host authority
-5. Add sync tolerance buffers to prevent jittery seeking behavior
-6. Implement connection health monitoring with heartbeat mechanism
-7. Create reconnection logic for when peers disconnect
-8. Build comprehensive state machine for connection lifecycle
+4. Handle Host-Only mode: only host video interactions are synchronized
+5. Handle Free-For-All mode: unified sync with URL-based filtering
+6. Add sync tolerance buffers to prevent jittery seeking behavior
+7. Implement connection health monitoring with heartbeat mechanism
+8. Create reconnection logic for when peers disconnect
+9. Build comprehensive state machine for connection lifecycle
 
-The host must always be the single source of truth. Test with two browser instances.
+The host broadcasts authoritative state in HOST_ONLY mode. Test with two browser instances.
 ```
 
 **Prompt 10 - Navigation System:**
@@ -1215,9 +1213,9 @@ Implement the dual control mode system:
 
 2. Update Service Worker to handle dual control modes:
    - Implement mode switching logic (host-only capability)
-   - Handle Host-Only: route client requests through host
-   - Handle Free-For-All: process direct commands with conflict resolution
-   - Add 500ms debounce window for conflict resolution
+   - Handle Host-Only: only host video interactions are synchronized
+   - Handle Free-For-All: process unified sync commands with URL filtering
+   - Add timestamp-based conflict resolution for concurrent interactions
 
 3. Update popup UI with control mode toggle:
    - Add ControlModeToggle.tsx component
@@ -1226,8 +1224,8 @@ Implement the dual control mode system:
    - Handle mode change events from Service Worker
 
 4. Test both control modes with multiple browser instances
-   - Verify Host-Only routing behavior
-   - Test Free-For-All direct command handling
+   - Verify Host-Only synchronization behavior
+   - Test Free-For-All unified sync handling
    - Confirm smooth mode switching without disconnection
 
 Focus on seamless user experience and conflict resolution.

@@ -231,17 +231,20 @@ describe("Control Mode Synchronization", () => {
       timestamp: Date.now(),
     };
 
-    // Simulate participant receiving direct command
-    await (participantRoomManager as any).handleDirectCommand(
-      directPlayMessage,
-    );
+    // Simulate participant receiving direct command through unified sync
+    await (participantRoomManager as any).handleUnifiedSync({
+      ...directPlayMessage,
+      action: "PLAY",
+      videoUrl: "https://example.com/video",
+      fromUserId: "host-user",
+    });
 
     // Step 6: Check if participant blocked the command
     const warnings = warnSpy.mock.calls;
     const ignoredCommandWarning = warnings.find(
       (call) =>
-        call[0]?.includes?.("Ignoring direct command in") &&
-        call[1] === "DIRECT_PLAY",
+        call[0]?.includes?.("Ignoring unified sync command in") &&
+        call[1] === "UNIFIED_SYNC",
     );
 
     warnSpy.mockRestore();

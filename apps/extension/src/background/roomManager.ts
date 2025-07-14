@@ -551,13 +551,13 @@ export class RoomManager {
         await this.webrtc.sendClientRequest(action, seekTime);
       }
     } else {
-      // FREE_FOR_ALL mode - send direct command
+      // FREE_FOR_ALL mode - send unified sync command
       const currentUrl = await this.getCurrentTabUrl();
-      await this.webrtc.sendDirectCommand(
-        action,
-        seekTime,
-        currentUrl || undefined,
-      );
+      if (currentUrl) {
+        await this.webrtc.sendUnifiedSync(action, seekTime || 0, currentUrl);
+      } else {
+        console.warn("Cannot send video control: no current tab URL");
+      }
     }
   }
 
@@ -826,9 +826,7 @@ export class RoomManager {
     this.webrtc.on("CLIENT_REQUEST_PLAY", this.handleClientRequest.bind(this));
     this.webrtc.on("CLIENT_REQUEST_PAUSE", this.handleClientRequest.bind(this));
     this.webrtc.on("CLIENT_REQUEST_SEEK", this.handleClientRequest.bind(this));
-    this.webrtc.on("DIRECT_PLAY", this.handleDirectCommand.bind(this));
-    this.webrtc.on("DIRECT_PAUSE", this.handleDirectCommand.bind(this));
-    this.webrtc.on("DIRECT_SEEK", this.handleDirectCommand.bind(this));
+    this.webrtc.on("UNIFIED_SYNC", this.handleUnifiedSync.bind(this));
     this.webrtc.on(
       "CONTROL_MODE_CHANGE",
       this.handleControlModeChange.bind(this),
@@ -1139,11 +1137,11 @@ export class RoomManager {
     }
   }
 
-  private async handleDirectCommand(message: any): Promise<void> {
-    // Only process direct commands in FREE_FOR_ALL mode
+  private async handleUnifiedSync(message: any): Promise<void> {
+    // Only process unified sync commands in FREE_FOR_ALL mode
     if (!this.currentRoom || this.currentRoom.controlMode !== "FREE_FOR_ALL") {
       console.warn(
-        `[RoomManager] Ignoring direct command in ${this.currentRoom?.controlMode || "unknown"} mode:`,
+        `[RoomManager] Ignoring unified sync command in ${this.currentRoom?.controlMode || "unknown"} mode:`,
         message.type,
       );
       return;
@@ -1152,29 +1150,32 @@ export class RoomManager {
     // Skip commands from ourselves to prevent infinite feedback loops
     if (message.fromUserId === this.currentUser?.id) {
       console.log(
-        `[RoomManager] Skipping self-originated direct command:`,
+        `[RoomManager] Skipping self-originated unified sync command:`,
         message.type,
       );
       return;
     }
 
     console.log(
-      `[RoomManager] Processing direct command from ${message.fromUserId}:`,
-      message.type,
+      `[RoomManager] Processing unified sync command from ${message.fromUserId}:`,
+      `${message.action} at ${message.time}s on ${message.videoUrl}`,
     );
 
-    // In free-for-all mode, apply commands directly
+    // Convert action to state for applyVideoState
+    const state =
+      message.action === "PLAY"
+        ? "PLAYING"
+        : message.action === "PAUSE"
+          ? "PAUSED"
+          : "SEEKING";
+
+    // Apply the video state with URL filtering
     await this.applyVideoState({
-      state:
-        message.type === "DIRECT_PLAY"
-          ? "PLAYING"
-          : message.type === "DIRECT_PAUSE"
-            ? "PAUSED"
-            : "SEEKING",
+      state,
       time: message.time,
       timestamp: message.timestamp,
       fromUserId: message.fromUserId,
-      hostVideoUrl: message.videoUrl, // Use videoUrl from direct command for URL validation
+      hostVideoUrl: message.videoUrl, // Use videoUrl from unified sync for URL validation
       isRemoteOrigin: true, // Mark as remote-originated
     });
   }
@@ -1452,6 +1453,18 @@ export class RoomManager {
     // Update the last video adapter URL when video events occur
     await this.updateLastVideoAdapterUrl();
 
+    // URL-based filtering: Only process events that match our current video context
+    if (
+      this.lastVideoAdapterUrl &&
+      this.lastVideoAdapterUrl !== detail.sourceUrl
+    ) {
+      console.log(
+        `[RoomManager] Ignoring adapter event from different video context:`,
+        `current: ${this.lastVideoAdapterUrl}, event: ${detail.sourceUrl}`,
+      );
+      return;
+    }
+
     // Skip broadcasting events that originated from remote commands to prevent infinite loops
     if (this.isApplyingRemoteCommand) {
       console.log(
@@ -1483,13 +1496,8 @@ export class RoomManager {
             return;
           }
         } else {
-          // In free-for-all mode, everyone broadcasts directly
-          await this.broadcastDirectCommand(detail);
-
-          // Additionally, if we're the designated host, also send host state updates for auto-follow
-          if (this.currentUser.isHost) {
-            await this.broadcastHostStateUpdate(detail);
-          }
+          // In free-for-all mode, use unified sync that includes both sync and auto-follow data
+          await this.broadcastUnifiedSync(detail);
         }
         break;
 
@@ -1540,7 +1548,7 @@ export class RoomManager {
     );
   }
 
-  private async broadcastDirectCommand(
+  private async broadcastUnifiedSync(
     detail: AdapterEventDetail,
   ): Promise<void> {
     // Defensive check: don't broadcast if not in a room
@@ -1548,33 +1556,36 @@ export class RoomManager {
       return;
     }
 
-    let messageType: "DIRECT_PLAY" | "DIRECT_PAUSE" | "DIRECT_SEEK";
+    let action: "PLAY" | "PAUSE" | "SEEK";
 
     switch (detail.event) {
       case "play":
-        messageType = "DIRECT_PLAY";
+        action = "PLAY";
         break;
       case "pause":
-        messageType = "DIRECT_PAUSE";
+        action = "PAUSE";
         break;
       case "seeking":
       case "seeked":
-        messageType = "DIRECT_SEEK";
+        action = "SEEK";
         break;
       default:
         return;
     }
 
-    // Use tracked video adapter URL instead of current tab
-    const videoUrl = this.lastVideoAdapterUrl;
+    // Use the sourceUrl from the event (which came from the content script)
+    const videoUrl = detail.sourceUrl;
 
-    this.webrtc.sendSyncMessage({
-      type: messageType,
-      userId: this.currentUser.id,
-      time: detail.state.currentTime,
-      timestamp: detail.timestamp,
-      videoUrl: videoUrl || undefined,
-    });
+    // Send unified sync message that includes both sync data and URL for auto-follow
+    await this.webrtc.sendUnifiedSync(
+      action,
+      detail.state.currentTime,
+      videoUrl,
+    );
+
+    console.log(
+      `[RoomManager] Broadcasted unified sync: ${action} at ${detail.state.currentTime}s on ${videoUrl}`,
+    );
   }
 
   /**

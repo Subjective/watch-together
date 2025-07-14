@@ -14,6 +14,7 @@ export interface AdapterEventDetail {
     isPaused: boolean;
     playbackRate: number;
   };
+  sourceUrl: string;
   timestamp: number;
   isRemoteOrigin?: boolean; // Track if event originated from remote command
 }
@@ -212,6 +213,7 @@ function broadcastAdapterEvent(tabId: number, message: AdapterMessage): void {
       event: message.event,
       payload: message.payload,
       state: adapter.state,
+      sourceUrl: message.sourceUrl,
       timestamp: message.timestamp || Date.now(),
     },
   });

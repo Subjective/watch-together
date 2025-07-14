@@ -198,6 +198,13 @@ export interface DirectSeekMessage extends BaseSyncMessage {
   videoUrl?: string;
 }
 
+export interface UnifiedSyncMessage extends BaseSyncMessage {
+  type: "UNIFIED_SYNC";
+  action: "PLAY" | "PAUSE" | "SEEK";
+  time: number;
+  videoUrl: string;
+}
+
 export interface ControlModeChangeMessage extends BaseSyncMessage {
   type: "CONTROL_MODE_CHANGE";
   mode: "HOST_ONLY" | "FREE_FOR_ALL";
@@ -216,5 +223,6 @@ export type SyncMessage =
   | DirectPlayMessage
   | DirectPauseMessage
   | DirectSeekMessage
+  | UnifiedSyncMessage
   | ControlModeChangeMessage
   | HostNavigateMessage;

@@ -74,6 +74,7 @@ export interface AdapterEventMessage {
     duration?: number;
     isPaused?: boolean;
   };
+  sourceUrl: string;
   timestamp: number;
 }
 

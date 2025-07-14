@@ -132,6 +132,7 @@ function sendAdapterEvent(
     type: "ADAPTER_EVENT",
     event,
     payload,
+    sourceUrl: document.location.href,
     timestamp: Date.now(),
   };
 

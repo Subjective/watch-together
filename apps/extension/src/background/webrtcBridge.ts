@@ -18,9 +18,7 @@ import type {
   ClientRequestPlayMessage,
   ClientRequestPauseMessage,
   ClientRequestSeekMessage,
-  DirectPlayMessage,
-  DirectPauseMessage,
-  DirectSeekMessage,
+  UnifiedSyncMessage,
   ControlModeChangeMessage,
   ControlMode,
 } from "@repo/types";
@@ -283,45 +281,24 @@ export class WebRTCManager {
     await this.sendSyncMessage(message);
   }
 
-  async sendDirectCommand(
-    commandType: "PLAY" | "PAUSE" | "SEEK",
-    seekTime?: number,
-    videoUrl?: string | null,
+  async sendUnifiedSync(
+    action: "PLAY" | "PAUSE" | "SEEK",
+    time: number,
+    videoUrl: string,
   ): Promise<void> {
     if (this.controlMode !== "FREE_FOR_ALL") {
-      console.warn("Direct commands only available in FREE_FOR_ALL mode");
+      console.warn("Unified sync only available in FREE_FOR_ALL mode");
       return;
     }
 
-    let message: DirectPlayMessage | DirectPauseMessage | DirectSeekMessage;
-
-    switch (commandType) {
-      case "PLAY":
-        message = {
-          type: "DIRECT_PLAY",
-          userId: this.currentUserId!,
-          timestamp: Date.now(),
-          videoUrl: videoUrl || undefined,
-        };
-        break;
-      case "PAUSE":
-        message = {
-          type: "DIRECT_PAUSE",
-          userId: this.currentUserId!,
-          timestamp: Date.now(),
-          videoUrl: videoUrl || undefined,
-        };
-        break;
-      case "SEEK":
-        message = {
-          type: "DIRECT_SEEK",
-          userId: this.currentUserId!,
-          timestamp: Date.now(),
-          time: seekTime || 0,
-          videoUrl: videoUrl || undefined,
-        };
-        break;
-    }
+    const message: UnifiedSyncMessage = {
+      type: "UNIFIED_SYNC",
+      userId: this.currentUserId!,
+      timestamp: Date.now(),
+      action,
+      time,
+      videoUrl,
+    };
 
     await this.sendSyncMessage(message);
   }

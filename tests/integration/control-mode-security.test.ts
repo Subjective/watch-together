@@ -117,6 +117,7 @@ describe("Control Mode Security", () => {
           duration: 300,
           playbackRate: 1,
         },
+        sourceUrl: "https://example.com/video",
         timestamp: Date.now(),
       };
 
@@ -170,6 +171,7 @@ describe("Control Mode Security", () => {
           duration: 300,
           playbackRate: 1,
         },
+        sourceUrl: "https://example.com/video",
         timestamp: Date.now(),
       };
 
@@ -223,6 +225,7 @@ describe("Control Mode Security", () => {
           duration: 300,
           playbackRate: 1,
         },
+        sourceUrl: "https://example.com/video",
         timestamp: Date.now(),
       };
 

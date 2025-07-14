@@ -15,7 +15,7 @@ class_name = "RoomState"
 
 [[migrations]]
 tag = "v1"
-new_classes = [ "RoomState" ]
+new_sqlite_classes = [ "RoomState" ]
 
 [build]
 command = "npm run build"

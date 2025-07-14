@@ -1107,18 +1107,6 @@ export class RoomManager {
       return;
     }
 
-    // Check if this direct command contains a video URL change for auto-follow
-    // Only trigger auto-follow if we're not the sender of this command
-    if (message.videoUrl && message.fromUserId !== this.currentUser?.id) {
-      if (this.lastHostVideoUrl !== message.videoUrl) {
-        console.log(
-          `[RoomManager] Video URL change detected in FREE_FOR_ALL mode: ${this.lastHostVideoUrl} -> ${message.videoUrl}`,
-        );
-        await this.handleHostVideoSwitch(message.videoUrl);
-        this.lastHostVideoUrl = message.videoUrl;
-      }
-    }
-
     // In free-for-all mode, apply commands directly
     await this.applyVideoState({
       state:
@@ -1409,6 +1397,11 @@ export class RoomManager {
         } else {
           // In free-for-all mode, everyone broadcasts directly
           await this.broadcastDirectCommand(detail);
+
+          // Additionally, if we're the designated host, also send host state updates for auto-follow
+          if (this.currentUser.isHost) {
+            await this.broadcastHostStateUpdate(detail);
+          }
         }
         break;
 
@@ -1429,15 +1422,12 @@ export class RoomManager {
         ) {
           this.lastTimeupdateSync = timeupdateNow;
 
-          // Only broadcast timeupdate in host-only mode from the host
-          if (
-            this.currentRoom.controlMode === "HOST_ONLY" &&
-            this.currentUser.isHost
-          ) {
+          // Only broadcast timeupdate from the designated host (for auto-follow tracking)
+          if (this.currentUser.isHost) {
             await this.broadcastHostStateUpdate(detail);
           }
           // In free-for-all mode, timeupdate events are used for drift detection
-          // but we don't broadcast them to avoid conflicts
+          // but only the host broadcasts them for auto-follow tracking
         }
         break;
       }

@@ -126,7 +126,7 @@ export const App: React.FC = () => {
           console.error("Failed to copy room ID:", error);
         }
       };
-      
+
       copyRoomId();
       setJustCreatedRoom(false);
     }

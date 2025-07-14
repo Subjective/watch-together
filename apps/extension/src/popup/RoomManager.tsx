@@ -161,24 +161,26 @@ export const RoomManager: React.FC<RoomManagerProps> = ({
 
       {/* Room Information */}
       <div className="bg-white border border-gray-200 rounded-lg p-3 flex-shrink-0">
-        <div className="flex items-center justify-between mb-2">
-          <EditableRoomName
-            currentName={room.name}
-            onRename={handleRename}
-            disabled={!currentUser.isHost}
-          />
-          <span className={`text-xs ${connectionStatusDisplay.color}`}>
-            {connectionStatusDisplay.icon} {connectionStatusDisplay.text}
-          </span>
-        </div>
-
-        <div className="flex items-center justify-between text-sm text-gray-600">
-          <span>Room ID: {room.id}</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div className="flex-1 min-w-0">
+              <EditableRoomName
+                currentName={room.name}
+                onRename={handleRename}
+                disabled={!currentUser.isHost}
+              />
+            </div>
+            <span
+              className={`text-xs whitespace-nowrap ${connectionStatusDisplay.color}`}
+            >
+              {connectionStatusDisplay.icon} {connectionStatusDisplay.text}
+            </span>
+          </div>
           <button
             onClick={handleCopyRoomId}
-            className="text-blue-600 hover:text-blue-800 text-xs"
+            className="text-blue-600 hover:text-blue-800 text-xs font-medium ml-2 whitespace-nowrap"
           >
-            Copy
+            Copy ID
           </button>
         </div>
       </div>

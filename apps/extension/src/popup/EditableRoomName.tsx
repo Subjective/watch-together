@@ -90,7 +90,7 @@ export const EditableRoomName: React.FC<EditableRoomNameProps> = ({
 
   if (isEditing) {
     return (
-      <div className="flex-1">
+      <div>
         <input
           type="text"
           value={newName}
@@ -109,18 +109,16 @@ export const EditableRoomName: React.FC<EditableRoomNameProps> = ({
   }
 
   return (
-    <div className="flex items-center flex-1">
-      <h3
-        className={`font-medium text-gray-900 flex-1 ${
-          !disabled
-            ? "cursor-pointer hover:bg-gray-50 hover:text-blue-700 px-2 py-1 -mx-2 -my-1 rounded transition-colors"
-            : ""
-        }`}
-        onClick={!disabled ? handleStartEdit : undefined}
-        title={!disabled ? "Click to rename room" : undefined}
-      >
-        {currentName}
-      </h3>
-    </div>
+    <h3
+      className={`font-medium text-gray-900 ${
+        !disabled
+          ? "cursor-pointer hover:bg-gray-50 hover:text-blue-700 px-2 py-1 rounded transition-colors"
+          : ""
+      }`}
+      onClick={!disabled ? handleStartEdit : undefined}
+      title={!disabled ? "Click to rename room" : undefined}
+    >
+      {currentName}
+    </h3>
   );
 };

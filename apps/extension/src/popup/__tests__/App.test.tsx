@@ -37,7 +37,7 @@ describe("App", () => {
       hasFollowNotification: false,
       followNotificationUrl: null,
     });
-    
+
     // Mock StorageManager.getUserPreferences to return default values
     vi.mocked(StorageManager.getUserPreferences).mockResolvedValue({
       followMode: "AUTO_FOLLOW",
@@ -47,7 +47,7 @@ describe("App", () => {
       defaultRoomName: "My Room",
       backgroundSyncEnabled: true,
     });
-    
+
     // Mock StorageManager.getRoomHistory to return empty array
     vi.mocked(StorageManager.getRoomHistory).mockResolvedValue([]);
   });

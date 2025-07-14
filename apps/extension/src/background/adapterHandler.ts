@@ -15,6 +15,7 @@ export interface AdapterEventDetail {
     playbackRate: number;
   };
   timestamp: number;
+  isRemoteOrigin?: boolean; // Track if event originated from remote command
 }
 
 // Custom event type for adapter events

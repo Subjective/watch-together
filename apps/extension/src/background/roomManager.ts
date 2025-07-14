@@ -45,6 +45,7 @@ export class RoomManager {
   private extensionState: ExtensionState;
   private eventListeners: Map<string, ((data: any) => void)[]> = new Map();
   private lastHostVideoUrl: string | null = null;
+  private isApplyingRemoteCommand: boolean = false;
 
   constructor(config: RoomManagerConfig) {
     // Initialize WebSocket manager
@@ -1107,6 +1108,20 @@ export class RoomManager {
       return;
     }
 
+    // Skip commands from ourselves to prevent infinite feedback loops
+    if (message.fromUserId === this.currentUser?.id) {
+      console.log(
+        `[RoomManager] Skipping self-originated direct command:`,
+        message.type,
+      );
+      return;
+    }
+
+    console.log(
+      `[RoomManager] Processing direct command from ${message.fromUserId}:`,
+      message.type,
+    );
+
     // In free-for-all mode, apply commands directly
     await this.applyVideoState({
       state:
@@ -1119,6 +1134,7 @@ export class RoomManager {
       timestamp: message.timestamp,
       fromUserId: message.fromUserId,
       hostVideoUrl: message.videoUrl, // Use videoUrl from direct command for URL validation
+      isRemoteOrigin: true, // Mark as remote-originated
     });
   }
 
@@ -1128,6 +1144,7 @@ export class RoomManager {
     timestamp: number;
     fromUserId?: string;
     hostVideoUrl?: string | null;
+    isRemoteOrigin?: boolean;
   }): Promise<void> {
     // Check user preference for background sync
     const userPreferences = await StorageManager.getUserPreferences();
@@ -1214,10 +1231,17 @@ export class RoomManager {
       timestamp: number;
       fromUserId?: string;
       hostVideoUrl?: string | null;
+      isRemoteOrigin?: boolean;
     },
     compensatedTime: number,
   ): Promise<void> {
     try {
+      // Set flag to indicate we're applying a remote command
+      // This prevents the resulting adapter events from being re-broadcast
+      if (message.isRemoteOrigin) {
+        this.isApplyingRemoteCommand = true;
+      }
+
       // Apply the state
       if (message.state === "PLAYING") {
         console.log(`[RoomManager] Sending play command to tab ${tabId}`);
@@ -1256,6 +1280,14 @@ export class RoomManager {
     } catch (error) {
       console.error(`Failed to apply video state to tab ${tabId}:`, error);
       throw error; // Re-throw to be caught by Promise.all
+    } finally {
+      // Always reset the flag after applying commands
+      if (message.isRemoteOrigin) {
+        // Use a small delay to ensure all events are processed before resetting
+        setTimeout(() => {
+          this.isApplyingRemoteCommand = false;
+        }, 100);
+      }
     }
   }
 
@@ -1373,6 +1405,17 @@ export class RoomManager {
   private async handleAdapterEvent(detail: AdapterEventDetail): Promise<void> {
     // Only process events if we're in a room and connected
     if (!this.currentRoom || !this.currentUser) {
+      return;
+    }
+
+    // Skip broadcasting events that originated from remote commands to prevent infinite loops
+    if (this.isApplyingRemoteCommand) {
+      console.log(
+        `[RoomManager] Skipping broadcast of adapter event during remote command application:`,
+        detail.event,
+      );
+      // Still update local video state for UI
+      await this.updateLocalVideoState(detail);
       return;
     }
 

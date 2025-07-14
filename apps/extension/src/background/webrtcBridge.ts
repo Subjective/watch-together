@@ -217,6 +217,7 @@ export class WebRTCManager {
   async broadcastHostState(
     state: "PLAYING" | "PAUSED",
     time: number,
+    hostVideoUrl?: string | null,
   ): Promise<void> {
     if (!this.isHost) {
       console.warn("Only host can broadcast state updates");
@@ -229,6 +230,7 @@ export class WebRTCManager {
       timestamp: Date.now(),
       state,
       time,
+      hostVideoUrl,
     };
 
     await this.sendSyncMessage(message);

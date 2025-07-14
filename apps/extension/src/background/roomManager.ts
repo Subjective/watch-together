@@ -754,6 +754,32 @@ export class RoomManager {
     // Client receives host state update
     if (!this.currentUser?.isHost) {
       console.log(`[RoomManager] Applying host state as client`);
+
+      // Update host video state for participants to see in UI
+      if (this.currentRoom && message.hostVideoUrl) {
+        const hostVideoState = {
+          isPlaying: message.state === "PLAYING",
+          currentTime: message.time || 0,
+          duration: 0, // Duration will be updated from actual video events
+          playbackRate: 1,
+          url: message.hostVideoUrl,
+          lastUpdated: message.timestamp,
+        };
+
+        this.currentRoom.hostVideoState = hostVideoState;
+
+        // Update extension state to trigger UI refresh
+        this.updateExtensionState({
+          currentRoom: this.currentRoom,
+        });
+
+        console.log(`[RoomManager] Updated host video state for participant:`, {
+          url: hostVideoState.url,
+          playing: hostVideoState.isPlaying,
+          time: hostVideoState.currentTime,
+        });
+      }
+
       await this.applyVideoState(message);
     } else {
       console.log(`[RoomManager] Ignoring host state update - we are the host`);
@@ -1031,14 +1057,11 @@ export class RoomManager {
       );
     }
 
-    await this.webrtc.sendSyncMessage({
-      type: "HOST_STATE_UPDATE",
-      userId: this.currentUser!.id,
+    await this.webrtc.broadcastHostState(
       state,
-      time: detail.state.currentTime,
-      timestamp: detail.timestamp,
-      hostVideoUrl: currentUrl,
-    });
+      detail.state.currentTime,
+      currentUrl,
+    );
   }
 
   private async broadcastDirectCommand(

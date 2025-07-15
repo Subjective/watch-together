@@ -19,3 +19,7 @@ new_sqlite_classes = [ "RoomState" ]
 
 [build]
 command = "npm run build"
+
+[observability]
+enabled = true
+head_sampling_rate = 1

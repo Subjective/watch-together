@@ -17,6 +17,7 @@ import type {
   WebRTCOfferMessage,
   WebRTCAnswerMessage,
   WebRTCIceCandidateMessage,
+  ConnectionStatus,
 } from "@repo/types";
 
 import { WebSocketManager, defaultWebSocketConfig } from "./websocket";
@@ -829,6 +830,62 @@ export class RoomManager {
   }
 
   /**
+   * Handle WebSocket connection status changes
+   * Automatically rejoins room after reconnection when user was previously connected
+   */
+  private async handleConnectionStatusChange(data: {
+    status: ConnectionStatus;
+  }): Promise<void> {
+    const wasConnected = this.extensionState.isConnected;
+
+    await this.updateExtensionState({
+      connectionStatus: data.status,
+      isConnected: data.status === "CONNECTED",
+    });
+
+    // Auto-rejoin room after reconnection
+    if (
+      data.status === "CONNECTED" &&
+      !wasConnected &&
+      this.currentRoom &&
+      this.currentUser
+    ) {
+      await this.rejoinRoomAfterReconnect();
+    }
+  }
+
+  /**
+   * Rejoin the current room after WebSocket reconnection
+   */
+  private async rejoinRoomAfterReconnect(): Promise<void> {
+    if (!this.currentRoom || !this.currentUser) return;
+
+    try {
+      console.log("[RoomManager] Auto-rejoining room after reconnection");
+
+      // Reset WebRTC connections and reinitialize
+      this.webrtc.closeAllConnections();
+      await this.webrtc.initialize(
+        this.currentUser.id,
+        this.currentUser.isHost,
+      );
+
+      const message: JoinRoomMessage = {
+        type: "JOIN_ROOM",
+        roomId: this.currentRoom.id,
+        userId: this.currentUser.id,
+        userName: this.currentUser.name,
+        timestamp: Date.now(),
+      };
+
+      await this.websocket.send(message);
+      console.log("[RoomManager] Auto-rejoin request sent");
+    } catch (error) {
+      console.error("[RoomManager] Failed to auto-rejoin room:", error);
+    }
+  }
+
+  /**
    * Cleanup resources
    */
   async cleanup(): Promise<void> {
@@ -840,12 +897,10 @@ export class RoomManager {
 
   private setupEventHandlers(): void {
     // WebSocket event handlers
-    this.websocket.on("CONNECTION_STATUS_CHANGE", (data) => {
-      this.updateExtensionState({
-        connectionStatus: data.status,
-        isConnected: data.status === "CONNECTED",
-      });
-    });
+    this.websocket.on(
+      "CONNECTION_STATUS_CHANGE",
+      this.handleConnectionStatusChange.bind(this),
+    );
 
     this.websocket.on("USER_JOINED", this.handleUserJoined.bind(this));
     this.websocket.on("USER_LEFT", this.handleUserLeft.bind(this));

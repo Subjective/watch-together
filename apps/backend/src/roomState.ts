@@ -357,6 +357,7 @@ export class RoomState {
         this.roomData = storedData || null;
         if (!this.roomData) {
           this.sendError(websocket, "Room not found", message.roomId);
+          websocket.close(4004, "Room not found");
           return;
         }
       }
@@ -364,12 +365,14 @@ export class RoomState {
       // Validate that the stored room ID matches the requested room ID
       if (this.roomData.id !== message.roomId) {
         this.sendError(websocket, "Room ID mismatch", message.roomId);
+        websocket.close(4001, "Room ID mismatch");
         return;
       }
 
       // Check if user is already in room
       if (this.connections.has(message.userId)) {
         this.sendError(websocket, "User already in room", message.userId);
+        websocket.close(4002, "User already in room");
         return;
       }
 

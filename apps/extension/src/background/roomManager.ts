@@ -151,14 +151,21 @@ export class RoomManager {
 
       // Wait for room creation response
       return new Promise((resolve, reject) => {
+        const cleanup = () => {
+          this.websocket.off("ROOM_CREATED", onRoomCreated);
+          this.websocket.off("ERROR", onError);
+        };
+
         const timeout = setTimeout(() => {
+          cleanup();
+          this.websocket.disconnect();
           reject(new Error("Room creation timeout"));
         }, 10000);
 
         const onRoomCreated = async (response: any) => {
           if (response.type === "ROOM_CREATED" && response.roomId === roomId) {
             clearTimeout(timeout);
-            this.websocket.off("ROOM_CREATED", onRoomCreated);
+            cleanup();
 
             this.currentRoom = response.roomState;
             this.currentUser =
@@ -198,7 +205,8 @@ export class RoomManager {
         const onError = (response: any) => {
           if (response.type === "ERROR") {
             clearTimeout(timeout);
-            this.websocket.off("ERROR", onError);
+            cleanup();
+            this.websocket.disconnect();
             reject(new Error(response.error));
           }
         };
@@ -208,6 +216,16 @@ export class RoomManager {
       });
     } catch (error) {
       console.error("Failed to create room:", error);
+      await this.websocket.disconnect();
+      this.webrtc.closeAllConnections();
+      this.currentRoom = null;
+      this.currentUser = null;
+      this.updateExtensionState({
+        isConnected: false,
+        currentRoom: null,
+        currentUser: null,
+        connectionStatus: "DISCONNECTED",
+      });
       throw error;
     }
   }
@@ -250,14 +268,21 @@ export class RoomManager {
 
       // Wait for room join response
       return new Promise((resolve, reject) => {
+        const cleanup = () => {
+          this.websocket.off("ROOM_JOINED", onRoomJoined);
+          this.websocket.off("ERROR", onError);
+        };
+
         const timeout = setTimeout(() => {
+          cleanup();
+          this.websocket.disconnect();
           reject(new Error("Room join timeout"));
         }, 10000);
 
         const onRoomJoined = async (response: any) => {
           if (response.type === "ROOM_JOINED" && response.roomId === roomId) {
             clearTimeout(timeout);
-            this.websocket.off("ROOM_JOINED", onRoomJoined);
+            cleanup();
 
             this.currentRoom = response.roomState;
             this.currentUser =
@@ -305,7 +330,8 @@ export class RoomManager {
         const onError = (response: any) => {
           if (response.type === "ERROR") {
             clearTimeout(timeout);
-            this.websocket.off("ERROR", onError);
+            cleanup();
+            this.websocket.disconnect();
             reject(new Error(response.error));
           }
         };
@@ -315,6 +341,16 @@ export class RoomManager {
       });
     } catch (error) {
       console.error("Failed to join room:", error);
+      await this.websocket.disconnect();
+      this.webrtc.closeAllConnections();
+      this.currentRoom = null;
+      this.currentUser = null;
+      this.updateExtensionState({
+        isConnected: false,
+        currentRoom: null,
+        currentUser: null,
+        connectionStatus: "DISCONNECTED",
+      });
       throw error;
     }
   }

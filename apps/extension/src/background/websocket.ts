@@ -98,6 +98,9 @@ export class WebSocketManager {
       this.ws = null;
     }
 
+    // Reset retry count to prevent future reconnection attempts
+    this.retryCount = 0;
+
     this.setConnectionStatus("DISCONNECTED");
   }
 
@@ -201,10 +204,21 @@ export class WebSocketManager {
       console.log("WebSocket closed:", event.code, event.reason);
       this.stopHeartbeat();
 
-      if (event.code !== 1000) {
-        // Not a normal closure
+      // Don't reconnect for:
+      // - 1000: Normal closure
+      // - 4001: Room ID mismatch
+      // - 4002: User already in room
+      // - 4004: Room not found
+      // These are permanent errors that won't be resolved by reconnecting
+      const permanentErrorCodes = [1000, 4001, 4002, 4004];
+
+      if (!permanentErrorCodes.includes(event.code)) {
+        // Temporary error - attempt reconnection
         this.setConnectionStatus("DISCONNECTED");
         this.scheduleReconnection();
+      } else {
+        // Permanent error or normal closure - don't reconnect
+        this.setConnectionStatus("DISCONNECTED");
       }
     };
   }

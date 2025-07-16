@@ -174,11 +174,6 @@ function setupRoomManagerEventHandlers(): void {
   roomManager.on("CONTROL_MODE_CHANGED", (_data: any) => {
     broadcastStateUpdate(roomManager!.getExtensionState());
   });
-
-  // Listen for client requests (when acting as host)
-  roomManager.on("CLIENT_REQUEST", (data: any) => {
-    handleClientRequest(data);
-  });
 }
 
 /**
@@ -484,14 +479,6 @@ async function handleVideoStateChange(
     message.isPlaying ? "PLAY" : "PAUSE",
     message.currentTime,
   );
-}
-
-/**
- * Handle client requests when acting as host
- */
-async function handleClientRequest(data: any): Promise<void> {
-  // Forward request to content script to execute
-  forwardToContentScript("CLIENT_REQUEST", data);
 }
 
 /**

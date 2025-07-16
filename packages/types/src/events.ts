@@ -169,35 +169,6 @@ export interface HostStateUpdateMessage extends BaseSyncMessage {
   hostVideoUrl?: string | null;
 }
 
-export interface ClientRequestPlayMessage extends BaseSyncMessage {
-  type: "CLIENT_REQUEST_PLAY";
-}
-
-export interface ClientRequestPauseMessage extends BaseSyncMessage {
-  type: "CLIENT_REQUEST_PAUSE";
-}
-
-export interface ClientRequestSeekMessage extends BaseSyncMessage {
-  type: "CLIENT_REQUEST_SEEK";
-  time: number;
-}
-
-export interface DirectPlayMessage extends BaseSyncMessage {
-  type: "DIRECT_PLAY";
-  videoUrl?: string;
-}
-
-export interface DirectPauseMessage extends BaseSyncMessage {
-  type: "DIRECT_PAUSE";
-  videoUrl?: string;
-}
-
-export interface DirectSeekMessage extends BaseSyncMessage {
-  type: "DIRECT_SEEK";
-  time: number;
-  videoUrl?: string;
-}
-
 export interface UnifiedSyncMessage extends BaseSyncMessage {
   type: "UNIFIED_SYNC";
   action: "PLAY" | "PAUSE" | "SEEK";
@@ -217,12 +188,6 @@ export interface HostNavigateMessage extends BaseSyncMessage {
 
 export type SyncMessage =
   | HostStateUpdateMessage
-  | ClientRequestPlayMessage
-  | ClientRequestPauseMessage
-  | ClientRequestSeekMessage
-  | DirectPlayMessage
-  | DirectPauseMessage
-  | DirectSeekMessage
   | UnifiedSyncMessage
   | ControlModeChangeMessage
   | HostNavigateMessage;

@@ -547,8 +547,10 @@ export class RoomManager {
           seekTime || 0,
         );
       } else {
-        // Client sends request to host
-        await this.webrtc.sendClientRequest(action, seekTime);
+        // In HOST_ONLY mode, non-host participants cannot send control commands
+        console.warn(
+          "Non-host participants cannot send video control commands in HOST_ONLY mode",
+        );
       }
     } else {
       // FREE_FOR_ALL mode - send unified sync command
@@ -823,9 +825,6 @@ export class RoomManager {
     // WebRTC event handlers
     this.webrtc.on("ICE_CANDIDATE", this.handleLocalIceCandidate.bind(this));
     this.webrtc.on("HOST_STATE_UPDATE", this.handleHostStateUpdate.bind(this));
-    this.webrtc.on("CLIENT_REQUEST_PLAY", this.handleClientRequest.bind(this));
-    this.webrtc.on("CLIENT_REQUEST_PAUSE", this.handleClientRequest.bind(this));
-    this.webrtc.on("CLIENT_REQUEST_SEEK", this.handleClientRequest.bind(this));
     this.webrtc.on("UNIFIED_SYNC", this.handleUnifiedSync.bind(this));
     this.webrtc.on(
       "CONTROL_MODE_CHANGE",
@@ -1109,31 +1108,6 @@ export class RoomManager {
       await this.applyVideoState(message);
     } else {
       console.log(`[RoomManager] Ignoring host state update - we are the host`);
-    }
-  }
-
-  private async handleClientRequest(message: any): Promise<void> {
-    // Host handles client requests
-    if (this.currentUser?.isHost) {
-      // Get the active adapter tab
-      const activeTab = await this.getActiveAdapterTab();
-      if (!activeTab) return;
-
-      try {
-        switch (message.type) {
-          case "CLIENT_REQUEST_PLAY":
-            await sendAdapterCommand(activeTab, "play");
-            break;
-          case "CLIENT_REQUEST_PAUSE":
-            await sendAdapterCommand(activeTab, "pause");
-            break;
-          case "CLIENT_REQUEST_SEEK":
-            await sendAdapterCommand(activeTab, "seek", { time: message.time });
-            break;
-        }
-      } catch (error) {
-        console.error("Failed to handle client request:", error);
-      }
     }
   }
 

@@ -15,9 +15,6 @@
 import type {
   SyncMessage,
   HostStateUpdateMessage,
-  ClientRequestPlayMessage,
-  ClientRequestPauseMessage,
-  ClientRequestSeekMessage,
   UnifiedSyncMessage,
   ControlModeChangeMessage,
   ControlMode,
@@ -230,54 +227,6 @@ export class WebRTCManager {
       hostVideoUrl,
     };
 
-    await this.sendSyncMessage(message);
-  }
-
-  async sendClientRequest(
-    requestType: "PLAY" | "PAUSE" | "SEEK",
-    seekTime?: number,
-  ): Promise<void> {
-    if (this.isHost) {
-      console.warn("Host cannot send client requests");
-      return;
-    }
-
-    if (this.controlMode !== "HOST_ONLY") {
-      console.warn("Client requests only available in HOST_ONLY mode");
-      return;
-    }
-
-    let message:
-      | ClientRequestPlayMessage
-      | ClientRequestPauseMessage
-      | ClientRequestSeekMessage;
-
-    switch (requestType) {
-      case "PLAY":
-        message = {
-          type: "CLIENT_REQUEST_PLAY",
-          userId: this.currentUserId!,
-          timestamp: Date.now(),
-        };
-        break;
-      case "PAUSE":
-        message = {
-          type: "CLIENT_REQUEST_PAUSE",
-          userId: this.currentUserId!,
-          timestamp: Date.now(),
-        };
-        break;
-      case "SEEK":
-        message = {
-          type: "CLIENT_REQUEST_SEEK",
-          userId: this.currentUserId!,
-          timestamp: Date.now(),
-          time: seekTime || 0,
-        };
-        break;
-    }
-
-    // Send to host (we'll need to track host peer in offscreen)
     await this.sendSyncMessage(message);
   }
 

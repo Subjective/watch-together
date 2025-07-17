@@ -1,12 +1,13 @@
 import type React from "react";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Clock, ArrowRight, Users } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { StorageManager } from "../background/storage";
 import type { RoomHistoryEntry } from "../background/storage";
+import { TypingAnimation } from "../components/TypingAnimation";
 
 interface HomePageProps {
   onCreateRoom: (roomName: string, userName: string) => void;
@@ -25,6 +26,8 @@ export const HomePage: React.FC<HomePageProps> = ({
   const [isJoining, setIsJoining] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Limit to maximum 2 recent rooms for space saving
   const displayRooms = recentRooms.slice(0, 2);
@@ -99,6 +102,22 @@ export const HomePage: React.FC<HomePageProps> = ({
     }
   };
 
+  const handleJoinRoomCardClick = (e: React.MouseEvent) => {
+    // Don't focus if clicking on the button or input
+    if (e.target instanceof HTMLElement) {
+      const target = e.target;
+      if (
+        target.tagName === "BUTTON" ||
+        target.tagName === "INPUT" ||
+        target.closest("button")
+      ) {
+        return;
+      }
+    }
+
+    inputRef.current?.focus();
+  };
+
   return (
     <div className="h-[600px] flex flex-col">
       <div className="p-4 flex-1">
@@ -115,7 +134,16 @@ export const HomePage: React.FC<HomePageProps> = ({
           <h2 className="text-lg font-semibold mb-4">Rooms</h2>
           <div className="space-y-3">
             {/* Join Room Card */}
-            <div className="rounded-2xl p-4 border-2 bg-green-50/80 border-green-200 shadow-xs">
+            <div
+              className={`rounded-2xl p-4 border-2 shadow-xs transition-all duration-300 cursor-pointer hover:shadow-xs ${
+                isHovered
+                  ? "bg-green-100/90 border-green-300"
+                  : "bg-green-50/80 border-green-200"
+              }`}
+              onClick={handleJoinRoomCardClick}
+              onMouseEnter={() => setIsHovered(true)}
+              onMouseLeave={() => setIsHovered(false)}
+            >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -124,6 +152,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   <div className="flex-1 min-w-0">
                     <div className="relative">
                       <Input
+                        ref={inputRef}
                         placeholder="Enter room code to join..."
                         value={roomCode}
                         onChange={(e) => setRoomCode(e.target.value)}
@@ -139,9 +168,14 @@ export const HomePage: React.FC<HomePageProps> = ({
                       />
                       {!isFocused && !roomCode && (
                         <div className="absolute inset-0 pointer-events-none">
-                          <div className="text-base font-semibold text-green-700">
-                            Enter room code to join...
-                          </div>
+                          <TypingAnimation
+                            text="Enter room code to join..."
+                            className="text-base font-semibold text-green-700"
+                            speed={120}
+                            backspeedMultiplier={4}
+                            pauseTime={2500}
+                            isHovered={isHovered}
+                          />
                         </div>
                       )}
                     </div>

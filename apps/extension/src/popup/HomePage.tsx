@@ -241,7 +241,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       {/* Action Buttons */}
       <div className="p-4 space-y-3">
         <Button
-          className="w-full h-12 text-base font-medium rounded-2xl bg-blue-600 hover:bg-blue-700"
+          className="w-full h-12 text-base font-medium rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-blue-500/50 transform hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
           onClick={handleCreateRoom}
           disabled={isCreating || isLoading}
         >

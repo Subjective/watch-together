@@ -14,12 +14,6 @@ export interface PeerConnection {
   isHost: boolean;
 }
 
-export interface WebRTCManagerConfig {
-  iceServers: RTCIceServer[];
-  iceCandidatePoolSize: number;
-  dataChannelOptions: RTCDataChannelInit;
-}
-
 // Service Worker → Offscreen Messages
 export interface WebRTCInitializeMessage {
   type: "WEBRTC_INITIALIZE";
@@ -147,18 +141,3 @@ export interface WebRTCSendSyncMessageResponse {
   success: boolean;
   sentCount: number;
 }
-
-/**
- * Default WebRTC configuration
- */
-export const defaultWebRTCConfig: WebRTCManagerConfig = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-  ],
-  iceCandidatePoolSize: 10,
-  dataChannelOptions: {
-    ordered: true,
-    maxRetransmits: 3,
-  },
-};

@@ -18,10 +18,10 @@ import type {
   UnifiedSyncMessage,
   ControlModeChangeMessage,
   ControlMode,
+  WebRTCManagerConfig,
 } from "@repo/types";
 
 import type {
-  WebRTCManagerConfig,
   OffscreenToServiceWorkerMessage,
   WebRTCCreateOfferResponse,
   WebRTCCreateAnswerResponse,
@@ -363,15 +363,3 @@ export class WebRTCManager {
     }
   }
 }
-
-export const defaultWebRTCConfig: WebRTCManagerConfig = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-  ],
-  iceCandidatePoolSize: 10,
-  dataChannelOptions: {
-    ordered: true,
-    maxRetransmits: 3,
-  },
-};

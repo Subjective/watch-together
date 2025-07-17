@@ -10,3 +10,6 @@ export * from "./room";
 
 // Adapter types
 export * from "./adapter";
+
+// WebRTC configuration types
+export * from "./webrtc";

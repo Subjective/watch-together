@@ -4,6 +4,7 @@
  */
 
 import type { ExtensionState, RoomState, FollowMode } from "@repo/types";
+import { defaultWebRTCConfig } from "@repo/types";
 
 export interface StorageKeys {
   EXTENSION_STATE: "extensionState";
@@ -286,13 +287,9 @@ export class StorageManager {
   }
 
   private static getDefaultWebRTCConfig(): WebRTCConfig {
-    return {
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302" },
-      ],
-      iceCandidatePoolSize: 10,
-    };
+    // Extract only the fields needed for the local WebRTCConfig interface
+    const { iceServers, iceCandidatePoolSize } = defaultWebRTCConfig;
+    return { iceServers, iceCandidatePoolSize };
   }
 }
 

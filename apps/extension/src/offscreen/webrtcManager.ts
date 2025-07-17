@@ -18,6 +18,8 @@ import type {
   WebRTCSendSyncMessageResponse,
 } from "../shared/webrtcTypes";
 
+import { defaultWebRTCConfig } from "@repo/types";
+
 export class OffscreenWebRTCManager {
   private peers: Map<string, PeerConnection> = new Map();
   private config: RTCConfiguration;
@@ -26,13 +28,7 @@ export class OffscreenWebRTCManager {
   private controlMode: ControlMode = "HOST_ONLY";
 
   constructor() {
-    this.config = {
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302" },
-      ],
-      iceCandidatePoolSize: 10,
-    };
+    this.config = defaultWebRTCConfig;
 
     // Listen for messages from the service worker
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

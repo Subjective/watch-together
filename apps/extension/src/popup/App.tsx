@@ -39,6 +39,12 @@ export const App: React.FC = () => {
   const sendMessage = useCallback(async (message: ExtensionMessage) => {
     try {
       const response = await chrome.runtime.sendMessage(message);
+
+      // Check if the response indicates an error
+      if (response && response.success === false) {
+        throw new Error(response.error || "Operation failed");
+      }
+
       return response;
     } catch (error) {
       console.error("Failed to send message to Service Worker:", error);
@@ -246,38 +252,25 @@ export const App: React.FC = () => {
   }, [sendMessage]);
 
   const handleRenameUser = useCallback(
-    async (newUserName: string) => {
-      try {
-        const message: RenameUserRequest = {
-          type: "RENAME_USER",
-          newUserName,
-          timestamp: Date.now(),
-        };
-        await sendMessage(message);
-      } catch (error) {
-        console.error("Failed to rename user:", error);
-      }
+    async (newUserName: string): Promise<void> => {
+      const message: RenameUserRequest = {
+        type: "RENAME_USER",
+        newUserName,
+        timestamp: Date.now(),
+      };
+      await sendMessage(message);
     },
     [sendMessage],
   );
 
   const handleRenameRoom = useCallback(
-    async (newRoomName: string) => {
-      try {
-        const message: RenameRoomRequest = {
-          type: "RENAME_ROOM",
-          newRoomName,
-          timestamp: Date.now(),
-        };
-        await sendMessage(message);
-      } catch (error) {
-        console.error("Failed to rename room:", error);
-        toast({
-          title: "Failed to rename room",
-          description: "Please try again",
-          variant: "destructive",
-        });
-      }
+    async (newRoomName: string): Promise<void> => {
+      const message: RenameRoomRequest = {
+        type: "RENAME_ROOM",
+        newRoomName,
+        timestamp: Date.now(),
+      };
+      await sendMessage(message);
     },
     [sendMessage],
   );

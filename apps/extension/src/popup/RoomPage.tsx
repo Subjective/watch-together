@@ -45,8 +45,8 @@ interface RoomPageProps {
   onToggleControlMode: () => void;
   onToggleFollowMode: () => void;
   onFollowHost: () => void;
-  onRenameUser?: (newName: string) => void;
-  onRenameRoom?: (newName: string) => void;
+  onRenameUser?: (newName: string) => Promise<void>;
+  onRenameRoom?: (newName: string) => Promise<void>;
 }
 
 export const RoomPage: React.FC<RoomPageProps> = ({
@@ -215,8 +215,22 @@ export const RoomPage: React.FC<RoomPageProps> = ({
                     <Input
                       value={roomName}
                       onChange={(e) => setRoomName(e.target.value)}
-                      onBlur={() => setIsEditingRoomName(false)}
-                      onKeyDown={(e) => {
+                      onBlur={async () => {
+                        setIsEditingRoomName(false);
+                        if (
+                          roomName.trim() &&
+                          roomName !== room.name &&
+                          onRenameRoom
+                        ) {
+                          try {
+                            await onRenameRoom(roomName.trim());
+                          } catch (error) {
+                            console.error("Failed to rename room:", error);
+                            setRoomName(room.name);
+                          }
+                        }
+                      }}
+                      onKeyDown={async (e) => {
                         if (e.key === "Enter") {
                           setIsEditingRoomName(false);
                           if (
@@ -224,7 +238,12 @@ export const RoomPage: React.FC<RoomPageProps> = ({
                             roomName !== room.name &&
                             onRenameRoom
                           ) {
-                            onRenameRoom(roomName.trim());
+                            try {
+                              await onRenameRoom(roomName.trim());
+                            } catch (error) {
+                              console.error("Failed to rename room:", error);
+                              setRoomName(room.name);
+                            }
                           }
                         }
                         if (e.key === "Escape") {
@@ -323,17 +342,22 @@ export const RoomPage: React.FC<RoomPageProps> = ({
                       <Input
                         value={userName}
                         onChange={(e) => setUserName(e.target.value)}
-                        onBlur={() => {
+                        onBlur={async () => {
                           setIsEditingUserName(false);
                           if (
                             userName.trim() &&
                             userName !== currentUser.name &&
                             onRenameUser
                           ) {
-                            onRenameUser(userName.trim());
+                            try {
+                              await onRenameUser(userName.trim());
+                            } catch (error) {
+                              console.error("Failed to rename user:", error);
+                              setUserName(currentUser.name);
+                            }
                           }
                         }}
-                        onKeyDown={(e) => {
+                        onKeyDown={async (e) => {
                           if (e.key === "Enter") {
                             setIsEditingUserName(false);
                             if (
@@ -341,7 +365,12 @@ export const RoomPage: React.FC<RoomPageProps> = ({
                               userName !== currentUser.name &&
                               onRenameUser
                             ) {
-                              onRenameUser(userName.trim());
+                              try {
+                                await onRenameUser(userName.trim());
+                              } catch (error) {
+                                console.error("Failed to rename user:", error);
+                                setUserName(currentUser.name);
+                              }
                             }
                           }
                           if (e.key === "Escape") {

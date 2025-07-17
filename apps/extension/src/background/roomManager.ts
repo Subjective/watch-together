@@ -116,10 +116,14 @@ export class RoomManager {
   /**
    * Create a new room
    */
-  async createRoom(roomName: string, userName: string): Promise<RoomState> {
+  async createRoom(
+    roomName: string,
+    userName: string,
+    predefinedRoomId?: string,
+  ): Promise<RoomState> {
     try {
       const userId = this.generateUserId();
-      const roomId = this.generateRoomId();
+      const roomId = predefinedRoomId || this.generateRoomId();
 
       // Disconnect any existing WebSocket connection
       await this.websocket.disconnect();
@@ -328,11 +332,46 @@ export class RoomManager {
           }
         };
 
-        const onError = (response: any) => {
+        const onError = async (response: any) => {
           if (response.type === "ERROR") {
             clearTimeout(timeout);
             cleanup();
-            this.websocket.disconnect();
+
+            // If room not found, try to recreate it
+            if (response.error === "Room not found") {
+              try {
+                console.log(
+                  `Room ${roomId} not found, attempting to recreate...`,
+                );
+                await this.websocket.disconnect();
+
+                // Try to get the original room name from history
+                const roomHistory = await StorageManager.getRoomHistory();
+                const originalRoom = roomHistory.find(
+                  (room) => room.id === roomId,
+                );
+                const roomName = originalRoom?.name || "Recreated Room";
+
+                const recreatedRoom = await this.createRoom(
+                  roomName,
+                  userName,
+                  roomId,
+                );
+                resolve(recreatedRoom);
+                return;
+              } catch (recreateError) {
+                console.error("Failed to recreate room:", recreateError);
+                await this.websocket.disconnect();
+                reject(
+                  new Error(
+                    `Room not found and recreation failed: ${recreateError}`,
+                  ),
+                );
+                return;
+              }
+            }
+
+            await this.websocket.disconnect();
             reject(new Error(response.error));
           }
         };

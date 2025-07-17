@@ -128,6 +128,7 @@ describe("App", () => {
       type: "JOIN_ROOM",
       roomId: "test-room-id",
       userName: "Guest",
+      allowRecreation: false,
       timestamp: expect.any(Number),
     });
   });

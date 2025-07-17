@@ -73,6 +73,7 @@ export interface JoinRoomRequest extends BaseExtensionMessage {
   type: "JOIN_ROOM";
   roomId: string;
   userName: string;
+  allowRecreation?: boolean;
 }
 
 export interface LeaveRoomRequest extends BaseExtensionMessage {

@@ -238,7 +238,11 @@ export class RoomManager {
   /**
    * Join an existing room
    */
-  async joinRoom(roomId: string, userName: string): Promise<RoomState> {
+  async joinRoom(
+    roomId: string,
+    userName: string,
+    allowRecreation: boolean = false,
+  ): Promise<RoomState> {
     try {
       // Disconnect any existing WebSocket connection
       await this.websocket.disconnect();
@@ -337,8 +341,8 @@ export class RoomManager {
             clearTimeout(timeout);
             cleanup();
 
-            // If room not found, try to recreate it
-            if (response.error === "Room not found") {
+            // If room not found, try to recreate it only if allowed
+            if (response.error === "Room not found" && allowRecreation) {
               try {
                 console.log(
                   `Room ${roomId} not found, attempting to recreate...`,

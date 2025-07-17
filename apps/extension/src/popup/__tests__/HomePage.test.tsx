@@ -94,7 +94,7 @@ describe("HomePage", () => {
     await user.type(roomInput, "test-room-id");
     await user.click(joinButton);
 
-    expect(mockOnJoinRoom).toHaveBeenCalledWith("test-room-id", "Guest");
+    expect(mockOnJoinRoom).toHaveBeenCalledWith("test-room-id", "Guest", false);
   });
 
   it("should handle join room with Enter key", async () => {
@@ -113,7 +113,7 @@ describe("HomePage", () => {
     await user.type(roomInput, "test-room-id");
     await user.keyboard("{Enter}");
 
-    expect(mockOnJoinRoom).toHaveBeenCalledWith("test-room-id", "Guest");
+    expect(mockOnJoinRoom).toHaveBeenCalledWith("test-room-id", "Guest", false);
   });
 
   it("should not allow joining with empty room code", async () => {
@@ -187,7 +187,7 @@ describe("HomePage", () => {
     const rejoinButtons = screen.getAllByText("Rejoin");
     await user.click(rejoinButtons[0]);
 
-    expect(mockOnJoinRoom).toHaveBeenCalledWith("room-1", "Guest");
+    expect(mockOnJoinRoom).toHaveBeenCalledWith("room-1", "Guest", true);
   });
 
   it("should handle recent room copy ID", async () => {

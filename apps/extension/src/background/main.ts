@@ -295,7 +295,11 @@ async function handleJoinRoom(message: JoinRoomRequest): Promise<any> {
   try {
     await ensureRoomManagerInitialized();
 
-    const room = await roomManager!.joinRoom(message.roomId, message.userName);
+    const room = await roomManager!.joinRoom(
+      message.roomId,
+      message.userName,
+      message.allowRecreation,
+    );
     return { success: true, room };
   } catch (error) {
     console.error("Failed to join room:", error);

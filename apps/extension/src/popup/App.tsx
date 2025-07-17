@@ -169,13 +169,18 @@ export const App: React.FC = () => {
   );
 
   const handleJoinRoom = useCallback(
-    async (roomId: string, userName: string) => {
+    async (
+      roomId: string,
+      userName: string,
+      allowRecreation: boolean = false,
+    ) => {
       setIsLoading(true);
       try {
         const message: JoinRoomRequest = {
           type: "JOIN_ROOM",
           roomId,
           userName,
+          allowRecreation,
           timestamp: Date.now(),
         };
         await sendMessage(message);

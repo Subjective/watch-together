@@ -11,7 +11,11 @@ import { TypingAnimation } from "../components/TypingAnimation";
 
 interface HomePageProps {
   onCreateRoom: (roomName: string, userName: string) => void;
-  onJoinRoom: (roomId: string, userName: string) => void;
+  onJoinRoom: (
+    roomId: string,
+    userName: string,
+    allowRecreation?: boolean,
+  ) => void;
   isLoading?: boolean;
   recentRooms?: RoomHistoryEntry[];
 }
@@ -41,7 +45,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       const preferences = await StorageManager.getUserPreferences();
       const userName = preferences.defaultUserName || "Guest";
 
-      await onJoinRoom(roomCode.trim(), userName);
+      await onJoinRoom(roomCode.trim(), userName, false);
     } catch (error) {
       console.error("Failed to join room:", error);
       toast({
@@ -96,7 +100,7 @@ export const HomePage: React.FC<HomePageProps> = ({
     try {
       const preferences = await StorageManager.getUserPreferences();
       const userName = preferences.defaultUserName || "Guest";
-      await onJoinRoom(room.id, userName);
+      await onJoinRoom(room.id, userName, true);
     } catch (error) {
       console.error("Failed to join room:", error);
     }

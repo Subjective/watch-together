@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { RoomManager } from "../../apps/extension/src/background/roomManager";
 import { WebRTCManager } from "../../apps/extension/src/background/webrtcBridge";
 import type { ControlMode } from "@repo/types";
+import { defaultWebRTCConfig } from "@repo/types";
 
 // Mock chrome APIs
 const mockChrome = {
@@ -88,10 +89,7 @@ describe("Control Mode Synchronization", () => {
     // Create host room manager
     hostRoomManager = new RoomManager({
       websocketUrl: "wss://test.example.com",
-      webrtcConfig: {
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-        iceCandidatePoolSize: 10,
-      },
+      webrtcConfig: defaultWebRTCConfig,
     });
 
     // Set up host state
@@ -109,10 +107,7 @@ describe("Control Mode Synchronization", () => {
     // Create participant room manager
     participantRoomManager = new RoomManager({
       websocketUrl: "wss://test.example.com",
-      webrtcConfig: {
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-        iceCandidatePoolSize: 10,
-      },
+      webrtcConfig: defaultWebRTCConfig,
     });
 
     // Set up participant state

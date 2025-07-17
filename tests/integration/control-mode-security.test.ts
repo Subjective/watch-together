@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { RoomManager } from "../../apps/extension/src/background/roomManager";
 import type { AdapterEventDetail } from "../../apps/extension/src/background/adapterHandler";
 import type { ControlMode } from "@repo/types";
+import { defaultWebRTCConfig } from "@repo/types";
 
 // Mock chrome APIs
 const mockChrome = {
@@ -69,10 +70,7 @@ describe("Control Mode Security", () => {
 
     roomManager = new RoomManager({
       websocketUrl: "wss://test.example.com",
-      webrtcConfig: {
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-        iceCandidatePoolSize: 10,
-      },
+      webrtcConfig: defaultWebRTCConfig,
     });
   });
 

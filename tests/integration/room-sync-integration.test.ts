@@ -6,6 +6,7 @@ import {
   sendAdapterCommand,
 } from "../../apps/extension/src/background/adapterHandler";
 import type { ControlMode } from "@repo/types";
+import { defaultWebRTCConfig } from "@repo/types";
 
 // Mock chrome APIs
 const mockChrome = {
@@ -101,10 +102,7 @@ describe("Room Sync Integration", () => {
     // Create room manager with mocked dependencies
     roomManager = new RoomManager({
       websocketUrl: "wss://test.example.com",
-      webrtcConfig: {
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-        iceCandidatePoolSize: 10,
-      },
+      webrtcConfig: defaultWebRTCConfig,
     });
   });
 

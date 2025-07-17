@@ -33,6 +33,7 @@ export const App: React.FC = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [recentRooms, setRecentRooms] = useState<RoomHistoryEntry[]>([]);
+  const [pendingRoomCreation, setPendingRoomCreation] = useState(false);
 
   // Service Worker communication
   const sendMessage = useCallback(async (message: ExtensionMessage) => {
@@ -125,10 +126,19 @@ export const App: React.FC = () => {
     }
   }, []);
 
+  // Auto-copy room ID when room is created
+  useEffect(() => {
+    if (pendingRoomCreation && extensionState.currentRoom) {
+      handleRoomCreated(extensionState.currentRoom.id);
+      setPendingRoomCreation(false);
+    }
+  }, [extensionState.currentRoom, pendingRoomCreation, handleRoomCreated]);
+
   // Navigation handlers
   const handleCreateRoom = useCallback(
     async (roomName: string, userName: string) => {
       setIsLoading(true);
+      setPendingRoomCreation(true);
       try {
         const message: CreateRoomRequest = {
           type: "CREATE_ROOM",
@@ -137,15 +147,9 @@ export const App: React.FC = () => {
           timestamp: Date.now(),
         };
         await sendMessage(message);
-
-        // Wait a bit for the state to update
-        setTimeout(() => {
-          if (extensionState.currentRoom) {
-            handleRoomCreated(extensionState.currentRoom.id);
-          }
-        }, 100);
       } catch (error) {
         console.error("Failed to create room:", error);
+        setPendingRoomCreation(false);
         toast({
           title: "Failed to create room",
           description: "Please try again",
@@ -155,7 +159,7 @@ export const App: React.FC = () => {
         setIsLoading(false);
       }
     },
-    [sendMessage, handleRoomCreated, extensionState.currentRoom],
+    [sendMessage],
   );
 
   const handleJoinRoom = useCallback(
@@ -278,6 +282,10 @@ export const App: React.FC = () => {
     [sendMessage],
   );
 
+  const handleNavigateToHome = useCallback(async () => {
+    await handleLeaveRoom();
+  }, [handleLeaveRoom]);
+
   return (
     <>
       {!extensionState.currentRoom || !extensionState.currentUser ? (
@@ -294,7 +302,7 @@ export const App: React.FC = () => {
           connectionStatus={extensionState.connectionStatus}
           followMode={extensionState.followMode}
           hasFollowNotification={extensionState.hasFollowNotification}
-          onNavigateToHome={() => {}}
+          onNavigateToHome={handleNavigateToHome}
           onLeaveRoom={handleLeaveRoom}
           onToggleControlMode={handleToggleControlMode}
           onToggleFollowMode={handleToggleFollowMode}

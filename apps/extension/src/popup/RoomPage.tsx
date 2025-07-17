@@ -241,7 +241,7 @@ export const RoomPage: React.FC<RoomPageProps> = ({
                       onClick={() => isHost && setIsEditingRoomName(true)}
                     >
                       <h2 className="font-semibold text-lg truncate">
-                        {room.name}
+                        {roomName}
                       </h2>
                     </div>
                   )}
@@ -360,7 +360,9 @@ export const RoomPage: React.FC<RoomPageProps> = ({
                           setIsEditingUserName(true)
                         }
                       >
-                        {participant.name}
+                        {participant.id === currentUser.id
+                          ? userName
+                          : participant.name}
                       </span>
                     )}
                   </div>

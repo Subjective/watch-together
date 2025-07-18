@@ -388,12 +388,12 @@ export const RoomPage: React.FC<RoomPageProps> = ({
                             setIsEditingUserName(false);
                           }
                         }}
-                        className="h-auto p-0 border-none shadow-none text-sm font-medium bg-transparent focus-visible:ring-0 w-32"
+                        className="h-auto p-0 border-none shadow-none text-base font-medium bg-transparent focus-visible:ring-0 w-32"
                         autoFocus
                       />
                     ) : (
                       <span
-                        className={`font-medium ${participant.id === currentUser.id ? "cursor-pointer hover:text-blue-600" : ""}`}
+                        className={`text-base font-medium ${participant.id === currentUser.id ? "cursor-pointer hover:text-blue-600" : ""}`}
                         onClick={() =>
                           participant.id === currentUser.id &&
                           setIsEditingUserName(true)

@@ -867,6 +867,36 @@ export class RoomManager {
   }
 
   /**
+   * Check if two URLs represent the same video context
+   * For iframe events, we need to be more flexible since parent URL detection is limited
+   */
+  private isVideoContextMatch(currentUrl: string, eventUrl: string, isIframe: boolean): boolean {
+    // Exact match - always valid
+    if (currentUrl === eventUrl) {
+      return true;
+    }
+    
+    // For iframe events, check if they're from the same origin
+    if (isIframe) {
+      try {
+        const currentOrigin = new URL(currentUrl).origin;
+        const eventOrigin = new URL(eventUrl).origin;
+        
+        // Same origin - likely the same video context
+        if (currentOrigin === eventOrigin) {
+          return true;
+        }
+      } catch (e) {
+        // Invalid URL format - fall back to string comparison
+        return false;
+      }
+    }
+    
+    // Different URLs and not a same-origin iframe case
+    return false;
+  }
+
+  /**
    * Update the last video adapter URL based on current active adapters
    */
   private async updateLastVideoAdapterUrl(): Promise<void> {
@@ -1649,13 +1679,14 @@ export class RoomManager {
     await this.updateLastVideoAdapterUrl();
 
     // URL-based filtering: Only process events that match our current video context
-    if (
-      this.lastVideoAdapterUrl &&
-      this.lastVideoAdapterUrl !== detail.sourceUrl
-    ) {
+    // For iframe events, use the parent URL if available, otherwise use the source URL
+    const eventUrl = detail.isIframe && detail.parentUrl ? detail.parentUrl : detail.sourceUrl;
+    
+    if (this.lastVideoAdapterUrl && !this.isVideoContextMatch(this.lastVideoAdapterUrl, eventUrl, detail.isIframe || false)) {
       console.log(
         `[RoomManager] Ignoring adapter event from different video context:`,
-        `current: ${this.lastVideoAdapterUrl}, event: ${detail.sourceUrl}`,
+        `current: ${this.lastVideoAdapterUrl}, event: ${eventUrl}`,
+        detail.isIframe ? `(iframe source: ${detail.sourceUrl})` : "",
       );
       return;
     }

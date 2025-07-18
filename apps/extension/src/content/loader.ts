@@ -8,6 +8,31 @@ import { runUniversalPlayerDiagnostic } from "@repo/adapters";
 // Current adapter instance
 let currentAdapter: IPlayerAdapter | null = null;
 
+/**
+ * Get parent URL safely, handling cross-origin restrictions
+ */
+function getParentUrl(): string | undefined {
+  if (window.parent === window) {
+    return undefined; // Not in an iframe
+  }
+  
+  try {
+    // Try to access parent URL directly
+    return window.parent.location.href;
+  } catch (e) {
+    // Cross-origin restriction - try to get referrer or use document.referrer
+    if (document.referrer) {
+      return document.referrer;
+    }
+    
+    // For debugging - log what we're getting
+    console.log('[ContentScript] Unable to get parent URL, in iframe but no referrer');
+    
+    // If no referrer, we can't determine parent URL
+    return undefined;
+  }
+}
+
 // Communication channel with Service Worker
 let port: chrome.runtime.Port | null = null;
 
@@ -134,6 +159,9 @@ function sendAdapterEvent(
     payload,
     sourceUrl: document.location.href,
     timestamp: Date.now(),
+    // Additional context for iframe handling
+    parentUrl: getParentUrl(),
+    isIframe: window.parent !== window,
   };
 
   sendToServiceWorker(message);

@@ -24,6 +24,9 @@ export interface AdapterEventDetail {
   sourceUrl: string;
   timestamp: number;
   isRemoteOrigin?: boolean; // Track if event originated from remote command
+  // Additional context for iframe handling
+  parentUrl?: string;
+  isIframe?: boolean;
 }
 
 // Custom event type for adapter events
@@ -257,6 +260,9 @@ function broadcastAdapterEvent(tabId: number, message: AdapterMessage): void {
       state: adapter.state,
       sourceUrl: message.sourceUrl,
       timestamp: message.timestamp || Date.now(),
+      // Include iframe context if available
+      parentUrl: message.parentUrl,
+      isIframe: message.isIframe,
     },
   });
 

@@ -103,6 +103,9 @@ export interface AdapterEventMessage {
   };
   sourceUrl: string;
   timestamp: number;
+  // Additional context for iframe handling
+  parentUrl?: string;
+  isIframe?: boolean;
 }
 
 export interface AdapterCommandMessage {

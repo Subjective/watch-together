@@ -20,10 +20,10 @@ export interface TurnCredentials {
 
 /**
  * Generate temporary Cloudflare TURN credentials using HMAC-SHA1.
- * 
+ *
  * The username format follows RFC 5766: timestamp:userId
  * The credential is an HMAC-SHA1 hash of the username using the shared secret.
- * 
+ *
  * @param secret - Secret used to sign the username (TURN_SECRET environment variable)
  * @param urls - Array of TURN server URLs (from TURN_URLS environment variable)
  * @param userId - Unique identifier for the user

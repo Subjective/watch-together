@@ -41,16 +41,16 @@ describe("generateTurnCredentials", () => {
   it("generates credentials with correct expiration time", () => {
     const ttl = 3600; // 1 hour
     const beforeTime = Math.floor(Date.now() / 1000);
-    
+
     const creds = generateTurnCredentials(
       "testsecret",
       ["turn:example.com"],
       "user1",
       ttl,
     );
-    
+
     const afterTime = Math.floor(Date.now() / 1000);
-    
+
     expect(creds.expiresAt).toBeGreaterThanOrEqual(beforeTime + ttl);
     expect(creds.expiresAt).toBeLessThanOrEqual(afterTime + ttl);
   });
@@ -79,15 +79,15 @@ describe("generateTurnCredentials", () => {
 
   it("uses default TTL when not specified", () => {
     const beforeTime = Math.floor(Date.now() / 1000);
-    
+
     const creds = generateTurnCredentials(
       "testsecret",
       ["turn:example.com"],
       "user1",
     );
-    
+
     const afterTime = Math.floor(Date.now() / 1000);
-    
+
     // Default TTL is 3600 seconds (1 hour)
     expect(creds.expiresAt).toBeGreaterThanOrEqual(beforeTime + 3600);
     expect(creds.expiresAt).toBeLessThanOrEqual(afterTime + 3600);

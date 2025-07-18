@@ -15,19 +15,21 @@ function getParentUrl(): string | undefined {
   if (window.parent === window) {
     return undefined; // Not in an iframe
   }
-  
+
   try {
     // Try to access parent URL directly
     return window.parent.location.href;
-  } catch (e) {
+  } catch {
     // Cross-origin restriction - try to get referrer or use document.referrer
     if (document.referrer) {
       return document.referrer;
     }
-    
+
     // For debugging - log what we're getting
-    console.log('[ContentScript] Unable to get parent URL, in iframe but no referrer');
-    
+    console.log(
+      "[ContentScript] Unable to get parent URL, in iframe but no referrer",
+    );
+
     // If no referrer, we can't determine parent URL
     return undefined;
   }

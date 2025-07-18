@@ -64,7 +64,7 @@ export default {
         const secret = env.TURN_SECRET;
         const urls = env.TURN_URLS.split(/,\s*/);
         const creds = generateTurnCredentials(secret, urls, userId);
-        
+
         return new Response(JSON.stringify(creds), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

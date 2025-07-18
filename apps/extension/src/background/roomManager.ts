@@ -132,10 +132,10 @@ export class RoomManager {
       wsUrl.protocol = wsUrl.protocol.startsWith("wss") ? "https:" : "http:";
       wsUrl.pathname = "/turn-credentials";
       wsUrl.searchParams.set("userId", userId);
-      
+
       const res = await fetch(wsUrl.toString());
       if (!res.ok) throw new Error("Failed to fetch TURN credentials");
-      
+
       const data = await res.json();
       return [
         ...defaultWebRTCConfig.iceServers,
@@ -870,28 +870,32 @@ export class RoomManager {
    * Check if two URLs represent the same video context
    * For iframe events, we need to be more flexible since parent URL detection is limited
    */
-  private isVideoContextMatch(currentUrl: string, eventUrl: string, isIframe: boolean): boolean {
+  private isVideoContextMatch(
+    currentUrl: string,
+    eventUrl: string,
+    isIframe: boolean,
+  ): boolean {
     // Exact match - always valid
     if (currentUrl === eventUrl) {
       return true;
     }
-    
+
     // For iframe events, check if they're from the same origin
     if (isIframe) {
       try {
         const currentOrigin = new URL(currentUrl).origin;
         const eventOrigin = new URL(eventUrl).origin;
-        
+
         // Same origin - likely the same video context
         if (currentOrigin === eventOrigin) {
           return true;
         }
-      } catch (e) {
+      } catch {
         // Invalid URL format - fall back to string comparison
         return false;
       }
     }
-    
+
     // Different URLs and not a same-origin iframe case
     return false;
   }
@@ -1680,9 +1684,17 @@ export class RoomManager {
 
     // URL-based filtering: Only process events that match our current video context
     // For iframe events, use the parent URL if available, otherwise use the source URL
-    const eventUrl = detail.isIframe && detail.parentUrl ? detail.parentUrl : detail.sourceUrl;
-    
-    if (this.lastVideoAdapterUrl && !this.isVideoContextMatch(this.lastVideoAdapterUrl, eventUrl, detail.isIframe || false)) {
+    const eventUrl =
+      detail.isIframe && detail.parentUrl ? detail.parentUrl : detail.sourceUrl;
+
+    if (
+      this.lastVideoAdapterUrl &&
+      !this.isVideoContextMatch(
+        this.lastVideoAdapterUrl,
+        eventUrl,
+        detail.isIframe || false,
+      )
+    ) {
       console.log(
         `[RoomManager] Ignoring adapter event from different video context:`,
         `current: ${this.lastVideoAdapterUrl}, event: ${eventUrl}`,
@@ -1799,8 +1811,16 @@ export class RoomManager {
         return;
     }
 
-    // Use the sourceUrl from the event (which came from the content script)
-    const videoUrl = detail.sourceUrl;
+    // Use tracked video adapter URL instead of sourceUrl (same as Host-Only mode)
+    const videoUrl = this.lastVideoAdapterUrl;
+
+    // Only send if we have a valid video URL
+    if (!videoUrl) {
+      console.warn(
+        `[RoomManager] Cannot broadcast unified sync: no video URL available`,
+      );
+      return;
+    }
 
     // Send unified sync message that includes both sync data and URL for auto-follow
     await this.webrtc.sendUnifiedSync(

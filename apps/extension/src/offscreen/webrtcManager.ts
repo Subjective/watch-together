@@ -84,6 +84,9 @@ export class OffscreenWebRTCManager {
 
       case "WEBRTC_CLOSE_ALL":
         return this.closeAllConnections();
+
+      case "WEBRTC_SET_ICE_SERVERS":
+        return this.setIceServers(message.data.iceServers);
     }
   }
 
@@ -366,5 +369,11 @@ export class OffscreenWebRTCManager {
         error: error.toString(),
       });
     };
+  }
+
+  private setIceServers(iceServers: RTCIceServer[]): WebRTCSuccessResponse {
+    this.config.iceServers = iceServers;
+    console.log("[Offscreen] Updated ICE servers", iceServers);
+    return { success: true };
   }
 }

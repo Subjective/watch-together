@@ -65,6 +65,11 @@ export interface WebRTCCloseAllMessage {
   data?: undefined;
 }
 
+export interface WebRTCSetIceServersMessage {
+  type: "WEBRTC_SET_ICE_SERVERS";
+  data: { iceServers: RTCIceServer[] };
+}
+
 export type ServiceWorkerToOffscreenMessage =
   | WebRTCInitializeMessage
   | WebRTCCreateOfferMessage
@@ -75,7 +80,8 @@ export type ServiceWorkerToOffscreenMessage =
   | WebRTCSetControlModeMessage
   | WebRTCMarkPeerAsHostMessage
   | WebRTCClosePeerMessage
-  | WebRTCCloseAllMessage;
+  | WebRTCCloseAllMessage
+  | WebRTCSetIceServersMessage;
 
 // Offscreen → Service Worker Messages
 export interface WebRTCIceCandidateEvent {

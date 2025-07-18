@@ -3,9 +3,13 @@
  */
 
 import { RoomState } from "./roomState";
+import { generateTurnCredentials } from "./turnCredentials";
+import { randomUUID } from "crypto";
 
 export interface Env {
   ROOM_STATE: DurableObjectNamespace;
+  TURN_SECRET: string;
+  TURN_URLS: string;
 }
 
 export { RoomState };
@@ -53,6 +57,17 @@ export default {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
         );
+      }
+
+      if (url.pathname === "/turn-credentials") {
+        const userId = url.searchParams.get("userId") || randomUUID();
+        const secret = env.TURN_SECRET;
+        const urls = env.TURN_URLS.split(/,\s*/);
+        const creds = generateTurnCredentials(secret, urls, userId);
+        
+        return new Response(JSON.stringify(creds), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       return new Response("Not Found", {

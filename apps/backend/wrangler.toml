@@ -23,3 +23,7 @@ command = "npm run build"
 [observability]
 enabled = true
 head_sampling_rate = 1
+
+[vars]
+TURN_SECRET = "your-turn-secret-here"
+TURN_URLS = "turns:global.turn.cloudflare.com:443?transport=tcp,turn:global.turn.cloudflare.com:3478?transport=udp"

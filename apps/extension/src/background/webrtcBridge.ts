@@ -333,6 +333,17 @@ export class WebRTCManager {
     }
   }
 
+  setIceServers(iceServers: RTCIceServer[]): void {
+    // Only send to offscreen if document exists
+    if (this.offscreenDocumentCreated) {
+      this.sendToOffscreen("WEBRTC_SET_ICE_SERVERS", { iceServers }).catch(
+        (error) => {
+          console.error("Failed to set ICE servers:", error);
+        },
+      );
+    }
+  }
+
   /**
    * Update host status - used when user becomes host after room creation
    */

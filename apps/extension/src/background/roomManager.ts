@@ -20,6 +20,8 @@ import type {
   ConnectionStatus,
 } from "@repo/types";
 
+import { defaultWebRTCConfig } from "@repo/types";
+
 import { WebSocketManager, defaultWebSocketConfig } from "./websocket";
 import { WebRTCManager } from "./webrtcBridge";
 import { StorageManager } from "./storage";
@@ -124,6 +126,27 @@ export class RoomManager {
     }
   }
 
+  private async fetchTurnServers(userId: string): Promise<RTCIceServer[]> {
+    try {
+      const wsUrl = new URL(defaultWebSocketConfig.url);
+      wsUrl.protocol = wsUrl.protocol.startsWith("wss") ? "https:" : "http:";
+      wsUrl.pathname = "/turn-credentials";
+      wsUrl.searchParams.set("userId", userId);
+      
+      const res = await fetch(wsUrl.toString());
+      if (!res.ok) throw new Error("Failed to fetch TURN credentials");
+      
+      const data = await res.json();
+      return [
+        ...defaultWebRTCConfig.iceServers,
+        ...(data.iceServers as RTCIceServer[]),
+      ];
+    } catch (err) {
+      console.error("[RoomManager] Failed to fetch TURN credentials", err);
+      return defaultWebRTCConfig.iceServers;
+    }
+  }
+
   /**
    * Create a new room
    */
@@ -151,7 +174,11 @@ export class RoomManager {
         throw new Error("Failed to establish stable WebSocket connection");
       }
 
-      // Initialize WebRTC BEFORE creating the room
+      // Fetch TURN servers and initialize WebRTC BEFORE creating the room
+      const turnServers = await this.fetchTurnServers(userId);
+      if (turnServers.length > defaultWebRTCConfig.iceServers.length) {
+        this.webrtc.setIceServers(turnServers);
+      }
       await this.webrtc.initialize(userId, true);
 
       const message: CreateRoomMessage = {
@@ -278,8 +305,12 @@ export class RoomManager {
 
       const userId = this.generateUserId();
 
-      // Initialize WebRTC BEFORE joining the room
+      // Fetch TURN servers and initialize WebRTC BEFORE joining the room
       // This ensures offscreen document is ready when offers arrive
+      const turnServers = await this.fetchTurnServers(userId);
+      if (turnServers.length > defaultWebRTCConfig.iceServers.length) {
+        this.webrtc.setIceServers(turnServers);
+      }
       await this.webrtc.initialize(userId, false);
 
       const message: JoinRoomMessage = {

@@ -3,27 +3,11 @@ main = "src/index.ts"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Cloudflare TURN service configuration
-# These environment variables need to be set in the Cloudflare dashboard
-# or via wrangler secrets for production
-
 [env.development]
 name = "watch-together-backend-dev"
-# Development environment variables for TURN service
-# Use wrangler secrets for sensitive values in production
-[env.development.vars]
-TURN_API_ENDPOINT = "https://rtc.live.cloudflare.com/v1/turn"
-TURN_CREDENTIAL_TTL = "86400"  # 24 hours
-TURN_REFRESH_THRESHOLD = "3600"  # 1 hour
 
 [env.production]
 name = "watch-together-backend-prod"
-# Production environment variables for TURN service
-# Use wrangler secrets put for sensitive values
-[env.production.vars]
-TURN_API_ENDPOINT = "https://rtc.live.cloudflare.com/v1/turn"
-TURN_CREDENTIAL_TTL = "86400"  # 24 hours
-TURN_REFRESH_THRESHOLD = "3600"  # 1 hour
 
 [[durable_objects.bindings]]
 name = "ROOM_STATE"

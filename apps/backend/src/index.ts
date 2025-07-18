@@ -3,23 +3,9 @@
  */
 
 import { RoomState } from "./roomState";
-import {
-  generateTURNCredentials,
-  isTURNServiceConfigured,
-  getDefaultTTL,
-  TURNServiceError,
-} from "./turnService";
-import type { TURNCredentialRequest } from "@repo/types";
 
 export interface Env {
   ROOM_STATE: DurableObjectNamespace;
-
-  // Cloudflare TURN service configuration
-  TURN_KEY_ID?: string;
-  TURN_API_TOKEN?: string;
-  TURN_API_ENDPOINT?: string;
-  TURN_CREDENTIAL_TTL?: string;
-  TURN_REFRESH_THRESHOLD?: string;
 }
 
 export { RoomState };
@@ -69,11 +55,6 @@ export default {
         );
       }
 
-      // Handle TURN credentials endpoint
-      if (url.pathname === "/api/turn/credentials") {
-        return handleTURNCredentials(request, env, corsHeaders);
-      }
-
       return new Response("Not Found", {
         status: 404,
         headers: corsHeaders,
@@ -90,90 +71,6 @@ export default {
     }
   },
 };
-
-/**
- * Handle TURN credentials generation requests
- */
-async function handleTURNCredentials(
-  request: Request,
-  env: Env,
-  corsHeaders: Record<string, string>,
-): Promise<Response> {
-  try {
-    // Only accept POST requests
-    if (request.method !== "POST") {
-      return new Response(JSON.stringify({ error: "Method not allowed" }), {
-        status: 405,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Check if TURN service is configured
-    if (!isTURNServiceConfigured(env)) {
-      return new Response(
-        JSON.stringify({
-          error: "TURN service not configured",
-          fallback: true,
-        }),
-        {
-          status: 503,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    // Parse request body
-    let requestData: TURNCredentialRequest;
-    try {
-      requestData = (await request.json()) as TURNCredentialRequest;
-    } catch {
-      // If no body provided, use default TTL
-      requestData = { ttl: getDefaultTTL(env) };
-    }
-
-    // Validate TTL
-    if (!requestData.ttl || requestData.ttl <= 0) {
-      requestData.ttl = getDefaultTTL(env);
-    }
-
-    // Generate TURN credentials
-    const credentials = await generateTURNCredentials(env, requestData);
-
-    // Return the credentials
-    return new Response(JSON.stringify(credentials), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (error) {
-    console.error("[TURN Credentials] Error:", error);
-
-    // Handle TURNServiceError with appropriate status codes
-    if (error instanceof TURNServiceError) {
-      return new Response(
-        JSON.stringify({
-          error: error.message,
-          fallback: true,
-        }),
-        {
-          status: error.status || 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    // Handle unexpected errors
-    return new Response(
-      JSON.stringify({
-        error: "Internal server error",
-        fallback: true,
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
-  }
-}
 
 /**
  * Handle WebSocket upgrade requests and route to appropriate Durable Object

@@ -18,12 +18,7 @@ import type {
   WebRTCSendSyncMessageResponse,
 } from "../shared/webrtcTypes";
 
-import {
-  defaultWebRTCConfig,
-  defaultICEServerStrategy,
-  type CloudflareTURNCredential,
-} from "@repo/types";
-import { TURNCredentialsManager } from "../utils/turnCredentials";
+import { defaultWebRTCConfig } from "@repo/types";
 
 export class OffscreenWebRTCManager {
   private peers: Map<string, PeerConnection> = new Map();
@@ -31,18 +26,9 @@ export class OffscreenWebRTCManager {
   private currentUserId: string | null = null;
   private isHost: boolean = false;
   private controlMode: ControlMode = "HOST_ONLY";
-  private turnCredentialsManager: TURNCredentialsManager;
-  private backendUrl: string;
-  private isInitialized: boolean = false;
 
   constructor() {
     this.config = defaultWebRTCConfig;
-
-    // Initialize backend URL (could be from environment or storage)
-    this.backendUrl = this.getBackendUrl();
-
-    // Initialize TURN credentials manager
-    this.turnCredentialsManager = new TURNCredentialsManager(this.backendUrl);
 
     // Listen for messages from the service worker
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -60,7 +46,7 @@ export class OffscreenWebRTCManager {
 
     switch (message.type) {
       case "WEBRTC_INITIALIZE":
-        return await this.initialize(message.data.userId, message.data.isHost);
+        return this.initialize(message.data.userId, message.data.isHost);
 
       case "WEBRTC_CREATE_OFFER":
         return this.createOffer(message.data.targetUserId);
@@ -101,24 +87,16 @@ export class OffscreenWebRTCManager {
     }
   }
 
-  private async initialize(
+  private initialize(
     userId: string,
     isHost: boolean,
-  ): Promise<WebRTCInitializeResponse> {
+  ): WebRTCInitializeResponse {
     this.currentUserId = userId;
     this.isHost = isHost;
-
     console.log(
       `[Offscreen] WebRTC initialized for ${isHost ? "host" : "client"} user:`,
       userId,
     );
-
-    // Initialize TURN credentials if not already done
-    if (!this.isInitialized) {
-      await this.initializeTURNCredentials();
-      this.isInitialized = true;
-    }
-
     return { success: true };
   }
 
@@ -283,10 +261,7 @@ export class OffscreenWebRTCManager {
       peer.connection.close();
     }
     this.peers.clear();
-    this.cleanup();
-    console.log(
-      "[Offscreen] Closed all peer connections and cleaned up resources",
-    );
+    console.log("[Offscreen] Closed all peer connections");
     return { success: true };
   }
 
@@ -391,72 +366,5 @@ export class OffscreenWebRTCManager {
         error: error.toString(),
       });
     };
-  }
-
-  /**
-   * Get backend URL for API calls
-   */
-  private getBackendUrl(): string {
-    // This could be configured based on environment or stored in extension storage
-    // For now, use a default that matches the development setup
-    return "https://watch-together-backend-dev.your-subdomain.workers.dev";
-  }
-
-  /**
-   * Initialize TURN credentials and configure ICE servers
-   */
-  private async initializeTURNCredentials(): Promise<void> {
-    try {
-      console.log("[Offscreen] Initializing TURN credentials...");
-
-      // Try to get TURN credentials
-      const credentials = await this.turnCredentialsManager.getCredentials();
-
-      if (credentials) {
-        // Use Cloudflare TURN servers with credentials
-        const turnICEServers = this.createTURNICEServers(credentials);
-        this.config.iceServers = [
-          ...turnICEServers,
-          ...defaultICEServerStrategy.fallback, // Add fallback STUN servers
-        ];
-
-        console.log("[Offscreen] Successfully configured TURN servers");
-      } else {
-        // Fall back to STUN-only
-        this.config.iceServers = defaultICEServerStrategy.fallback;
-        console.log("[Offscreen] Using STUN-only configuration");
-      }
-    } catch (error) {
-      console.error(
-        "[Offscreen] Failed to initialize TURN credentials:",
-        error,
-      );
-
-      // Fall back to STUN-only on error
-      this.config.iceServers = defaultICEServerStrategy.fallback;
-      console.log("[Offscreen] Falling back to STUN-only configuration");
-    }
-  }
-
-  /**
-   * Create RTCIceServer configurations for TURN servers
-   */
-  private createTURNICEServers(
-    credentials: CloudflareTURNCredential,
-  ): RTCIceServer[] {
-    return credentials.urls.map((url) => ({
-      urls: url,
-      username: credentials.username,
-      credential: credentials.credential,
-    }));
-  }
-
-
-  /**
-   * Cleanup resources
-   */
-  private cleanup(): void {
-    this.turnCredentialsManager.clear();
-    this.isInitialized = false;
   }
 }

@@ -71,6 +71,7 @@ export const RoomPage: React.FC<RoomPageProps> = ({
   // Calculate isHost dynamically based on current room state
   const isHost = currentUser.id === room.hostId;
   const isControlMode = room.controlMode === "HOST_ONLY";
+  const isControlDisabled = isControlMode && !isHost;
   const isConnected = connectionStatus === "CONNECTED";
   const hostUser = room.users.find((u) => u.id === room.hostId);
   const isFollowingHost = followMode === "AUTO_FOLLOW" && !isHost;
@@ -303,7 +304,7 @@ export const RoomPage: React.FC<RoomPageProps> = ({
                   variant="ghost"
                   size="sm"
                   className="p-2 h-auto rounded-full hover:bg-white/50"
-                  disabled={isControlMode && !isHost}
+                  disabled={isControlDisabled}
                 >
                   {isPaused ? (
                     <Play className="w-6 h-6 fill-current" />
@@ -311,14 +312,18 @@ export const RoomPage: React.FC<RoomPageProps> = ({
                     <Pause className="w-6 h-6 fill-current" />
                   )}
                 </Button>
-                <div className="flex-1 h-1.5 bg-white/60 rounded-full">
+                <div
+                  className={`flex-1 h-1.5 bg-white/60 rounded-full transition-all ${isControlDisabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                >
                   <div
                     className="h-full bg-foreground rounded-full transition-all"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
               </div>
-              <span className="text-lg font-mono font-semibold ml-3">
+              <span
+                className={`text-lg font-mono font-semibold ml-3 transition-all ${isControlDisabled ? "opacity-60" : ""}`}
+              >
                 {formatTime(videoState.currentTime)}
               </span>
             </div>

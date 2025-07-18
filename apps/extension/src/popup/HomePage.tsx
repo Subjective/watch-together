@@ -141,7 +141,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             <div
               className={`rounded-2xl p-4 border-2 shadow-xs transition-all duration-300 cursor-pointer hover:shadow-xs ${
                 isHovered
-                  ? "bg-green-100/90 border-green-300"
+                  ? "bg-green-100/90 border-green-300 shimmer-wave"
                   : "bg-green-50/80 border-green-200"
               }`}
               onClick={handleJoinRoomCardClick}

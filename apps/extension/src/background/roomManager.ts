@@ -29,6 +29,7 @@ import {
   sendAdapterCommand,
   getActiveAdapters,
 } from "./adapterHandler";
+import { BadgeManager } from "./badgeManager";
 
 export interface RoomManagerConfig {
   websocketUrl: string;
@@ -41,6 +42,7 @@ export interface RoomManagerConfig {
 export class RoomManager {
   private websocket: WebSocketManager;
   private webrtc: WebRTCManager;
+  private badgeManager: BadgeManager;
   private currentRoom: RoomState | null = null;
   private currentUser: User | null = null;
   private extensionState: ExtensionState;
@@ -68,6 +70,9 @@ export class RoomManager {
         maxRetransmits: 3,
       },
     });
+
+    // Initialize badge manager
+    this.badgeManager = new BadgeManager();
 
     // Initialize extension state
     this.extensionState = {
@@ -104,6 +109,12 @@ export class RoomManager {
           isConnected: false,
           connectionStatus: "DISCONNECTED",
         });
+
+        // Clear badge on initialization since we're not connected yet
+        await this.badgeManager.clearBadge();
+      } else {
+        // No existing room state, ensure badge is cleared
+        await this.badgeManager.clearBadge();
       }
 
       console.log("Room manager initialized successfully");
@@ -198,6 +209,9 @@ export class RoomManager {
               connectionStatus: "CONNECTED",
             });
 
+            // Update badge with initial participant count
+            await this.updateBadge();
+
             // Store room in history for host
             if (this.currentRoom) {
               StorageManager.addRoomToHistory(this.currentRoom);
@@ -231,6 +245,9 @@ export class RoomManager {
         currentUser: null,
         connectionStatus: "DISCONNECTED",
       });
+
+      // Clear badge on error
+      await this.badgeManager.clearBadge();
       throw error;
     }
   }
@@ -327,6 +344,9 @@ export class RoomManager {
               connectionStatus: "CONNECTED",
             });
 
+            // Update badge with initial participant count
+            await this.updateBadge();
+
             // Store room in history
             if (this.currentRoom) {
               StorageManager.addRoomToHistory(this.currentRoom);
@@ -395,6 +415,9 @@ export class RoomManager {
         currentUser: null,
         connectionStatus: "DISCONNECTED",
       });
+
+      // Clear badge on error
+      await this.badgeManager.clearBadge();
       throw error;
     }
   }
@@ -443,6 +466,9 @@ export class RoomManager {
         hasFollowNotification: false,
         followNotificationUrl: null,
       });
+
+      // Clear badge when leaving room
+      await this.badgeManager.clearBadge();
 
       console.log("Left room successfully");
     } catch (error) {
@@ -886,6 +912,9 @@ export class RoomManager {
       isConnected: data.status === "CONNECTED",
     });
 
+    // Update badge with new connection status
+    await this.updateBadge();
+
     // Auto-rejoin room after reconnection
     if (
       data.status === "CONNECTED" &&
@@ -929,6 +958,26 @@ export class RoomManager {
   }
 
   /**
+   * Update badge with current room participant count
+   */
+  private async updateBadge(): Promise<void> {
+    try {
+      if (this.currentRoom && this.extensionState.isConnected) {
+        const participantCount = this.currentRoom.users.length;
+        await this.badgeManager.updateBadge(
+          participantCount,
+          this.extensionState.connectionStatus,
+          true,
+        );
+      } else {
+        await this.badgeManager.clearBadge();
+      }
+    } catch (error) {
+      console.error("[RoomManager] Failed to update badge:", error);
+    }
+  }
+
+  /**
    * Cleanup resources
    */
   async cleanup(): Promise<void> {
@@ -936,6 +985,7 @@ export class RoomManager {
     await this.websocket.disconnect();
     this.websocket.reset(); // Reset WebSocket state for fresh initialization
     this.eventListeners.clear();
+    await this.badgeManager.clearBadge();
   }
 
   private setupEventHandlers(): void {
@@ -979,6 +1029,9 @@ export class RoomManager {
       this.updateExtensionState({
         currentRoom: this.currentRoom,
       });
+
+      // Update badge with new participant count
+      await this.updateBadge();
 
       // If we're the host, initiate WebRTC connection to new user
       if (
@@ -1047,6 +1100,9 @@ export class RoomManager {
       this.updateExtensionState({
         currentRoom: this.currentRoom,
       });
+
+      // Update badge with new participant count
+      await this.updateBadge();
 
       console.log("User left room:", response.leftUserId);
     }

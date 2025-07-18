@@ -6,7 +6,14 @@ import type { AdapterMessage } from "@repo/types";
 // Adapter event detail interface
 export interface AdapterEventDetail {
   tabId: number;
-  event: "play" | "pause" | "seeking" | "seeked" | "timeupdate";
+  event:
+    | "play"
+    | "pause"
+    | "seeking"
+    | "seeked"
+    | "timeupdate"
+    | "loadedmetadata"
+    | "durationchange";
   payload?: any;
   state: {
     currentTime: number;
@@ -98,6 +105,16 @@ function handleAdapterConnection(port: chrome.runtime.Port): void {
 
   console.log(`[AdapterHandler] Connected to adapter in tab ${tabId}`);
 
+  // Request initial state to populate duration and other details
+  try {
+    port.postMessage({ type: "ADAPTER_STATE_REQUEST", timestamp: Date.now() });
+  } catch (error) {
+    console.warn(
+      `[AdapterHandler] Failed to request initial state from tab ${tabId}:`,
+      error,
+    );
+  }
+
   // Handle messages from the adapter
   port.onMessage.addListener((message) => {
     if (isAdapterMessage(message)) {
@@ -164,13 +181,22 @@ function handleAdapterEvent(message: AdapterMessage, tabId: number): void {
   switch (message.event) {
     case "play":
       adapter.state.isPaused = false;
+      if (message.payload?.duration !== undefined) {
+        adapter.state.duration = message.payload.duration;
+      }
       break;
     case "pause":
       adapter.state.isPaused = true;
+      if (message.payload?.duration !== undefined) {
+        adapter.state.duration = message.payload.duration;
+      }
       break;
     case "timeupdate":
       if (message.payload?.currentTime !== undefined) {
         adapter.state.currentTime = message.payload.currentTime;
+      }
+      if (message.payload?.duration !== undefined) {
+        adapter.state.duration = message.payload.duration;
       }
       break;
     case "seeking":
@@ -178,9 +204,25 @@ function handleAdapterEvent(message: AdapterMessage, tabId: number): void {
       if (message.payload?.currentTime !== undefined) {
         adapter.state.currentTime = message.payload.currentTime;
       }
+      if (message.payload?.duration !== undefined) {
+        adapter.state.duration = message.payload.duration;
+      }
       break;
     case "seeked":
       // For seeked events (seek completed), update the current time
+      if (message.payload?.currentTime !== undefined) {
+        adapter.state.currentTime = message.payload.currentTime;
+      }
+      if (message.payload?.duration !== undefined) {
+        adapter.state.duration = message.payload.duration;
+      }
+      break;
+    case "loadedmetadata":
+    case "durationchange":
+      // These events specifically indicate duration is available
+      if (message.payload?.duration !== undefined) {
+        adapter.state.duration = message.payload.duration;
+      }
       if (message.payload?.currentTime !== undefined) {
         adapter.state.currentTime = message.payload.currentTime;
       }

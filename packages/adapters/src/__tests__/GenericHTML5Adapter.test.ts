@@ -67,12 +67,12 @@ describe("GenericHTML5Adapter", () => {
   describe("attachment", () => {
     it("should attach to video element in constructor", () => {
       new GenericHTML5Adapter(mockVideo);
-      expect(mockVideo.addEventListener).toHaveBeenCalledTimes(5);
+      expect(mockVideo.addEventListener).toHaveBeenCalledTimes(7);
     });
 
     it("should attach to video element after construction", () => {
       adapter.attach(mockVideo);
-      expect(mockVideo.addEventListener).toHaveBeenCalledTimes(5);
+      expect(mockVideo.addEventListener).toHaveBeenCalledTimes(7);
       expect(mockVideo.addEventListener).toHaveBeenCalledWith(
         "play",
         expect.any(Function),
@@ -93,6 +93,14 @@ describe("GenericHTML5Adapter", () => {
         "timeupdate",
         expect.any(Function),
       );
+      expect(mockVideo.addEventListener).toHaveBeenCalledWith(
+        "loadedmetadata",
+        expect.any(Function),
+      );
+      expect(mockVideo.addEventListener).toHaveBeenCalledWith(
+        "durationchange",
+        expect.any(Function),
+      );
     });
 
     it("should detach from previous video when attaching to new one", () => {
@@ -102,8 +110,8 @@ describe("GenericHTML5Adapter", () => {
       adapter.attach(video1);
       adapter.attach(video2);
 
-      expect(video1.removeEventListener).toHaveBeenCalledTimes(5);
-      expect(video2.addEventListener).toHaveBeenCalledTimes(5);
+      expect(video1.removeEventListener).toHaveBeenCalledTimes(7);
+      expect(video2.addEventListener).toHaveBeenCalledTimes(7);
     });
   });
 
@@ -176,6 +184,23 @@ describe("GenericHTML5Adapter", () => {
       const paused = await adapter.isPaused();
       expect(paused).toBe(true);
     });
+
+    it("should get video state", async () => {
+      mockVideo.currentTime = 30;
+      Object.defineProperty(mockVideo, "paused", {
+        value: false,
+        configurable: true,
+      });
+      mockVideo.playbackRate = 1.5;
+
+      const state = await adapter.getVideoState();
+      expect(state).toEqual({
+        currentTime: 30,
+        duration: 120,
+        isPaused: false,
+        playbackRate: 1.5,
+      });
+    });
   });
 
   describe("event handling", () => {
@@ -205,7 +230,7 @@ describe("GenericHTML5Adapter", () => {
       expect(pauseCallback).toHaveBeenCalled();
     });
 
-    it("should emit timeupdate with current time", () => {
+    it("should emit timeupdate with current time and duration", () => {
       const timeupdateCallback = vi.fn();
       adapter.on("timeupdate", timeupdateCallback);
 
@@ -217,10 +242,13 @@ describe("GenericHTML5Adapter", () => {
 
       handler();
 
-      expect(timeupdateCallback).toHaveBeenCalledWith({ currentTime: 60 });
+      expect(timeupdateCallback).toHaveBeenCalledWith({
+        currentTime: 60,
+        duration: 120,
+      });
     });
 
-    it("should emit seeking with seek time", () => {
+    it("should emit seeking with current time and duration", () => {
       const seekingCallback = vi.fn();
       adapter.on("seeking", seekingCallback);
 
@@ -232,7 +260,68 @@ describe("GenericHTML5Adapter", () => {
 
       handler();
 
-      expect(seekingCallback).toHaveBeenCalledWith({ currentTime: 90 });
+      expect(seekingCallback).toHaveBeenCalledWith({
+        currentTime: 90,
+        duration: 120,
+      });
+    });
+
+    it("should emit loadedmetadata with duration", () => {
+      const loadedmetadataCallback = vi.fn();
+      adapter.on("loadedmetadata", loadedmetadataCallback);
+
+      const handler = (mockVideo.addEventListener as any).mock.calls.find(
+        (call: any[]) => call[0] === "loadedmetadata",
+      )[1];
+
+      handler();
+
+      expect(loadedmetadataCallback).toHaveBeenCalledWith({
+        currentTime: 0,
+        duration: 120,
+      });
+    });
+
+    it("should emit durationchange with updated duration", () => {
+      const durationchangeCallback = vi.fn();
+      adapter.on("durationchange", durationchangeCallback);
+
+      Object.defineProperty(mockVideo, "duration", {
+        value: 180,
+        configurable: true,
+      });
+
+      const handler = (mockVideo.addEventListener as any).mock.calls.find(
+        (call: any[]) => call[0] === "durationchange",
+      )[1];
+
+      handler();
+
+      expect(durationchangeCallback).toHaveBeenCalledWith({
+        currentTime: 0,
+        duration: 180,
+      });
+    });
+
+    it("should handle invalid duration values", () => {
+      const durationchangeCallback = vi.fn();
+      adapter.on("durationchange", durationchangeCallback);
+
+      Object.defineProperty(mockVideo, "duration", {
+        value: NaN,
+        configurable: true,
+      });
+
+      const handler = (mockVideo.addEventListener as any).mock.calls.find(
+        (call: any[]) => call[0] === "durationchange",
+      )[1];
+
+      handler();
+
+      expect(durationchangeCallback).toHaveBeenCalledWith({
+        currentTime: 0,
+        duration: 0,
+      });
     });
 
     it("should unregister events", () => {
@@ -299,7 +388,7 @@ describe("GenericHTML5Adapter", () => {
 
       adapter.destroy();
 
-      expect(mockVideo.removeEventListener).toHaveBeenCalledTimes(5);
+      expect(mockVideo.removeEventListener).toHaveBeenCalledTimes(7);
 
       // Try to use adapter after destroy
       expect(() => adapter.on("play", callback)).not.toThrow();
@@ -311,7 +400,7 @@ describe("GenericHTML5Adapter", () => {
       adapter.attach(mockVideo);
       adapter.detach();
 
-      expect(mockVideo.removeEventListener).toHaveBeenCalledTimes(5);
+      expect(mockVideo.removeEventListener).toHaveBeenCalledTimes(7);
     });
   });
 

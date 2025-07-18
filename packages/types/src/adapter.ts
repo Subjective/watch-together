@@ -16,17 +16,37 @@ export interface IPlayerAdapter {
   getCurrentTime(): Promise<number>;
   getDuration(): Promise<number>;
   isPaused(): Promise<boolean>;
+  getVideoState?(): Promise<{
+    currentTime: number;
+    duration: number;
+    isPaused: boolean;
+    playbackRate: number;
+  }>;
 
   /**
    * Event subscription
    */
   on(
-    event: "play" | "pause" | "seeking" | "seeked" | "timeupdate",
+    event:
+      | "play"
+      | "pause"
+      | "seeking"
+      | "seeked"
+      | "timeupdate"
+      | "loadedmetadata"
+      | "durationchange",
     callback: (payload?: any) => void,
   ): void;
 
   off(
-    event: "play" | "pause" | "seeking" | "seeked" | "timeupdate",
+    event:
+      | "play"
+      | "pause"
+      | "seeking"
+      | "seeked"
+      | "timeupdate"
+      | "loadedmetadata"
+      | "durationchange",
     callback: (payload?: any) => void,
   ): void;
 
@@ -68,7 +88,14 @@ export interface AdapterDetectionResult {
  */
 export interface AdapterEventMessage {
   type: "ADAPTER_EVENT";
-  event: "play" | "pause" | "seeking" | "seeked" | "timeupdate";
+  event:
+    | "play"
+    | "pause"
+    | "seeking"
+    | "seeked"
+    | "timeupdate"
+    | "loadedmetadata"
+    | "durationchange";
   payload?: {
     currentTime?: number;
     duration?: number;

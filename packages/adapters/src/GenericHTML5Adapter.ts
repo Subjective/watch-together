@@ -44,17 +44,21 @@ export class GenericHTML5Adapter implements IPlayerAdapter {
       { domEvent: "seeking", adapterEvent: "seeking" },
       { domEvent: "seeked", adapterEvent: "seeked" },
       { domEvent: "timeupdate", adapterEvent: "timeupdate" },
+      { domEvent: "loadedmetadata", adapterEvent: "loadedmetadata" },
+      { domEvent: "durationchange", adapterEvent: "durationchange" },
     ] as const;
 
     events.forEach(({ domEvent, adapterEvent }) => {
       const handler = () => {
-        let payload: { currentTime?: number; seekTime?: number } | undefined =
-          undefined;
-        if (adapterEvent === "timeupdate") {
-          payload = { currentTime: this.videoElement?.currentTime || 0 };
-        } else if (adapterEvent === "seeking" || adapterEvent === "seeked") {
-          payload = { currentTime: this.videoElement?.currentTime || 0 };
-        }
+        const currentTime = this.videoElement?.currentTime || 0;
+        const duration = this.videoElement?.duration || 0;
+
+        // Include duration in all event payloads to ensure it's always available
+        const payload = {
+          currentTime,
+          duration: !isNaN(duration) && isFinite(duration) ? duration : 0,
+        };
+
         this.emit(adapterEvent, payload);
       };
 
@@ -154,7 +158,14 @@ export class GenericHTML5Adapter implements IPlayerAdapter {
   }
 
   on(
-    event: "play" | "pause" | "seeking" | "seeked" | "timeupdate",
+    event:
+      | "play"
+      | "pause"
+      | "seeking"
+      | "seeked"
+      | "timeupdate"
+      | "loadedmetadata"
+      | "durationchange",
     callback: (payload?: unknown) => void,
   ): void {
     if (!this.eventListeners.has(event)) {
@@ -164,7 +175,14 @@ export class GenericHTML5Adapter implements IPlayerAdapter {
   }
 
   off(
-    event: "play" | "pause" | "seeking" | "seeked" | "timeupdate",
+    event:
+      | "play"
+      | "pause"
+      | "seeking"
+      | "seeked"
+      | "timeupdate"
+      | "loadedmetadata"
+      | "durationchange",
     callback: (payload?: unknown) => void,
   ): void {
     const listeners = this.eventListeners.get(event);
@@ -176,6 +194,25 @@ export class GenericHTML5Adapter implements IPlayerAdapter {
   destroy(): void {
     this.detach();
     this.eventListeners.clear();
+  }
+
+  /**
+   * Get current video state including duration
+   */
+  async getVideoState(): Promise<{
+    currentTime: number;
+    duration: number;
+    isPaused: boolean;
+    playbackRate: number;
+  }> {
+    const video = this.ensureVideoElement();
+    return {
+      currentTime: video.currentTime,
+      duration:
+        !isNaN(video.duration) && isFinite(video.duration) ? video.duration : 0,
+      isPaused: video.paused,
+      playbackRate: video.playbackRate,
+    };
   }
 
   /**

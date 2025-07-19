@@ -119,6 +119,7 @@ function detectAndCreateAdapter(): void {
       console.log("[ContentLoader] Adapter created successfully");
       setupAdapterEventListeners();
       notifyAdapterReady();
+      checkAutoJoinLink();
     } else {
       console.log("[ContentLoader] No suitable adapter found for this page");
       notifyNoAdapter();
@@ -374,6 +375,29 @@ function sendAdapterError(error: any): void {
  */
 function notifyAdapterError(error: any): void {
   sendAdapterError(error);
+}
+
+/**
+ * Check for auto-join room parameter and notify Service Worker
+ */
+function checkAutoJoinLink(): void {
+  try {
+    const url = new URL(window.location.href);
+    const roomId = url.searchParams.get("wt_room");
+    if (roomId) {
+      chrome.runtime
+        .sendMessage({
+          type: "JOIN_ROOM_FROM_LINK",
+          roomId,
+          timestamp: Date.now(),
+        })
+        .catch(() => {
+          // Service Worker might not be ready yet, ignore silently
+        });
+    }
+  } catch (error) {
+    console.error("[ContentLoader] Failed to check auto-join link:", error);
+  }
 }
 
 // Initialize when content script loads

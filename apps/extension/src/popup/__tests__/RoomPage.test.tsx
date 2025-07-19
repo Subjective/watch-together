@@ -10,6 +10,7 @@ import {
   setupTestEnvironment,
   createMockUser,
   createMockRoom,
+  getChromeForTest,
 } from "../../test-utils";
 
 // Setup test environment with proper Chrome and Navigator mocks
@@ -68,9 +69,13 @@ describe("RoomPage", () => {
 
   beforeEach(() => {
     const navigator = getNavigatorMock();
+    const chrome = getChromeForTest();
 
     // Setup navigator clipboard mock
     navigator.clipboard.writeText.mockResolvedValue(undefined);
+
+    // Setup chrome runtime mock for new message types
+    chrome.runtime.sendMessage.mockResolvedValue({ success: true, url: null });
   });
 
   it("should render room page with basic elements", () => {
@@ -108,6 +113,7 @@ describe("RoomPage", () => {
 
   it("should handle room ID copy", async () => {
     const user = userEvent.setup();
+    const chrome = getChromeForTest();
     render(<RoomPage {...defaultProps} />);
 
     // Find the copy button by looking for the button with Copy icon
@@ -118,10 +124,10 @@ describe("RoomPage", () => {
     expect(copyButton).toBeDefined();
     await user.click(copyButton!);
 
-    // The clipboard functionality should be called
-    // Note: The exact mock verification may not work due to async/await in toast
-    // but we can verify the copy button exists and is clickable
-    expect(copyButton).toBeDefined();
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+      type: "GET_ACTIVE_ADAPTER_TAB_URL",
+      timestamp: expect.any(Number),
+    });
   });
 
   it("should show host controls when user is host", () => {

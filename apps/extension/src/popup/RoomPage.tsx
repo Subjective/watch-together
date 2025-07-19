@@ -116,10 +116,24 @@ export const RoomPage: React.FC<RoomPageProps> = ({
 
   const copyRoomId = async () => {
     try {
-      await navigator.clipboard.writeText(room.id);
+      const response = await chrome.runtime.sendMessage({
+        type: "GET_ACTIVE_ADAPTER_TAB_URL",
+        timestamp: Date.now(),
+      });
+
+      let textToCopy = room.id;
+      if (response?.success && response.url) {
+        const url = new URL(response.url as string);
+        url.searchParams.set("wt_room", room.id);
+        textToCopy = url.toString();
+      }
+
+      await navigator.clipboard.writeText(textToCopy);
       toast({
         title: "Copied!",
-        description: "Room ID copied to clipboard",
+        description: response?.url
+          ? "Share link copied to clipboard"
+          : "Room ID copied to clipboard",
       });
     } catch {
       toast({

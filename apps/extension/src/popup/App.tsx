@@ -118,13 +118,27 @@ export const App: React.FC = () => {
   // Auto-copy room ID when room is created
   const handleRoomCreated = useCallback(async (roomId: string) => {
     try {
-      await navigator.clipboard.writeText(roomId);
+      const response = await chrome.runtime.sendMessage({
+        type: "GET_ACTIVE_ADAPTER_TAB_URL",
+        timestamp: Date.now(),
+      });
+
+      let textToCopy = roomId;
+      if (response?.success && response.url) {
+        const url = new URL(response.url as string);
+        url.searchParams.set("wt_room", roomId);
+        textToCopy = url.toString();
+      }
+
+      await navigator.clipboard.writeText(textToCopy);
       toast({
         title: "Room created!",
-        description: "Room code copied to clipboard",
+        description: response?.url
+          ? "Share link copied to clipboard"
+          : "Room code copied to clipboard",
       });
     } catch (error) {
-      console.error("Failed to copy room ID:", error);
+      console.error("Failed to copy room link:", error);
       toast({
         title: "Room created!",
         description: `Room code: ${roomId}`,

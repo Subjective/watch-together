@@ -14,13 +14,15 @@ import type {
   ToggleControlModeRequest,
   SetFollowModeRequest,
   FollowHostRequest,
+  GetActiveAdapterTabUrlRequest,
+  JoinRoomFromLinkRequest,
   StateUpdateMessage,
 } from "@repo/types";
 
 import { RoomManager } from "./roomManager";
 import { StorageManager, StorageEventManager } from "./storage";
 import { defaultWebSocketConfig } from "./websocket";
-import { initializeAdapterHandler } from "./adapterHandler";
+import { initializeAdapterHandler, getActiveAdapters } from "./adapterHandler";
 
 // Global room manager instance
 let roomManager: RoomManager | null = null;
@@ -249,6 +251,14 @@ async function handleMessage(
       case "FOLLOW_HOST":
         return await handleFollowHost(message as FollowHostRequest);
 
+      case "GET_ACTIVE_ADAPTER_TAB_URL":
+        return await handleGetActiveAdapterTabUrl(
+          message as GetActiveAdapterTabUrlRequest,
+        );
+
+      case "JOIN_ROOM_FROM_LINK":
+        return await handleJoinRoomFromLink(message as JoinRoomFromLinkRequest);
+
       default:
         // Handle unknown message types from content scripts
         if ((message as any).type === "VIDEO_STATE_CHANGE") {
@@ -456,6 +466,86 @@ async function handleFollowHost(_message: FollowHostRequest): Promise<any> {
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to follow host",
+    };
+  }
+}
+
+/**
+ * Handle GET_ACTIVE_ADAPTER_TAB_URL request
+ */
+async function handleGetActiveAdapterTabUrl(
+  _message: GetActiveAdapterTabUrlRequest,
+): Promise<any> {
+  try {
+    // Check if we're in a room and have a host current URL
+    const currentRoom = roomManager?.getCurrentRoom();
+    if (currentRoom?.hostCurrentUrl) {
+      // The host current URL is exactly what corresponds to the playback progress in the UI
+      return { success: true, url: currentRoom.hostCurrentUrl };
+    }
+
+    // Fallback: if no room or host URL, check for any active adapter
+    const adapters = getActiveAdapters();
+    if (adapters.length === 0) {
+      return { success: true, url: null };
+    }
+
+    // Find any tab that has an active adapter
+    for (const adapter of adapters) {
+      try {
+        const tab = await chrome.tabs.get(adapter.tabId);
+        if (tab && tab.url) {
+          return { success: true, url: tab.url };
+        }
+      } catch {
+        // Tab might have been closed, continue to next adapter
+        continue;
+      }
+    }
+
+    return { success: true, url: null };
+  } catch (error) {
+    console.error("Failed to get active adapter tab URL:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to get active adapter tab URL",
+    };
+  }
+}
+
+/**
+ * Handle JOIN_ROOM_FROM_LINK request
+ */
+async function handleJoinRoomFromLink(
+  message: JoinRoomFromLinkRequest,
+): Promise<any> {
+  try {
+    await ensureRoomManagerInitialized();
+
+    const currentRoom = roomManager!.getCurrentRoom();
+    if (currentRoom) {
+      if (currentRoom.id === message.roomId) {
+        return { success: true };
+      }
+      return { success: false, error: "Already in a room" };
+    }
+
+    const prefs = await StorageManager.getUserPreferences();
+    const userName = prefs.defaultUserName || "Guest";
+
+    const room = await roomManager!.joinRoom(message.roomId, userName, true);
+    return { success: true, room };
+  } catch (error) {
+    console.error("Failed to join room from link:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to join room from link",
     };
   }
 }

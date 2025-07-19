@@ -635,6 +635,23 @@ chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo, _tab) => {
 });
 
 /**
+ * Handle tab removal to clear video state when video tab is closed
+ */
+chrome.tabs.onRemoved.addListener(async (tabId, _removeInfo) => {
+  if (roomManager) {
+    const currentVideoTabId = roomManager.getCurrentVideoTabId();
+
+    // Only clear video state if the closed tab was the one with the active video
+    if (currentVideoTabId === tabId) {
+      console.log(
+        `[Background] Video tab closed (${tabId}), clearing video state`,
+      );
+      await roomManager.clearVideoState();
+    }
+  }
+});
+
+/**
  * Handle service worker startup
  */
 chrome.runtime.onStartup.addListener(() => {

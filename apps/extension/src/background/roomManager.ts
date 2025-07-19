@@ -51,6 +51,7 @@ export class RoomManager {
   private eventListeners: Map<string, ((data: any) => void)[]> = new Map();
   private lastHostVideoUrl: string | null = null;
   private lastVideoAdapterUrl: string | null = null;
+  private currentVideoTabId: number | null = null;
   private isApplyingRemoteCommand: boolean = false;
 
   constructor(config: RoomManagerConfig) {
@@ -851,6 +852,13 @@ export class RoomManager {
   }
 
   /**
+   * Get current video tab ID
+   */
+  getCurrentVideoTabId(): number | null {
+    return this.currentVideoTabId;
+  }
+
+  /**
    * Get current tab URL
    */
   private async getCurrentTabUrl(): Promise<string | null> {
@@ -918,6 +926,7 @@ export class RoomManager {
           const tab = await chrome.tabs.get(activeTabId);
           if (tab.url) {
             this.lastVideoAdapterUrl = tab.url;
+            this.currentVideoTabId = activeTabId;
             return;
           }
         } catch {
@@ -933,6 +942,7 @@ export class RoomManager {
         const tab = await chrome.tabs.get(connectedAdapter.tabId);
         if (tab.url) {
           this.lastVideoAdapterUrl = tab.url;
+          this.currentVideoTabId = connectedAdapter.tabId;
         }
       } catch {
         // Tab closed
@@ -1327,25 +1337,31 @@ export class RoomManager {
       console.log(`[RoomManager] Applying host state as client`);
 
       // Update host video state for participants to see in UI
-      if (this.currentRoom && message.hostVideoUrl) {
+      if (this.currentRoom) {
         const hostVideoState = {
           isPlaying: message.state === "PLAYING",
           currentTime: message.time || 0,
           duration: 0, // Duration will be updated from actual video events
           playbackRate: 1,
-          url: message.hostVideoUrl,
+          url: message.hostVideoUrl || "",
           lastUpdated: message.timestamp,
         };
 
         this.currentRoom.hostVideoState = hostVideoState;
 
-        // Check if host switched to a new video and trigger auto-follow
-        if (this.lastHostVideoUrl !== message.hostVideoUrl) {
+        // Check if host switched to a new video and trigger auto-follow (only for non-empty URLs)
+        if (
+          message.hostVideoUrl &&
+          this.lastHostVideoUrl !== message.hostVideoUrl
+        ) {
           console.log(
             `[RoomManager] Host switched video: ${this.lastHostVideoUrl} -> ${message.hostVideoUrl}`,
           );
           await this.handleHostVideoSwitch(message.hostVideoUrl);
           this.lastHostVideoUrl = message.hostVideoUrl;
+        } else if (!message.hostVideoUrl) {
+          // Host cleared video state
+          this.lastHostVideoUrl = null;
         }
 
         // Update extension state to trigger UI refresh
@@ -1879,6 +1895,55 @@ export class RoomManager {
         videoUrl ? `on ${videoUrl}` : "",
       );
     }
+  }
+
+  /**
+   * Clear video state when video tab is closed
+   */
+  async clearVideoState(): Promise<void> {
+    if (!this.currentRoom || !this.currentUser) {
+      return;
+    }
+
+    // Create cleared video state
+    const clearedVideoState = {
+      isPlaying: false,
+      currentTime: 0,
+      duration: 0,
+      playbackRate: 1,
+      url: "",
+      lastUpdated: Date.now(),
+    };
+
+    // Update different video states based on user role
+    if (this.currentUser.isHost) {
+      // Host clears both host video state (for participants to see) and own video state
+      this.currentRoom.hostVideoState = clearedVideoState;
+      this.currentRoom.videoState = clearedVideoState;
+
+      // Broadcast cleared state to participants
+      await this.webrtc.broadcastHostState(
+        "PAUSED",
+        0, // currentTime
+        "", // url (cleared)
+      );
+    } else {
+      // Participants only clear their own local video state
+      this.currentRoom.videoState = clearedVideoState;
+    }
+
+    // Clear the tracked video adapter URL and tab ID
+    this.lastVideoAdapterUrl = null;
+    this.currentVideoTabId = null;
+
+    // Update extension state to trigger UI refresh
+    this.updateExtensionState({
+      currentRoom: this.currentRoom,
+    });
+
+    console.log(
+      `[RoomManager] Cleared video state for ${this.currentUser.isHost ? "host" : "participant"}`,
+    );
   }
 
   /**

@@ -106,7 +106,9 @@ export const RoomPage: React.FC<RoomPageProps> = ({
 
   // Video state
   const videoState = room.videoState;
-  const isPaused = !videoState.isPlaying;
+  // Use host's playing state for display, fallback to local state
+  const isPlaying = room.hostVideoState?.isPlaying ?? videoState.isPlaying;
+  const isPaused = !isPlaying;
   // Use host video duration as a fallback when the local duration is unavailable
   const totalDuration =
     videoState.duration > 0
@@ -114,8 +116,10 @@ export const RoomPage: React.FC<RoomPageProps> = ({
       : room.hostVideoState?.duration && room.hostVideoState.duration > 0
         ? room.hostVideoState.duration
         : 0;
-  const progress =
-    totalDuration > 0 ? (videoState.currentTime / totalDuration) * 100 : 0;
+  // Use host's currentTime for progress calculation, fallback to local time
+  const currentTime =
+    room.hostVideoState?.currentTime ?? videoState.currentTime;
+  const progress = totalDuration > 0 ? (currentTime / totalDuration) * 100 : 0;
 
   // Format time
   const formatTime = (seconds: number) => {
@@ -464,7 +468,7 @@ export const RoomPage: React.FC<RoomPageProps> = ({
               <span
                 className={`text-lg font-mono font-semibold ml-3 transition-all ${isControlDisabled ? "opacity-60" : ""}`}
               >
-                {formatTime(videoState.currentTime)}
+                {formatTime(currentTime)}
               </span>
             </div>
           </div>

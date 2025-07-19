@@ -119,15 +119,24 @@ export const App: React.FC = () => {
   const handleRoomCreated = useCallback(async (roomId: string) => {
     try {
       // Check if current tab has an adapter for enhanced link
-      const response = await chrome.runtime.sendMessage({
-        type: "CHECK_CURRENT_TAB_ADAPTER",
-        timestamp: Date.now(),
+      const tabs = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
       });
+      const currentTabId = tabs[0]?.id;
+      let hasAdapter = false;
+      if (currentTabId) {
+        const res = await chrome.tabs.sendMessage(currentTabId, {
+          type: "CHECK_ADAPTER_STATUS",
+          timestamp: Date.now(),
+        });
+        hasAdapter = !!res?.hasAdapter;
+      }
 
       let textToCopy = roomId;
       let description = "Room code copied to clipboard";
 
-      if (response?.success && response.hasAdapter) {
+      if (hasAdapter) {
         // Get current tab URL and create enhanced share link
         try {
           const tabs = await chrome.tabs.query({

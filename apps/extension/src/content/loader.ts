@@ -313,6 +313,10 @@ function observePageChanges(): void {
 function listenForCommands(): void {
   // Listen for one-time messages
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message.type === "CHECK_ADAPTER_STATUS") {
+      sendResponse({ hasAdapter: !!currentAdapter });
+      return;
+    }
     if (message.target === "content-adapter") {
       handleServiceWorkerMessage(message)
         .then(() => {
@@ -407,10 +411,10 @@ function checkAutoJoinLink(): void {
       // Clean up after use to prevent stale data
       sessionStorage.removeItem("wt_room_captured");
       console.log("[ContentLoader] Using preloader-captured room ID:", roomId);
-      
+
       // Clean URL immediately since we're about to join
       cleanAutoJoinUrl();
-      
+
       chrome.runtime
         .sendMessage({
           type: "JOIN_ROOM_FROM_LINK",

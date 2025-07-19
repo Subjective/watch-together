@@ -15,14 +15,13 @@ import type {
   SetFollowModeRequest,
   FollowHostRequest,
   JoinRoomFromLinkRequest,
-  CheckCurrentTabAdapterRequest,
   StateUpdateMessage,
 } from "@repo/types";
 
 import { RoomManager } from "./roomManager";
 import { StorageManager, StorageEventManager } from "./storage";
 import { defaultWebSocketConfig } from "./websocket";
-import { initializeAdapterHandler, isAdapterActive } from "./adapterHandler";
+import { initializeAdapterHandler } from "./adapterHandler";
 
 // Global room manager instance
 let roomManager: RoomManager | null = null;
@@ -253,11 +252,6 @@ async function handleMessage(
 
       case "JOIN_ROOM_FROM_LINK":
         return await handleJoinRoomFromLink(message as JoinRoomFromLinkRequest);
-
-      case "CHECK_CURRENT_TAB_ADAPTER":
-        return await handleCheckCurrentTabAdapter(
-          message as CheckCurrentTabAdapterRequest,
-        );
 
       default:
         // Handle unknown message types from content scripts
@@ -500,34 +494,6 @@ async function handleJoinRoomFromLink(
         error instanceof Error
           ? error.message
           : "Failed to join room from link",
-    };
-  }
-}
-
-/**
- * Handle CHECK_CURRENT_TAB_ADAPTER request
- */
-async function handleCheckCurrentTabAdapter(
-  _message: CheckCurrentTabAdapterRequest,
-): Promise<any> {
-  try {
-    // Get current active tab
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    const currentTabId = tabs[0]?.id;
-
-    if (!currentTabId) {
-      return { success: true, hasAdapter: false };
-    }
-
-    // Check if adapter exists for this tab (regardless of port connection status)
-    const hasAdapter = isAdapterActive(currentTabId);
-    return { success: true, hasAdapter };
-  } catch (error) {
-    console.error("Failed to check current tab adapter:", error);
-    return {
-      success: false,
-      hasAdapter: false,
-      error: error instanceof Error ? error.message : "Failed to check adapter",
     };
   }
 }

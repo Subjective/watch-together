@@ -127,13 +127,23 @@ export const RoomPage: React.FC<RoomPageProps> = ({
   // Check if the current tab has an active adapter for enhanced link generation
   const checkCurrentTabAdapter = async () => {
     try {
-      const response = await chrome.runtime.sendMessage({
-        type: "CHECK_CURRENT_TAB_ADAPTER",
+      const tabs = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      const currentTabId = tabs[0]?.id;
+      if (!currentTabId) {
+        setHasCurrentTabAdapter(false);
+        return;
+      }
+
+      const response = await chrome.tabs.sendMessage(currentTabId, {
+        type: "CHECK_ADAPTER_STATUS",
         timestamp: Date.now(),
       });
 
-      if (response?.success) {
-        setHasCurrentTabAdapter(response.hasAdapter || false);
+      if (response?.hasAdapter !== undefined) {
+        setHasCurrentTabAdapter(response.hasAdapter);
       } else {
         setHasCurrentTabAdapter(false);
       }

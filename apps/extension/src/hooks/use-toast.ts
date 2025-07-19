@@ -156,6 +156,21 @@ function toast({ ...props }: Toast) {
     },
   });
 
+  // If running in an extension context (popup/background), forward toast
+  // request to any active tab so the in-page overlay can display it.
+  try {
+    if (typeof chrome !== "undefined" && location.protocol === "chrome-extension:") {
+      chrome.runtime.sendMessage({
+        type: "SHOW_TOAST",
+        title: props.title,
+        description: props.description,
+        variant: (props as any).variant,
+      });
+    }
+  } catch {
+    // ignore messaging errors
+  }
+
   return {
     id: id,
     dismiss,

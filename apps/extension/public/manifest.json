@@ -41,12 +41,12 @@
       "exclude_matches": [
         "https://*.crunchyroll.com/*"
       ],
-      "js": ["content.js"],
+      "js": ["content.js", "overlay.js"],
       "type": "module"
     },
     {
       "matches": ["https://*.crunchyroll.com/*"],
-      "js": ["content.js"],
+      "js": ["content.js", "overlay.js"],
       "type": "module",
       "all_frames": true
     }

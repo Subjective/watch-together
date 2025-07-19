@@ -108,13 +108,13 @@ export interface StateUpdateMessage extends BaseExtensionMessage {
   state: ExtensionState;
 }
 
-export interface GetActiveAdapterTabUrlRequest extends BaseExtensionMessage {
-  type: "GET_ACTIVE_ADAPTER_TAB_URL";
-}
-
 export interface JoinRoomFromLinkRequest extends BaseExtensionMessage {
   type: "JOIN_ROOM_FROM_LINK";
   roomId: string;
+}
+
+export interface CheckCurrentTabAdapterRequest extends BaseExtensionMessage {
+  type: "CHECK_CURRENT_TAB_ADAPTER";
 }
 
 export type ExtensionMessage =
@@ -127,5 +127,5 @@ export type ExtensionMessage =
   | RenameRoomRequest
   | RenameUserRequest
   | StateUpdateMessage
-  | GetActiveAdapterTabUrlRequest
-  | JoinRoomFromLinkRequest;
+  | JoinRoomFromLinkRequest
+  | CheckCurrentTabAdapterRequest;

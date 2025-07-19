@@ -24,6 +24,8 @@ import {
   Settings,
   Flag,
   Heart,
+  ExternalLink,
+  Link,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
@@ -67,6 +69,7 @@ export const RoomPage: React.FC<RoomPageProps> = ({
   const [roomName, setRoomName] = useState(room.name);
   const [isEditingUserName, setIsEditingUserName] = useState(false);
   const [userName, setUserName] = useState(currentUser.name);
+  const [hasCurrentTabAdapter, setHasCurrentTabAdapter] = useState(false);
 
   // Calculate isHost dynamically based on current room state
   const isHost = currentUser.id === room.hostId;
@@ -94,6 +97,13 @@ export const RoomPage: React.FC<RoomPageProps> = ({
     }
   }, [isHost, room.name, isEditingRoomName]);
 
+  // Check for current tab adapter on mount and when host status changes
+  useEffect(() => {
+    if (isHost) {
+      checkCurrentTabAdapter();
+    }
+  }, [isHost]);
+
   // Video state
   const videoState = room.videoState;
   const isPaused = !videoState.isPlaying;
@@ -114,31 +124,107 @@ export const RoomPage: React.FC<RoomPageProps> = ({
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const copyRoomId = async () => {
+  // Check if the current tab has an active adapter for enhanced link generation
+  const checkCurrentTabAdapter = async () => {
     try {
       const response = await chrome.runtime.sendMessage({
-        type: "GET_ACTIVE_ADAPTER_TAB_URL",
+        type: "CHECK_CURRENT_TAB_ADAPTER",
         timestamp: Date.now(),
       });
 
-      let textToCopy = room.id;
-      if (response?.success && response.url) {
-        const url = new URL(response.url as string);
-        url.searchParams.set("wt_room", room.id);
-        textToCopy = url.toString();
+      if (response?.success) {
+        setHasCurrentTabAdapter(response.hasAdapter || false);
+      } else {
+        setHasCurrentTabAdapter(false);
       }
+    } catch {
+      setHasCurrentTabAdapter(false);
+    }
+  };
 
-      await navigator.clipboard.writeText(textToCopy);
+  const copyRoomCode = async () => {
+    try {
+      await navigator.clipboard.writeText(room.id);
       toast({
         title: "Copied!",
-        description: response?.url
-          ? "Share link copied to clipboard"
-          : "Room ID copied to clipboard",
+        description: "Room code copied to clipboard",
       });
     } catch {
       toast({
         title: "Copy failed",
         description: "Please copy manually: " + room.id,
+      });
+    }
+  };
+
+  const copyShareLink = async () => {
+    try {
+      // Get current tab URL
+      const tabs = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      const currentTabUrl = tabs[0]?.url;
+
+      if (!currentTabUrl) {
+        throw new Error("Could not get current tab URL");
+      }
+
+      const url = new URL(currentTabUrl);
+      url.searchParams.set("wt_room", room.id);
+      const shareLink = url.toString();
+
+      await navigator.clipboard.writeText(shareLink);
+      toast({
+        title: "Copied!",
+        description: "Share link copied to clipboard",
+      });
+    } catch {
+      // Fallback to room code
+      await copyRoomCode();
+    }
+  };
+
+  const goToHostVideo = async () => {
+    try {
+      const hostVideoUrl = room.hostVideoState?.url;
+      if (!hostVideoUrl) {
+        toast({
+          title: "No video",
+          description: "Host is not currently watching a video",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Check if we already have this URL open
+      const existingTabs = await chrome.tabs.query({ url: hostVideoUrl });
+
+      if (existingTabs.length > 0) {
+        // Switch to existing tab
+        const existingTab = existingTabs[0];
+        await chrome.tabs.update(existingTab.id!, { active: true });
+        if (existingTab.windowId) {
+          await chrome.windows.update(existingTab.windowId, { focused: true });
+        }
+        toast({
+          title: "Switched to video",
+          description: "Switched to existing tab with host's video",
+        });
+      } else {
+        // Create new tab
+        await chrome.tabs.create({ url: hostVideoUrl, active: true });
+        toast({
+          title: "Opened video",
+          description: "Opened host's video in new tab",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to navigate to host video:", error);
+      toast({
+        title: "Navigation failed",
+        description: "Could not open host's video",
+        variant: "destructive",
       });
     }
   };
@@ -292,14 +378,44 @@ export const RoomPage: React.FC<RoomPageProps> = ({
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-xl bg-white/70 border-border/50"
-                  onClick={copyRoomId}
-                >
-                  <Copy className="w-4 h-4" />
-                </Button>
+                {isHost ? (
+                  // Host: Show copy icon (room code) or link icon (share link) based on adapter availability
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl bg-white/70 border-border/50"
+                    onClick={
+                      hasCurrentTabAdapter ? copyShareLink : copyRoomCode
+                    }
+                    title={
+                      hasCurrentTabAdapter
+                        ? "Copy share link"
+                        : "Copy room code"
+                    }
+                  >
+                    {hasCurrentTabAdapter ? (
+                      <Link className="w-4 h-4" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                  </Button>
+                ) : (
+                  // Participant: Show "Go to Host Video" button
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl bg-white/70 border-border/50"
+                    onClick={goToHostVideo}
+                    disabled={!room.hostVideoState?.url}
+                    title={
+                      room.hostVideoState?.url
+                        ? "Go to host's video"
+                        : "Host is not watching a video"
+                    }
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </Button>
+                )}
                 <Button
                   variant="destructive"
                   size="sm"

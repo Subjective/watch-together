@@ -118,24 +118,39 @@ export const App: React.FC = () => {
   // Auto-copy room ID when room is created
   const handleRoomCreated = useCallback(async (roomId: string) => {
     try {
+      // Check if current tab has an adapter for enhanced link
       const response = await chrome.runtime.sendMessage({
-        type: "GET_ACTIVE_ADAPTER_TAB_URL",
+        type: "CHECK_CURRENT_TAB_ADAPTER",
         timestamp: Date.now(),
       });
 
       let textToCopy = roomId;
-      if (response?.success && response.url) {
-        const url = new URL(response.url as string);
-        url.searchParams.set("wt_room", roomId);
-        textToCopy = url.toString();
+      let description = "Room code copied to clipboard";
+
+      if (response?.success && response.hasAdapter) {
+        // Get current tab URL and create enhanced share link
+        try {
+          const tabs = await chrome.tabs.query({
+            active: true,
+            currentWindow: true,
+          });
+          const currentTabUrl = tabs[0]?.url;
+
+          if (currentTabUrl) {
+            const url = new URL(currentTabUrl);
+            url.searchParams.set("wt_room", roomId);
+            textToCopy = url.toString();
+            description = "Share link copied to clipboard";
+          }
+        } catch {
+          // Fallback to room code if URL creation fails
+        }
       }
 
       await navigator.clipboard.writeText(textToCopy);
       toast({
         title: "Room created!",
-        description: response?.url
-          ? "Share link copied to clipboard"
-          : "Room code copied to clipboard",
+        description: description,
       });
     } catch (error) {
       console.error("Failed to copy room link:", error);

@@ -14,8 +14,8 @@ import type {
   ToggleControlModeRequest,
   SetFollowModeRequest,
   FollowHostRequest,
-  GetActiveAdapterTabUrlRequest,
   JoinRoomFromLinkRequest,
+  CheckCurrentTabAdapterRequest,
   StateUpdateMessage,
 } from "@repo/types";
 
@@ -251,13 +251,13 @@ async function handleMessage(
       case "FOLLOW_HOST":
         return await handleFollowHost(message as FollowHostRequest);
 
-      case "GET_ACTIVE_ADAPTER_TAB_URL":
-        return await handleGetActiveAdapterTabUrl(
-          message as GetActiveAdapterTabUrlRequest,
-        );
-
       case "JOIN_ROOM_FROM_LINK":
         return await handleJoinRoomFromLink(message as JoinRoomFromLinkRequest);
+
+      case "CHECK_CURRENT_TAB_ADAPTER":
+        return await handleCheckCurrentTabAdapter(
+          message as CheckCurrentTabAdapterRequest,
+        );
 
       default:
         // Handle unknown message types from content scripts
@@ -471,52 +471,6 @@ async function handleFollowHost(_message: FollowHostRequest): Promise<any> {
 }
 
 /**
- * Handle GET_ACTIVE_ADAPTER_TAB_URL request
- */
-async function handleGetActiveAdapterTabUrl(
-  _message: GetActiveAdapterTabUrlRequest,
-): Promise<any> {
-  try {
-    // Check if we're in a room and have a host current URL
-    const currentRoom = roomManager?.getCurrentRoom();
-    if (currentRoom?.hostCurrentUrl) {
-      // The host current URL is exactly what corresponds to the playback progress in the UI
-      return { success: true, url: currentRoom.hostCurrentUrl };
-    }
-
-    // Fallback: if no room or host URL, check for any active adapter
-    const adapters = getActiveAdapters();
-    if (adapters.length === 0) {
-      return { success: true, url: null };
-    }
-
-    // Find any tab that has an active adapter
-    for (const adapter of adapters) {
-      try {
-        const tab = await chrome.tabs.get(adapter.tabId);
-        if (tab && tab.url) {
-          return { success: true, url: tab.url };
-        }
-      } catch {
-        // Tab might have been closed, continue to next adapter
-        continue;
-      }
-    }
-
-    return { success: true, url: null };
-  } catch (error) {
-    console.error("Failed to get active adapter tab URL:", error);
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Failed to get active adapter tab URL",
-    };
-  }
-}
-
-/**
  * Handle JOIN_ROOM_FROM_LINK request
  */
 async function handleJoinRoomFromLink(
@@ -546,6 +500,41 @@ async function handleJoinRoomFromLink(
         error instanceof Error
           ? error.message
           : "Failed to join room from link",
+    };
+  }
+}
+
+/**
+ * Handle CHECK_CURRENT_TAB_ADAPTER request
+ */
+async function handleCheckCurrentTabAdapter(
+  _message: CheckCurrentTabAdapterRequest,
+): Promise<any> {
+  try {
+    const adapters = getActiveAdapters();
+    if (adapters.length === 0) {
+      return { success: true, hasAdapter: false };
+    }
+
+    // Get current active tab
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const currentTabId = tabs[0]?.id;
+
+    if (!currentTabId) {
+      return { success: true, hasAdapter: false };
+    }
+
+    // Check if current tab has an adapter
+    const hasAdapter = adapters.some(
+      (adapter) => adapter.tabId === currentTabId,
+    );
+    return { success: true, hasAdapter };
+  } catch (error) {
+    console.error("Failed to check current tab adapter:", error);
+    return {
+      success: false,
+      hasAdapter: false,
+      error: error instanceof Error ? error.message : "Failed to check adapter",
     };
   }
 }

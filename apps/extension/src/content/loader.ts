@@ -112,6 +112,9 @@ function detectAndCreateAdapter(): void {
   }
 
   try {
+    // Check for auto-join regardless of adapter availability
+    checkAutoJoinLink();
+
     // Use AdapterFactory to create appropriate adapter
     currentAdapter = AdapterFactory.createAdapter();
 
@@ -119,7 +122,6 @@ function detectAndCreateAdapter(): void {
       console.log("[ContentLoader] Adapter created successfully");
       setupAdapterEventListeners();
       notifyAdapterReady();
-      checkAutoJoinLink();
     } else {
       console.log("[ContentLoader] No suitable adapter found for this page");
       notifyNoAdapter();
@@ -378,18 +380,45 @@ function notifyAdapterError(error: any): void {
 }
 
 /**
+ * Strip wt_room parameter from current URL
+ */
+function cleanAutoJoinUrl(): void {
+  try {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("wt_room")) {
+      url.searchParams.delete("wt_room");
+      // Update URL without refreshing the page
+      window.history.replaceState(null, "", url.toString());
+      console.log("[ContentLoader] Cleaned wt_room parameter from URL");
+    }
+  } catch (error) {
+    console.error("[ContentLoader] Failed to clean auto-join URL:", error);
+  }
+}
+
+/**
  * Check for auto-join room parameter and notify Service Worker
+ * Uses room ID captured by preloader script at document_start
  */
 function checkAutoJoinLink(): void {
   try {
-    const url = new URL(window.location.href);
-    const roomId = url.searchParams.get("wt_room");
+    const roomId = sessionStorage.getItem("wt_room_captured");
     if (roomId) {
+      // Clean up after use to prevent stale data
+      sessionStorage.removeItem("wt_room_captured");
+      console.log("[ContentLoader] Using preloader-captured room ID:", roomId);
+      
+      // Clean URL immediately since we're about to join
+      cleanAutoJoinUrl();
+      
       chrome.runtime
         .sendMessage({
           type: "JOIN_ROOM_FROM_LINK",
           roomId,
           timestamp: Date.now(),
+        })
+        .then((response) => {
+          console.log("[ContentLoader] Join room response:", response);
         })
         .catch(() => {
           // Service Worker might not be ready yet, ignore silently

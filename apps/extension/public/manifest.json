@@ -41,8 +41,35 @@
       "exclude_matches": [
         "https://*.crunchyroll.com/*"
       ],
+      "js": ["preloader.js"],
+      "run_at": "document_start",
+      "type": "module"
+    },
+    {
+      "matches": [
+        "https://*.youtube.com/*",
+        "https://*.netflix.com/*",
+        "https://*.vimeo.com/*",
+        "https://*.twitch.tv/*",
+        "https://*.amazon.com/*",
+        "https://*.hulu.com/*",
+        "https://*.disneyplus.com/*",
+        "https://*/*",
+        "http://localhost/*",
+        "file://*/*"
+      ],
+      "exclude_matches": [
+        "https://*.crunchyroll.com/*"
+      ],
       "js": ["content.js"],
       "type": "module"
+    },
+    {
+      "matches": ["https://*.crunchyroll.com/*"],
+      "js": ["preloader.js"],
+      "run_at": "document_start",
+      "type": "module",
+      "all_frames": true
     },
     {
       "matches": ["https://*.crunchyroll.com/*"],

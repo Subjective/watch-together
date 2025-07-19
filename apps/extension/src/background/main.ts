@@ -22,7 +22,7 @@ import type {
 import { RoomManager } from "./roomManager";
 import { StorageManager, StorageEventManager } from "./storage";
 import { defaultWebSocketConfig } from "./websocket";
-import { initializeAdapterHandler, getActiveAdapters } from "./adapterHandler";
+import { initializeAdapterHandler, isAdapterActive } from "./adapterHandler";
 
 // Global room manager instance
 let roomManager: RoomManager | null = null;
@@ -511,11 +511,6 @@ async function handleCheckCurrentTabAdapter(
   _message: CheckCurrentTabAdapterRequest,
 ): Promise<any> {
   try {
-    const adapters = getActiveAdapters();
-    if (adapters.length === 0) {
-      return { success: true, hasAdapter: false };
-    }
-
     // Get current active tab
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     const currentTabId = tabs[0]?.id;
@@ -524,10 +519,8 @@ async function handleCheckCurrentTabAdapter(
       return { success: true, hasAdapter: false };
     }
 
-    // Check if current tab has an adapter
-    const hasAdapter = adapters.some(
-      (adapter) => adapter.tabId === currentTabId,
-    );
+    // Check if adapter exists for this tab (regardless of port connection status)
+    const hasAdapter = isAdapterActive(currentTabId);
     return { success: true, hasAdapter };
   } catch (error) {
     console.error("Failed to check current tab adapter:", error);

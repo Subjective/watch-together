@@ -3,8 +3,8 @@ import type React from "react";
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Clock, ArrowRight, Users } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { Plus, Clock, ArrowRight, Users, Settings } from "lucide-react";
+import { useConditionalToast } from "@/hooks/use-conditional-toast";
 import { StorageManager } from "../background/storage";
 import type { RoomHistoryEntry } from "../background/storage";
 import { TypingAnimation } from "../components/TypingAnimation";
@@ -16,6 +16,7 @@ interface HomePageProps {
     userName: string,
     allowRecreation?: boolean,
   ) => void;
+  onNavigateToSettings: () => void;
   isLoading?: boolean;
   recentRooms?: RoomHistoryEntry[];
 }
@@ -23,6 +24,7 @@ interface HomePageProps {
 export const HomePage: React.FC<HomePageProps> = ({
   onCreateRoom,
   onJoinRoom,
+  onNavigateToSettings,
   isLoading = false,
   recentRooms = [],
 }) => {
@@ -32,6 +34,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   const [isCreating, setIsCreating] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const conditionalToast = useConditionalToast();
 
   // Limit to maximum 2 recent rooms for space saving
   const displayRooms = recentRooms.slice(0, 2);
@@ -48,7 +51,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       await onJoinRoom(roomCode.trim(), userName, false);
     } catch (error) {
       console.error("Failed to join room:", error);
-      toast({
+      await conditionalToast({
         title: "Failed to join room",
         description: "Please check the room code and try again.",
         variant: "destructive",
@@ -63,16 +66,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
     try {
       const preferences = await StorageManager.getUserPreferences();
-      const defaultNames = [
-        "Movie Night",
-        "Watch Party",
-        "Cozy Cinema",
-        "Fun Hangout",
-        "Epic Session",
-        "Chill Time",
-      ];
-      const roomName =
-        defaultNames[Math.floor(Math.random() * defaultNames.length)];
+      const roomName = preferences.defaultRoomName || "My Room";
       const userName = preferences.defaultUserName || "Guest";
 
       await onCreateRoom(roomName, userName);
@@ -80,7 +74,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       // The parent component will handle navigation and copying room ID
     } catch (error) {
       console.error("Failed to create room:", error);
-      toast({
+      await conditionalToast({
         title: "Failed to create room",
         description: "Please try again.",
         variant: "destructive",
@@ -126,11 +120,21 @@ export const HomePage: React.FC<HomePageProps> = ({
     <div className="h-[600px] flex flex-col">
       <div className="p-4 flex-1">
         {/* Header Section */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold mb-2">Watch Together</h1>
-          <p className="text-muted-foreground text-sm">
-            Synchronized video watching with friends
-          </p>
+        <div className="mb-6 flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold mb-2">Watch Together</h1>
+            <p className="text-muted-foreground text-sm">
+              Synchronized video watching with friends
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onNavigateToSettings}
+            className="p-2 h-auto rounded-xl hover:bg-muted/50"
+          >
+            <Settings className="w-5 h-5" />
+          </Button>
         </div>
 
         {/* Rooms Section */}

@@ -26,6 +26,7 @@ vi.mock("../../background/storage", () => ({
 describe("HomePage", () => {
   const mockOnCreateRoom = vi.fn();
   const mockOnJoinRoom = vi.fn();
+  const mockOnNavigateToSettings = vi.fn();
   const mockRecentRooms: RoomHistoryEntry[] = [
     createMockRoomHistoryEntry({
       id: "room-1",
@@ -59,6 +60,7 @@ describe("HomePage", () => {
       <HomePage
         onCreateRoom={mockOnCreateRoom}
         onJoinRoom={mockOnJoinRoom}
+        onNavigateToSettings={mockOnNavigateToSettings}
         isLoading={false}
         recentRooms={[]}
       />,
@@ -83,6 +85,7 @@ describe("HomePage", () => {
       <HomePage
         onCreateRoom={mockOnCreateRoom}
         onJoinRoom={mockOnJoinRoom}
+        onNavigateToSettings={mockOnNavigateToSettings}
         isLoading={false}
         recentRooms={[]}
       />,
@@ -103,6 +106,7 @@ describe("HomePage", () => {
       <HomePage
         onCreateRoom={mockOnCreateRoom}
         onJoinRoom={mockOnJoinRoom}
+        onNavigateToSettings={mockOnNavigateToSettings}
         isLoading={false}
         recentRooms={[]}
       />,
@@ -122,6 +126,7 @@ describe("HomePage", () => {
       <HomePage
         onCreateRoom={mockOnCreateRoom}
         onJoinRoom={mockOnJoinRoom}
+        onNavigateToSettings={mockOnNavigateToSettings}
         isLoading={false}
         recentRooms={[]}
       />,
@@ -139,6 +144,7 @@ describe("HomePage", () => {
       <HomePage
         onCreateRoom={mockOnCreateRoom}
         onJoinRoom={mockOnJoinRoom}
+        onNavigateToSettings={mockOnNavigateToSettings}
         isLoading={false}
         recentRooms={[]}
       />,
@@ -148,9 +154,7 @@ describe("HomePage", () => {
     await user.click(createButton);
 
     expect(mockOnCreateRoom).toHaveBeenCalledWith(
-      expect.stringMatching(
-        /Movie Night|Watch Party|Cozy Cinema|Fun Hangout|Epic Session|Chill Time/,
-      ),
+      "My Room", // Now uses default room name from preferences
       "Guest",
     );
   });
@@ -160,6 +164,7 @@ describe("HomePage", () => {
       <HomePage
         onCreateRoom={mockOnCreateRoom}
         onJoinRoom={mockOnJoinRoom}
+        onNavigateToSettings={mockOnNavigateToSettings}
         isLoading={false}
         recentRooms={mockRecentRooms}
       />,
@@ -179,6 +184,7 @@ describe("HomePage", () => {
       <HomePage
         onCreateRoom={mockOnCreateRoom}
         onJoinRoom={mockOnJoinRoom}
+        onNavigateToSettings={mockOnNavigateToSettings}
         isLoading={false}
         recentRooms={mockRecentRooms}
       />,
@@ -195,6 +201,7 @@ describe("HomePage", () => {
       <HomePage
         onCreateRoom={mockOnCreateRoom}
         onJoinRoom={mockOnJoinRoom}
+        onNavigateToSettings={mockOnNavigateToSettings}
         isLoading={false}
         recentRooms={mockRecentRooms}
       />,
@@ -211,6 +218,7 @@ describe("HomePage", () => {
       <HomePage
         onCreateRoom={mockOnCreateRoom}
         onJoinRoom={mockOnJoinRoom}
+        onNavigateToSettings={mockOnNavigateToSettings}
         isLoading={true}
         recentRooms={[]}
       />,
@@ -229,6 +237,7 @@ describe("HomePage", () => {
       <HomePage
         onCreateRoom={mockOnCreateRoom}
         onJoinRoom={mockOnJoinRoom}
+        onNavigateToSettings={mockOnNavigateToSettings}
         isLoading={false}
         recentRooms={[]}
       />,
@@ -258,6 +267,7 @@ describe("HomePage", () => {
       <HomePage
         onCreateRoom={mockOnCreateRoom}
         onJoinRoom={mockOnJoinRoom}
+        onNavigateToSettings={mockOnNavigateToSettings}
         isLoading={false}
         recentRooms={recentRooms}
       />,
@@ -271,6 +281,7 @@ describe("HomePage", () => {
       <HomePage
         onCreateRoom={mockOnCreateRoom}
         onJoinRoom={mockOnJoinRoom}
+        onNavigateToSettings={mockOnNavigateToSettings}
         isLoading={false}
         recentRooms={[]}
       />,

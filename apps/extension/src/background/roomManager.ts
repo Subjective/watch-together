@@ -78,13 +78,13 @@ export class RoomManager {
     // Initialize badge manager
     this.badgeManager = new BadgeManager();
 
-    // Initialize extension state
+    // Initialize extension state with default follow mode (will be updated in initialize())
     this.extensionState = {
       isConnected: false,
       currentRoom: null,
       connectionStatus: "DISCONNECTED",
       currentUser: null,
-      followMode: "AUTO_FOLLOW",
+      followMode: "AUTO_FOLLOW", // This will be updated from user preferences in initialize()
       hasFollowNotification: false,
       followNotificationUrl: null,
     };
@@ -99,6 +99,10 @@ export class RoomManager {
     try {
       // Restore extension state from storage
       this.extensionState = await StorageManager.getExtensionState();
+
+      // Load user's default follow mode preference and apply it
+      const userPreferences = await StorageManager.getUserPreferences();
+      this.extensionState.followMode = userPreferences.followMode;
 
       // Restore internal room manager state from persisted extension state
       if (this.extensionState.currentRoom && this.extensionState.currentUser) {
@@ -708,14 +712,13 @@ export class RoomManager {
   async setFollowMode(mode: FollowMode): Promise<void> {
     this.extensionState.followMode = mode;
 
-    // Update user preferences
-    await StorageManager.updateUserPreferences({ followMode: mode });
-
+    // Update extension state for current session only
+    // Note: This only affects the current session, not user's default preferences
     this.updateExtensionState({
       followMode: mode,
     });
 
-    console.log("Follow mode set to:", mode);
+    console.log("Follow mode set to:", mode, "(session only)");
   }
 
   /**
@@ -1288,10 +1291,8 @@ export class RoomManager {
       if (this.currentUser && response.userId === this.currentUser.id) {
         this.currentUser.name = response.newUserName;
 
-        // Update user preferences with new name
-        await StorageManager.updateUserPreferences({
-          defaultUserName: response.newUserName,
-        });
+        // Note: We no longer update user preferences when renaming in a session
+        // This keeps session changes separate from default preferences
       }
 
       this.updateExtensionState({

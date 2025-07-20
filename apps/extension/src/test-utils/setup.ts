@@ -137,5 +137,7 @@ export const createMockUserPreferences = (overrides?: any) => ({
   defaultUserName: "Guest",
   defaultRoomName: "My Room",
   backgroundSyncEnabled: true,
+  defaultControlMode: "HOST_ONLY" as const,
+  preferEnhancedUrl: true,
   ...overrides,
 });

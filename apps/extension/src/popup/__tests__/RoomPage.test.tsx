@@ -3,13 +3,14 @@
  */
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { vi } from "vitest";
+import { vi, beforeEach } from "vitest";
 import { RoomPage } from "../RoomPage";
 import type { RoomState, User } from "@repo/types";
 import {
   setupTestEnvironment,
   createMockUser,
   createMockRoom,
+  createMockUserPreferences,
   getChromeForTest,
 } from "../../test-utils";
 
@@ -19,11 +20,19 @@ vi.mock("../background/adapterHandler", () => ({
   getActiveAdapters: mockGetActiveAdapters,
 }));
 
+// Mock StorageManager
+vi.mock("../../background/storage", () => ({
+  StorageManager: {
+    getUserPreferences: vi.fn(),
+  },
+}));
+
 // Setup test environment with proper Chrome and Navigator mocks
 const { getNavigatorMock } = setupTestEnvironment();
 
 describe("RoomPage", () => {
   const mockOnNavigateToHome = vi.fn();
+  const mockOnNavigateToSettings = vi.fn();
   const mockOnLeaveRoom = vi.fn();
   const mockOnToggleControlMode = vi.fn();
   const mockOnToggleFollowMode = vi.fn();
@@ -65,6 +74,7 @@ describe("RoomPage", () => {
     followMode: "AUTO_FOLLOW" as const,
     hasFollowNotification: false,
     onNavigateToHome: mockOnNavigateToHome,
+    onNavigateToSettings: mockOnNavigateToSettings,
     onLeaveRoom: mockOnLeaveRoom,
     onToggleControlMode: mockOnToggleControlMode,
     onToggleFollowMode: mockOnToggleFollowMode,
@@ -72,6 +82,14 @@ describe("RoomPage", () => {
     onRenameUser: mockOnRenameUser,
     onRenameRoom: mockOnRenameRoom,
   };
+
+  beforeEach(async () => {
+    // Mock StorageManager.getUserPreferences
+    const { StorageManager } = await import("../../background/storage");
+    vi.mocked(StorageManager.getUserPreferences).mockResolvedValue(
+      createMockUserPreferences(),
+    );
+  });
 
   beforeEach(() => {
     const navigator = getNavigatorMock();

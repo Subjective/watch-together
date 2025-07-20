@@ -16,8 +16,9 @@ import type {
 } from "@repo/types";
 import { HomePage } from "./HomePage";
 import { RoomPage } from "./RoomPage";
+import { SettingsPage } from "./SettingsPage";
 import { Toaster } from "@/components/ui/toaster";
-import { toast } from "@/hooks/use-toast";
+import { useConditionalToast } from "@/hooks/use-conditional-toast";
 import { StorageManager } from "../background/storage";
 import type { RoomHistoryEntry } from "../background/storage";
 
@@ -34,6 +35,8 @@ export const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [recentRooms, setRecentRooms] = useState<RoomHistoryEntry[]>([]);
   const [pendingRoomCreation, setPendingRoomCreation] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const conditionalToast = useConditionalToast();
 
   // Service Worker communication
   const sendMessage = useCallback(async (message: ExtensionMessage) => {
@@ -116,59 +119,65 @@ export const App: React.FC = () => {
   }, []);
 
   // Auto-copy room ID when room is created
-  const handleRoomCreated = useCallback(async (roomId: string) => {
-    try {
-      // Check if current tab has an adapter for enhanced link
-      const tabs = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
-      });
-      const currentTabId = tabs[0]?.id;
-      let hasAdapter = false;
-      if (currentTabId) {
-        const res = await chrome.tabs.sendMessage(currentTabId, {
-          type: "CHECK_ADAPTER_STATUS",
-          timestamp: Date.now(),
+  const handleRoomCreated = useCallback(
+    async (roomId: string) => {
+      try {
+        // Load user preferences to check enhanced URL setting
+        const preferences = await StorageManager.getUserPreferences();
+
+        // Check if current tab has an adapter for enhanced link
+        const tabs = await chrome.tabs.query({
+          active: true,
+          currentWindow: true,
         });
-        hasAdapter = !!res?.hasAdapter;
-      }
-
-      let textToCopy = roomId;
-      let description = "Room code copied to clipboard";
-
-      if (hasAdapter) {
-        // Get current tab URL and create enhanced share link
-        try {
-          const tabs = await chrome.tabs.query({
-            active: true,
-            currentWindow: true,
+        const currentTabId = tabs[0]?.id;
+        let hasAdapter = false;
+        if (currentTabId) {
+          const res = await chrome.tabs.sendMessage(currentTabId, {
+            type: "CHECK_ADAPTER_STATUS",
+            timestamp: Date.now(),
           });
-          const currentTabUrl = tabs[0]?.url;
-
-          if (currentTabUrl) {
-            const url = new URL(currentTabUrl);
-            url.searchParams.set("wt_room", roomId);
-            textToCopy = url.toString();
-            description = "Share link copied to clipboard";
-          }
-        } catch {
-          // Fallback to room code if URL creation fails
+          hasAdapter = !!res?.hasAdapter;
         }
-      }
 
-      await navigator.clipboard.writeText(textToCopy);
-      toast({
-        title: "Room created!",
-        description: description,
-      });
-    } catch (error) {
-      console.error("Failed to copy room link:", error);
-      toast({
-        title: "Room created!",
-        description: `Room code: ${roomId}`,
-      });
-    }
-  }, []);
+        let textToCopy = roomId;
+        let description = "Room code copied to clipboard";
+
+        if (preferences.preferEnhancedUrl && hasAdapter) {
+          // Get current tab URL and create enhanced share link
+          try {
+            const tabs = await chrome.tabs.query({
+              active: true,
+              currentWindow: true,
+            });
+            const currentTabUrl = tabs[0]?.url;
+
+            if (currentTabUrl) {
+              const url = new URL(currentTabUrl);
+              url.searchParams.set("wt_room", roomId);
+              textToCopy = url.toString();
+              description = "Share link copied to clipboard";
+            }
+          } catch {
+            // Fallback to room code if URL creation fails
+          }
+        }
+
+        await navigator.clipboard.writeText(textToCopy);
+        await conditionalToast({
+          title: "Room created!",
+          description: description,
+        });
+      } catch (error) {
+        console.error("Failed to copy room link:", error);
+        await conditionalToast({
+          title: "Room created!",
+          description: `Room code: ${roomId}`,
+        });
+      }
+    },
+    [conditionalToast],
+  );
 
   // Auto-copy room ID when room is created
   useEffect(() => {
@@ -194,7 +203,7 @@ export const App: React.FC = () => {
       } catch (error) {
         console.error("Failed to create room:", error);
         setPendingRoomCreation(false);
-        toast({
+        await conditionalToast({
           title: "Failed to create room",
           description: "Please try again",
           variant: "destructive",
@@ -203,7 +212,7 @@ export const App: React.FC = () => {
         setIsLoading(false);
       }
     },
-    [sendMessage],
+    [sendMessage, conditionalToast],
   );
 
   const handleJoinRoom = useCallback(
@@ -224,7 +233,7 @@ export const App: React.FC = () => {
         await sendMessage(message);
       } catch (error) {
         console.error("Failed to join room:", error);
-        toast({
+        await conditionalToast({
           title: "Failed to join room",
           description: "Please check the room code and try again",
           variant: "destructive",
@@ -233,7 +242,7 @@ export const App: React.FC = () => {
         setIsLoading(false);
       }
     },
-    [sendMessage],
+    [sendMessage, conditionalToast],
   );
 
   const handleLeaveRoom = useCallback(async () => {
@@ -245,13 +254,13 @@ export const App: React.FC = () => {
       await sendMessage(message);
     } catch (error) {
       console.error("Failed to leave room:", error);
-      toast({
+      await conditionalToast({
         title: "Failed to leave room",
         description: "Please try again",
         variant: "destructive",
       });
     }
-  }, [sendMessage]);
+  }, [sendMessage, conditionalToast]);
 
   const handleToggleControlMode = useCallback(async () => {
     try {
@@ -319,15 +328,26 @@ export const App: React.FC = () => {
   );
 
   const handleNavigateToHome = useCallback(async () => {
-    await handleLeaveRoom();
-  }, [handleLeaveRoom]);
+    if (showSettings) {
+      setShowSettings(false);
+    } else {
+      await handleLeaveRoom();
+    }
+  }, [handleLeaveRoom, showSettings]);
+
+  const handleNavigateToSettings = useCallback(() => {
+    setShowSettings(true);
+  }, []);
 
   return (
     <>
-      {!extensionState.currentRoom || !extensionState.currentUser ? (
+      {showSettings ? (
+        <SettingsPage onNavigateToHome={handleNavigateToHome} />
+      ) : !extensionState.currentRoom || !extensionState.currentUser ? (
         <HomePage
           onCreateRoom={handleCreateRoom}
           onJoinRoom={handleJoinRoom}
+          onNavigateToSettings={handleNavigateToSettings}
           isLoading={isLoading}
           recentRooms={recentRooms}
         />
@@ -339,6 +359,7 @@ export const App: React.FC = () => {
           followMode={extensionState.followMode}
           hasFollowNotification={extensionState.hasFollowNotification}
           onNavigateToHome={handleNavigateToHome}
+          onNavigateToSettings={handleNavigateToSettings}
           onLeaveRoom={handleLeaveRoom}
           onToggleControlMode={handleToggleControlMode}
           onToggleFollowMode={handleToggleFollowMode}

@@ -28,13 +28,14 @@ import {
   Link,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { toast } from "@/hooks/use-toast";
+import { useConditionalToast } from "@/hooks/use-conditional-toast";
 import type {
   RoomState,
   User,
   ConnectionStatus,
   FollowMode,
 } from "@repo/types";
+import { StorageManager } from "../background/storage";
 
 interface RoomPageProps {
   room: RoomState;
@@ -43,6 +44,7 @@ interface RoomPageProps {
   followMode: FollowMode;
   hasFollowNotification: boolean;
   onNavigateToHome: () => void;
+  onNavigateToSettings: () => void;
   onLeaveRoom: () => void;
   onToggleControlMode: () => void;
   onToggleFollowMode: () => void;
@@ -58,6 +60,7 @@ export const RoomPage: React.FC<RoomPageProps> = ({
   followMode,
   hasFollowNotification,
   onNavigateToHome,
+  onNavigateToSettings,
   onLeaveRoom,
   onToggleControlMode,
   onToggleFollowMode,
@@ -70,6 +73,8 @@ export const RoomPage: React.FC<RoomPageProps> = ({
   const [isEditingUserName, setIsEditingUserName] = useState(false);
   const [userName, setUserName] = useState(currentUser.name);
   const [hasCurrentTabAdapter, setHasCurrentTabAdapter] = useState(false);
+  const [preferEnhancedUrl, setPreferEnhancedUrl] = useState(true);
+  const conditionalToast = useConditionalToast();
 
   // Calculate isHost dynamically based on current room state
   const isHost = currentUser.id === room.hostId;
@@ -103,6 +108,19 @@ export const RoomPage: React.FC<RoomPageProps> = ({
       checkCurrentTabAdapter();
     }
   }, [isHost]);
+
+  // Load user preferences for enhanced URL setting
+  useEffect(() => {
+    const loadPreferences = async () => {
+      try {
+        const preferences = await StorageManager.getUserPreferences();
+        setPreferEnhancedUrl(preferences.preferEnhancedUrl);
+      } catch (error) {
+        console.error("Failed to load user preferences:", error);
+      }
+    };
+    loadPreferences();
+  }, []);
 
   // Video state
   const videoState = room.videoState;
@@ -159,12 +177,12 @@ export const RoomPage: React.FC<RoomPageProps> = ({
   const copyRoomCode = async () => {
     try {
       await navigator.clipboard.writeText(room.id);
-      toast({
+      await conditionalToast({
         title: "Copied!",
         description: "Room code copied to clipboard",
       });
     } catch {
-      toast({
+      await conditionalToast({
         title: "Copy failed",
         description: "Please copy manually: " + room.id,
       });
@@ -189,7 +207,7 @@ export const RoomPage: React.FC<RoomPageProps> = ({
       const shareLink = url.toString();
 
       await navigator.clipboard.writeText(shareLink);
-      toast({
+      await conditionalToast({
         title: "Copied!",
         description: "Share link copied to clipboard",
       });
@@ -203,7 +221,7 @@ export const RoomPage: React.FC<RoomPageProps> = ({
     try {
       const hostVideoUrl = room.hostVideoState?.url;
       if (!hostVideoUrl) {
-        toast({
+        await conditionalToast({
           title: "No video",
           description: "Host is not currently watching a video",
           variant: "destructive",
@@ -221,21 +239,21 @@ export const RoomPage: React.FC<RoomPageProps> = ({
         if (existingTab.windowId) {
           await chrome.windows.update(existingTab.windowId, { focused: true });
         }
-        toast({
+        await conditionalToast({
           title: "Switched to video",
           description: "Switched to existing tab with host's video",
         });
       } else {
         // Create new tab
         await chrome.tabs.create({ url: hostVideoUrl, active: true });
-        toast({
+        await conditionalToast({
           title: "Opened video",
           description: "Opened host's video in new tab",
         });
       }
     } catch (error) {
       console.error("Failed to navigate to host video:", error);
-      toast({
+      await conditionalToast({
         title: "Navigation failed",
         description: "Could not open host's video",
         variant: "destructive",
@@ -243,22 +261,19 @@ export const RoomPage: React.FC<RoomPageProps> = ({
     }
   };
 
-  const handleMenuAction = (action: string) => {
+  const handleMenuAction = async (action: string) => {
     switch (action) {
       case "settings":
-        toast({
-          title: "Settings",
-          description: "Settings panel coming soon!",
-        });
+        onNavigateToSettings();
         break;
       case "report":
-        toast({
+        await conditionalToast({
           title: "Report Issue",
           description: "Report functionality coming soon!",
         });
         break;
       case "donate":
-        toast({
+        await conditionalToast({
           title: "Support",
           description: "Thank you for your interest in supporting us!",
         });
@@ -399,15 +414,17 @@ export const RoomPage: React.FC<RoomPageProps> = ({
                     size="sm"
                     className="rounded-xl bg-white/70 border-border/50"
                     onClick={
-                      hasCurrentTabAdapter ? copyShareLink : copyRoomCode
+                      preferEnhancedUrl && hasCurrentTabAdapter
+                        ? copyShareLink
+                        : copyRoomCode
                     }
                     title={
-                      hasCurrentTabAdapter
+                      preferEnhancedUrl && hasCurrentTabAdapter
                         ? "Copy share link"
                         : "Copy room code"
                     }
                   >
-                    {hasCurrentTabAdapter ? (
+                    {preferEnhancedUrl && hasCurrentTabAdapter ? (
                       <Link className="w-4 h-4" />
                     ) : (
                       <Copy className="w-4 h-4" />

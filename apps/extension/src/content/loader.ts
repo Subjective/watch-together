@@ -417,12 +417,12 @@ function checkAutoJoinLink(): void {
 
       chrome.runtime
         .sendMessage({
-          type: "JOIN_ROOM_FROM_LINK",
+          type: "CHECK_AUTO_JOIN_LINK",
           roomId,
           timestamp: Date.now(),
         })
         .then((response) => {
-          console.log("[ContentLoader] Join room response:", response);
+          console.log("[ContentLoader] Auto-join check response:", response);
         })
         .catch(() => {
           // Service Worker might not be ready yet, ignore silently

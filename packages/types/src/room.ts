@@ -113,6 +113,11 @@ export interface JoinRoomFromLinkRequest extends BaseExtensionMessage {
   roomId: string;
 }
 
+export interface CheckAutoJoinLinkRequest extends BaseExtensionMessage {
+  type: "CHECK_AUTO_JOIN_LINK";
+  roomId: string;
+}
+
 export interface CheckAdapterStatusRequest extends BaseExtensionMessage {
   type: "CHECK_ADAPTER_STATUS";
 }
@@ -129,7 +134,7 @@ export interface UserPreferences {
   defaultRoomName: string;
   backgroundSyncEnabled: boolean;
   defaultControlMode: ControlMode;
-  autoFollowHost: boolean;
+  preferEnhancedUrl: boolean;
 }
 
 export interface UpdateUserPreferencesRequest extends BaseExtensionMessage {
@@ -148,6 +153,7 @@ export type ExtensionMessage =
   | RenameUserRequest
   | StateUpdateMessage
   | JoinRoomFromLinkRequest
+  | CheckAutoJoinLinkRequest
   | CheckAdapterStatusRequest
   | GetUserPreferencesRequest
   | UpdateUserPreferencesRequest;

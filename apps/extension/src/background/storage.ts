@@ -26,6 +26,7 @@ export interface UserPreferences {
   defaultRoomName: string;
   backgroundSyncEnabled: boolean;
   defaultControlMode: ControlMode;
+  preferEnhancedUrl: boolean;
 }
 
 export interface RoomHistoryEntry {
@@ -91,11 +92,11 @@ export class StorageManager {
       );
       return (
         result[this.STORAGE_KEYS.USER_PREFERENCES] ||
-        this.getDefaultUserPreferences()
+        this.getDefaultUserPreferencesPrivate()
       );
     } catch (error) {
       console.error("Failed to get user preferences from storage:", error);
-      return this.getDefaultUserPreferences();
+      return this.getDefaultUserPreferencesPrivate();
     }
   }
 
@@ -269,6 +270,13 @@ export class StorageManager {
     }
   }
 
+  /**
+   * Get default user preferences
+   */
+  static getDefaultUserPreferences(): UserPreferences {
+    return this.getDefaultUserPreferencesPrivate();
+  }
+
   private static getDefaultExtensionState(): ExtensionState {
     return {
       isConnected: false,
@@ -281,7 +289,7 @@ export class StorageManager {
     };
   }
 
-  private static getDefaultUserPreferences(): UserPreferences {
+  private static getDefaultUserPreferencesPrivate(): UserPreferences {
     return {
       followMode: "AUTO_FOLLOW",
       autoJoinRooms: false,
@@ -290,6 +298,7 @@ export class StorageManager {
       defaultRoomName: "My Room",
       backgroundSyncEnabled: true,
       defaultControlMode: "HOST_ONLY",
+      preferEnhancedUrl: true,
     };
   }
 

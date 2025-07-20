@@ -104,9 +104,7 @@ describe("App", () => {
 
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
       type: "CREATE_ROOM",
-      roomName: expect.stringMatching(
-        /Movie Night|Watch Party|Cozy Cinema|Fun Hangout|Epic Session|Chill Time/,
-      ),
+      roomName: "My Room", // Now uses default room name from preferences
       userName: "Guest",
       timestamp: expect.any(Number),
     });

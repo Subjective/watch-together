@@ -15,6 +15,7 @@ import type {
   SetFollowModeRequest,
   FollowHostRequest,
   JoinRoomFromLinkRequest,
+  CheckAutoJoinLinkRequest,
   StateUpdateMessage,
 } from "@repo/types";
 
@@ -250,6 +251,11 @@ async function handleMessage(
       case "FOLLOW_HOST":
         return await handleFollowHost(message as FollowHostRequest);
 
+      case "CHECK_AUTO_JOIN_LINK":
+        return await handleCheckAutoJoinLink(
+          message as CheckAutoJoinLinkRequest,
+        );
+
       case "JOIN_ROOM_FROM_LINK":
         return await handleJoinRoomFromLink(message as JoinRoomFromLinkRequest);
 
@@ -298,6 +304,12 @@ async function handleCreateRoom(message: CreateRoomRequest): Promise<any> {
 async function handleJoinRoom(message: JoinRoomRequest): Promise<any> {
   try {
     await ensureRoomManagerInitialized();
+
+    // Load user preferences to apply follow mode setting
+    const prefs = await StorageManager.getUserPreferences();
+
+    // Apply the user's preferred follow mode for this session
+    await roomManager!.setFollowMode(prefs.followMode);
 
     const room = await roomManager!.joinRoom(
       message.roomId,
@@ -465,6 +477,46 @@ async function handleFollowHost(_message: FollowHostRequest): Promise<any> {
 }
 
 /**
+ * Handle CHECK_AUTO_JOIN_LINK request
+ */
+async function handleCheckAutoJoinLink(
+  message: CheckAutoJoinLinkRequest,
+): Promise<any> {
+  try {
+    const prefs = await StorageManager.getUserPreferences();
+
+    if (!prefs.autoJoinRooms) {
+      console.log(
+        "[ServiceWorker] Auto-join disabled in settings, skipping room:",
+        message.roomId,
+      );
+      return {
+        success: false,
+        autoJoinDisabled: true,
+        roomId: message.roomId,
+        error: "Auto-join disabled in settings",
+      };
+    }
+
+    // Auto-join is enabled, proceed with joining
+    return await handleJoinRoomFromLink({
+      type: "JOIN_ROOM_FROM_LINK",
+      roomId: message.roomId,
+      timestamp: message.timestamp,
+    });
+  } catch (error) {
+    console.error("Failed to check auto-join preferences:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to check auto-join preferences",
+    };
+  }
+}
+
+/**
  * Handle JOIN_ROOM_FROM_LINK request
  */
 async function handleJoinRoomFromLink(
@@ -483,6 +535,9 @@ async function handleJoinRoomFromLink(
 
     const prefs = await StorageManager.getUserPreferences();
     const userName = prefs.defaultUserName || "Guest";
+
+    // Apply the user's preferred follow mode for this session
+    await roomManager!.setFollowMode(prefs.followMode);
 
     const room = await roomManager!.joinRoom(message.roomId, userName, true);
     return { success: true, room };

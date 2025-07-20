@@ -212,6 +212,7 @@ export class WebRTCManager {
     state: "PLAYING" | "PAUSED",
     time: number,
     hostVideoUrl?: string | null,
+    targetUserId?: string,
   ): Promise<void> {
     if (!this.isHost) {
       console.warn("Only host can broadcast state updates");
@@ -227,7 +228,7 @@ export class WebRTCManager {
       hostVideoUrl,
     };
 
-    await this.sendSyncMessage(message);
+    await this.sendSyncMessage(message, targetUserId);
   }
 
   async sendUnifiedSync(
@@ -278,6 +279,26 @@ export class WebRTCManager {
     console.log(
       `[WebRTC] Successfully broadcasted control mode change to ${mode}`,
     );
+  }
+
+  async sendControlModeToUser(
+    mode: ControlMode,
+    targetUserId: string,
+  ): Promise<void> {
+    if (!this.isHost) {
+      console.warn("Only host can send control mode updates");
+      return;
+    }
+
+    const message: ControlModeChangeMessage = {
+      type: "CONTROL_MODE_CHANGE",
+      userId: this.currentUserId!,
+      timestamp: Date.now(),
+      mode,
+    };
+
+    console.log(`[WebRTC] Sending control mode to user ${targetUserId}:`, mode);
+    await this.sendSyncMessage(message, targetUserId);
   }
 
   getConnectedPeers(): unknown[] {

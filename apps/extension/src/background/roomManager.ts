@@ -223,6 +223,12 @@ export class RoomManager {
               console.log(
                 "[RoomManager] Set WebRTC host status to true for room creator",
               );
+
+              // Apply room creator's preferred default control mode
+              console.log(
+                "[RoomManager] Applying room creator's preferred control mode"
+              );
+              await this.applyHostPreferredControlMode();
             } else {
               console.log(
                 "[RoomManager] User is not host when creating room:",
@@ -522,6 +528,21 @@ export class RoomManager {
         ? "FREE_FOR_ALL"
         : "HOST_ONLY";
 
+    await this.setControlMode(newMode);
+  }
+
+  /**
+   * Set control mode to a specific value (host only)
+   */
+  private async setControlMode(newMode: ControlMode): Promise<void> {
+    if (!this.currentRoom || !this.currentUser?.isHost) {
+      throw new Error("Only host can set control mode");
+    }
+
+    if (this.currentRoom.controlMode === newMode) {
+      return; // Already in the desired mode
+    }
+
     // Update local state
     this.currentRoom.controlMode = newMode;
     this.webrtc.setControlMode(newMode);
@@ -535,6 +556,33 @@ export class RoomManager {
     });
 
     console.log("Control mode changed to:", newMode);
+  }
+
+  /**
+   * Apply the new host's preferred default control mode
+   */
+  private async applyHostPreferredControlMode(): Promise<void> {
+    if (!this.currentRoom || !this.currentUser?.isHost) {
+      return;
+    }
+
+    try {
+      const userPreferences = await StorageManager.getUserPreferences();
+      
+      if (this.currentRoom.controlMode !== userPreferences.defaultControlMode) {
+        console.log(
+          `[RoomManager] New host applying preferred control mode: ${this.currentRoom.controlMode} → ${userPreferences.defaultControlMode}`
+        );
+        await this.setControlMode(userPreferences.defaultControlMode);
+      } else {
+        console.log(
+          `[RoomManager] Room control mode already matches host preference: ${userPreferences.defaultControlMode}`
+        );
+      }
+    } catch (error) {
+      console.error("Failed to apply host preferred control mode:", error);
+      // Don't throw - this is not critical for room functionality
+    }
   }
 
   /**
@@ -1089,6 +1137,9 @@ export class RoomManager {
       "CONTROL_MODE_CHANGE",
       this.handleControlModeChange.bind(this),
     );
+    this.webrtc.on("DATA_CHANNEL_OPEN", (data) => {
+      void this.handleDataChannelOpen(data as { userId: string });
+    });
 
     // Adapter event handlers
     adapterEventTarget.addEventListener("adapter:event", (event) => {
@@ -1151,6 +1202,13 @@ export class RoomManager {
         this.currentUser.isHost = true;
         // Update WebRTC bridge host status to enable control mode changes
         this.webrtc.setHostStatus(true);
+
+        console.log(
+          `[RoomManager] Promoted to host, applying preferred control mode`
+        );
+
+        // Apply the new host's preferred default control mode
+        await this.applyHostPreferredControlMode();
 
         // Establish connections to all users (following existing pattern)
         for (const user of this.currentRoom.users) {
@@ -1689,6 +1747,37 @@ export class RoomManager {
     }
   }
 
+  private async handleDataChannelOpen(data: { userId: string }): Promise<void> {
+    if (!this.currentUser?.isHost || !this.currentRoom?.hostVideoState) {
+      return;
+    }
+
+    const hostState = this.currentRoom.hostVideoState;
+    console.log(
+      `[RoomManager] Data channel opened with ${data.userId}, sending initial host state:`,
+      `${hostState.isPlaying ? "PLAYING" : "PAUSED"} at ${hostState.currentTime}s`,
+    );
+
+    await this.webrtc.broadcastHostState(
+      hostState.isPlaying ? "PLAYING" : "PAUSED",
+      hostState.currentTime,
+      hostState.url,
+      data.userId,
+    );
+
+    // Also sync control mode to newly connected user
+    if (this.currentRoom.controlMode) {
+      console.log(
+        `[RoomManager] Sending control mode to ${data.userId}:`,
+        this.currentRoom.controlMode,
+      );
+      await this.webrtc.sendControlModeToUser(
+        this.currentRoom.controlMode,
+        data.userId,
+      );
+    }
+  }
+
   private async handleAdapterEvent(detail: AdapterEventDetail): Promise<void> {
     // Only process events if we're in a room and connected
     if (!this.currentRoom || !this.currentUser) {
@@ -1747,6 +1836,19 @@ export class RoomManager {
               `[RoomManager] Ignoring video control event from non-host participant in HOST_ONLY mode:`,
               detail.event,
             );
+            
+            // Reapply host state to keep participant in sync
+            if (this.currentRoom.hostVideoState) {
+              await this.applyVideoState({
+                state: this.currentRoom.hostVideoState.isPlaying
+                  ? "PLAYING"
+                  : "PAUSED",
+                time: this.currentRoom.hostVideoState.currentTime,
+                timestamp: Date.now(),
+                hostVideoUrl: this.currentRoom.hostVideoState.url,
+                isRemoteOrigin: true,
+              });
+            }
             return;
           }
         } else {

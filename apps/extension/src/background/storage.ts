@@ -3,7 +3,12 @@
  * Handles persistent storage of user preferences and room state
  */
 
-import type { ExtensionState, RoomState, FollowMode } from "@repo/types";
+import type {
+  ExtensionState,
+  RoomState,
+  FollowMode,
+  ControlMode,
+} from "@repo/types";
 import { defaultWebRTCConfig } from "@repo/types";
 
 export interface StorageKeys {
@@ -20,6 +25,7 @@ export interface UserPreferences {
   defaultUserName: string;
   defaultRoomName: string;
   backgroundSyncEnabled: boolean;
+  defaultControlMode: ControlMode;
 }
 
 export interface RoomHistoryEntry {
@@ -283,6 +289,7 @@ export class StorageManager {
       defaultUserName: "",
       defaultRoomName: "My Room",
       backgroundSyncEnabled: true,
+      defaultControlMode: "HOST_ONLY",
     };
   }
 

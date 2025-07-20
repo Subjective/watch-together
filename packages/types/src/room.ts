@@ -117,6 +117,26 @@ export interface CheckAdapterStatusRequest extends BaseExtensionMessage {
   type: "CHECK_ADAPTER_STATUS";
 }
 
+export interface GetUserPreferencesRequest extends BaseExtensionMessage {
+  type: "GET_USER_PREFERENCES";
+}
+
+export interface UserPreferences {
+  followMode: FollowMode;
+  autoJoinRooms: boolean;
+  notificationsEnabled: boolean;
+  defaultUserName: string;
+  defaultRoomName: string;
+  backgroundSyncEnabled: boolean;
+  defaultControlMode: ControlMode;
+  autoFollowHost: boolean;
+}
+
+export interface UpdateUserPreferencesRequest extends BaseExtensionMessage {
+  type: "UPDATE_USER_PREFERENCES";
+  preferences: Partial<UserPreferences>;
+}
+
 export type ExtensionMessage =
   | CreateRoomRequest
   | JoinRoomRequest
@@ -128,4 +148,6 @@ export type ExtensionMessage =
   | RenameUserRequest
   | StateUpdateMessage
   | JoinRoomFromLinkRequest
-  | CheckAdapterStatusRequest;
+  | CheckAdapterStatusRequest
+  | GetUserPreferencesRequest
+  | UpdateUserPreferencesRequest;

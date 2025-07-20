@@ -6,15 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  Users,
-  Copy,
-  Play,
-  Pause,
-  MessageCircle,
-  Settings,
-  Share2,
-} from "lucide-react";
+import { Copy, Play, Pause, MessageCircle, Settings } from "lucide-react";
 import type { User, ConnectionStatus } from "@repo/types";
 
 export function ExtensionMockup() {
@@ -22,27 +14,29 @@ export function ExtensionMockup() {
   const [showChat, setShowChat] = useState(false);
   const [roomCode] = useState("MOVIE-2024");
   const [connectionStatus] = useState<ConnectionStatus>("CONNECTED");
+  // Use static base timestamp to ensure deterministic SSR/hydration
+  const baseTimestamp = 1735401600000; // January 2025
   const [participants] = useState<User[]>([
     {
       id: "1",
       name: "Alex",
       isHost: true,
       isConnected: true,
-      joinedAt: Date.now() - 1000 * 60 * 10,
+      joinedAt: baseTimestamp - 1000 * 60 * 10,
     },
     {
       id: "2",
       name: "Sarah",
       isHost: false,
       isConnected: true,
-      joinedAt: Date.now() - 1000 * 60 * 5,
+      joinedAt: baseTimestamp - 1000 * 60 * 5,
     },
     {
       id: "3",
       name: "Mike",
       isHost: false,
       isConnected: false,
-      joinedAt: Date.now() - 1000 * 60 * 2,
+      joinedAt: baseTimestamp - 1000 * 60 * 2,
     },
   ]);
 
@@ -70,7 +64,10 @@ export function ExtensionMockup() {
         {/* Video placeholder */}
         <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
           <div className="text-center text-white">
-            <Play className="h-16 w-16 mx-auto mb-4 opacity-50" />
+            <Play
+              className="h-16 w-16 mx-auto mb-4 opacity-50"
+              aria-hidden="true"
+            />
             <p className="text-lg opacity-75">Sample Movie Playing</p>
           </div>
         </div>
@@ -82,7 +79,7 @@ export function ExtensionMockup() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg flex items-center space-x-2">
                   <div className="w-6 h-6 bg-gradient-to-r from-purple-600 to-blue-600 rounded flex items-center justify-center">
-                    <Play className="h-3 w-3 text-white" />
+                    <Play className="h-3 w-3 text-white" aria-hidden="true" />
                   </div>
                   <span>Watch Together</span>
                 </CardTitle>
@@ -115,7 +112,7 @@ export function ExtensionMockup() {
                     onClick={() => navigator.clipboard?.writeText(roomCode)}
                     className="h-6 px-2"
                   >
-                    <Copy className="h-3 w-3 mr-1" />
+                    <Copy className="h-3 w-3 mr-1" aria-hidden="true" />
                     Copy
                   </Button>
                 </div>
@@ -128,8 +125,7 @@ export function ExtensionMockup() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium flex items-center">
-                    <Users className="h-4 w-4 mr-1" />
-                    Participants ({participants.length})
+                    👥 Participants ({participants.length})
                   </span>
                 </div>
                 <div className="space-y-1">
@@ -175,9 +171,9 @@ export function ExtensionMockup() {
                   className="flex-1"
                 >
                   {isPlaying ? (
-                    <Pause className="h-4 w-4 mr-1" />
+                    <Pause className="h-4 w-4 mr-1" aria-hidden="true" />
                   ) : (
-                    <Play className="h-4 w-4 mr-1" />
+                    <Play className="h-4 w-4 mr-1" aria-hidden="true" />
                   )}
                   {isPlaying ? "Pause" : "Play"}
                 </Button>
@@ -186,10 +182,10 @@ export function ExtensionMockup() {
                   size="sm"
                   onClick={() => setShowChat(!showChat)}
                 >
-                  <MessageCircle className="h-4 w-4" />
+                  <MessageCircle className="h-4 w-4" aria-hidden="true" />
                 </Button>
                 <Button variant="outline" size="sm">
-                  <Settings className="h-4 w-4" />
+                  <Settings className="h-4 w-4" aria-hidden="true" />
                 </Button>
               </div>
 
@@ -217,8 +213,7 @@ export function ExtensionMockup() {
                 className="w-full bg-transparent"
                 size="sm"
               >
-                <Share2 className="h-4 w-4 mr-2" />
-                Invite More Friends
+                📤 Invite More Friends
               </Button>
             </CardContent>
           </Card>

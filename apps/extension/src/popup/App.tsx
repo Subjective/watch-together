@@ -133,11 +133,16 @@ export const App: React.FC = () => {
         const currentTabId = tabs[0]?.id;
         let hasAdapter = false;
         if (currentTabId) {
-          const res = await chrome.tabs.sendMessage(currentTabId, {
-            type: "CHECK_ADAPTER_STATUS",
-            timestamp: Date.now(),
-          });
-          hasAdapter = !!res?.hasAdapter;
+          try {
+            const res = await chrome.tabs.sendMessage(currentTabId, {
+              type: "CHECK_ADAPTER_STATUS",
+              timestamp: Date.now(),
+            });
+            hasAdapter = !!res?.hasAdapter;
+          } catch {
+            // No adapter available on current tab, hasAdapter remains false
+            hasAdapter = false;
+          }
         }
 
         let textToCopy = roomId;

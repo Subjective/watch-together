@@ -1217,8 +1217,11 @@ export class RoomManager {
         this.webrtc.setHostStatus(true);
 
         console.log(
-          `[RoomManager] Promoted to host, preserving existing control mode`,
+          `[RoomManager] Promoted to host, applying preferred control mode`,
         );
+
+        // Apply the new host's preferred default control mode
+        await this.applyHostPreferredControlMode();
 
         // Capture initial video state to populate hostVideoState
         await this.captureInitialVideoState();

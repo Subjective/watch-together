@@ -30,6 +30,7 @@ import {
   type AdapterEventDetail,
   sendAdapterCommand,
   getActiveAdapters,
+  requestAdapterState,
 } from "./adapterHandler";
 import { BadgeManager } from "./badgeManager";
 
@@ -226,9 +227,12 @@ export class RoomManager {
 
               // Apply room creator's preferred default control mode
               console.log(
-                "[RoomManager] Applying room creator's preferred control mode"
+                "[RoomManager] Applying room creator's preferred control mode",
               );
               await this.applyHostPreferredControlMode();
+
+              // Capture initial video state to populate hostVideoState
+              await this.captureInitialVideoState();
             } else {
               console.log(
                 "[RoomManager] User is not host when creating room:",
@@ -568,15 +572,15 @@ export class RoomManager {
 
     try {
       const userPreferences = await StorageManager.getUserPreferences();
-      
+
       if (this.currentRoom.controlMode !== userPreferences.defaultControlMode) {
         console.log(
-          `[RoomManager] New host applying preferred control mode: ${this.currentRoom.controlMode} → ${userPreferences.defaultControlMode}`
+          `[RoomManager] New host applying preferred control mode: ${this.currentRoom.controlMode} → ${userPreferences.defaultControlMode}`,
         );
         await this.setControlMode(userPreferences.defaultControlMode);
       } else {
         console.log(
-          `[RoomManager] Room control mode already matches host preference: ${userPreferences.defaultControlMode}`
+          `[RoomManager] Room control mode already matches host preference: ${userPreferences.defaultControlMode}`,
         );
       }
     } catch (error) {
@@ -1149,7 +1153,10 @@ export class RoomManager {
 
     // Adapter connection handler for immediate state sync
     adapterEventTarget.addEventListener("adapter:connected", (event) => {
-      const customEvent = event as CustomEvent<{ tabId: number; timestamp: number }>;
+      const customEvent = event as CustomEvent<{
+        tabId: number;
+        timestamp: number;
+      }>;
       this.handleAdapterConnection(customEvent.detail.tabId);
     });
   }
@@ -1210,11 +1217,14 @@ export class RoomManager {
         this.webrtc.setHostStatus(true);
 
         console.log(
-          `[RoomManager] Promoted to host, applying preferred control mode`
+          `[RoomManager] Promoted to host, applying preferred control mode`,
         );
 
         // Apply the new host's preferred default control mode
         await this.applyHostPreferredControlMode();
+
+        // Capture initial video state to populate hostVideoState
+        await this.captureInitialVideoState();
 
         // Establish connections to all users (following existing pattern)
         for (const user of this.currentRoom.users) {
@@ -1809,6 +1819,67 @@ export class RoomManager {
     });
   }
 
+  /**
+   * Capture initial video state during room creation to populate hostVideoState
+   */
+  private async captureInitialVideoState(): Promise<void> {
+    if (!this.currentUser?.isHost || !this.currentRoom) {
+      return;
+    }
+
+    const adapters = getActiveAdapters();
+    const currentTab = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+    const videoAdapter = adapters.find((a) => a.tabId === currentTab[0]?.id);
+
+    if (videoAdapter) {
+      try {
+        // Get fresh state directly from content script (not cached!)
+        const freshState = await requestAdapterState(videoAdapter.tabId);
+
+        if (freshState) {
+          console.log(
+            `[RoomManager] Capturing initial video state from tab ${videoAdapter.tabId}:`,
+            `${freshState.isPaused ? "Paused" : "Playing"} at ${freshState.currentTime}s`,
+          );
+
+          // Create hostVideoState with live data
+          const videoState = {
+            isPlaying: !freshState.isPaused,
+            currentTime: freshState.currentTime, // This will be actual time, not 0!
+            duration: freshState.duration || 0,
+            playbackRate: freshState.playbackRate || 1,
+            url: currentTab[0]?.url || "",
+            lastUpdated: Date.now(),
+          };
+
+          // Direct update - no events needed
+          this.currentRoom.hostVideoState = videoState;
+          this.currentRoom.videoState = videoState;
+
+          // Trigger UI update
+          this.updateExtensionState({ currentRoom: this.currentRoom });
+
+          console.log(
+            `[RoomManager] Successfully captured initial host video state:`,
+            `${videoState.isPlaying ? "Playing" : "Paused"} at ${videoState.currentTime}s`,
+          );
+        }
+      } catch (error) {
+        console.warn(
+          "[RoomManager] Failed to capture initial video state:",
+          error,
+        );
+      }
+    } else {
+      console.log(
+        "[RoomManager] No video adapter found on current tab during room creation",
+      );
+    }
+  }
+
   private async handleAdapterEvent(detail: AdapterEventDetail): Promise<void> {
     // Only process events if we're in a room and connected
     if (!this.currentRoom || !this.currentUser) {
@@ -1867,7 +1938,7 @@ export class RoomManager {
               `[RoomManager] Ignoring video control event from non-host participant in HOST_ONLY mode:`,
               detail.event,
             );
-            
+
             // Reapply host state to keep participant in sync
             if (this.currentRoom.hostVideoState) {
               await this.applyVideoState({

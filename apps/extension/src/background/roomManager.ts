@@ -1146,6 +1146,12 @@ export class RoomManager {
       const customEvent = event as CustomEvent<AdapterEventDetail>;
       this.handleAdapterEvent(customEvent.detail);
     });
+
+    // Adapter connection handler for immediate state sync
+    adapterEventTarget.addEventListener("adapter:connected", (event) => {
+      const customEvent = event as CustomEvent<{ tabId: number; timestamp: number }>;
+      this.handleAdapterConnection(customEvent.detail.tabId);
+    });
   }
 
   private async handleUserJoined(response: any): Promise<void> {
@@ -1776,6 +1782,31 @@ export class RoomManager {
         data.userId,
       );
     }
+  }
+
+  /**
+   * Handle adapter connection for immediate state sync on page refresh
+   */
+  private async handleAdapterConnection(tabId: number): Promise<void> {
+    // Only apply host state if user is a participant and host state exists
+    if (this.currentUser?.isHost || !this.currentRoom?.hostVideoState) {
+      return;
+    }
+
+    const hostState = this.currentRoom.hostVideoState;
+    console.log(
+      `[RoomManager] Adapter connected in tab ${tabId}, applying stored host state:`,
+      `${hostState.isPlaying ? "PLAYING" : "PAUSED"} at ${hostState.currentTime}s`,
+    );
+
+    // Apply stored host state to the reconnected adapter
+    await this.applyVideoState({
+      state: hostState.isPlaying ? "PLAYING" : "PAUSED",
+      time: hostState.currentTime,
+      timestamp: Date.now(),
+      hostVideoUrl: hostState.url,
+      isRemoteOrigin: true,
+    });
   }
 
   private async handleAdapterEvent(detail: AdapterEventDetail): Promise<void> {

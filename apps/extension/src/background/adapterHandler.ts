@@ -108,6 +108,15 @@ function handleAdapterConnection(port: chrome.runtime.Port): void {
 
   console.log(`[AdapterHandler] Connected to adapter in tab ${tabId}`);
 
+  // Broadcast adapter connection event for room manager synchronization
+  const connectionEvent = new CustomEvent("adapter:connected", {
+    detail: {
+      tabId,
+      timestamp: Date.now(),
+    },
+  });
+  adapterEventTarget.dispatchEvent(connectionEvent);
+
   // Request initial state to populate duration and other details
   try {
     port.postMessage({ type: "ADAPTER_STATE_REQUEST", timestamp: Date.now() });

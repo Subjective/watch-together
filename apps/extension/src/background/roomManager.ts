@@ -602,8 +602,8 @@ export class RoomManager {
     }
 
     const trimmedName = newRoomName.trim();
-    if (!trimmedName || trimmedName.length < 3 || trimmedName.length > 50) {
-      throw new Error("Room name must be 3-50 characters");
+    if (!trimmedName || trimmedName.length < 1 || trimmedName.length > 30) {
+      throw new Error("Room name must be 1-30 characters");
     }
 
     const roomId = this.currentRoom.id;
@@ -657,8 +657,8 @@ export class RoomManager {
     }
 
     const trimmedName = newUserName.trim();
-    if (!trimmedName || trimmedName.length < 2 || trimmedName.length > 30) {
-      throw new Error("User name must be 2-30 characters");
+    if (!trimmedName || trimmedName.length < 1 || trimmedName.length > 20) {
+      throw new Error("User name must be 1-20 characters");
     }
 
     const roomId = this.currentRoom.id;

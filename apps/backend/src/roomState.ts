@@ -507,11 +507,11 @@ export class RoomState {
 
       // Validate room name
       const trimmedName = message.newRoomName.trim();
-      if (!trimmedName || trimmedName.length < 3 || trimmedName.length > 50) {
+      if (!trimmedName || trimmedName.length < 1 || trimmedName.length > 30) {
         this.sendError(
           websocket,
           "Invalid room name",
-          "Name must be 3-50 characters",
+          "Name must be 1-30 characters",
         );
         return;
       }
@@ -577,11 +577,11 @@ export class RoomState {
 
       // Validate user name
       const trimmedName = message.newUserName.trim();
-      if (!trimmedName || trimmedName.length < 2 || trimmedName.length > 30) {
+      if (!trimmedName || trimmedName.length < 1 || trimmedName.length > 20) {
         this.sendError(
           websocket,
           "Invalid user name",
-          "Name must be 2-30 characters",
+          "Name must be 1-20 characters",
         );
         return;
       }

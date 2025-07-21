@@ -352,13 +352,32 @@ export const RoomPage: React.FC<RoomPageProps> = ({
                       onChange={(e) => setRoomName(e.target.value)}
                       onBlur={async () => {
                         setIsEditingRoomName(false);
-                        if (
-                          roomName.trim() &&
-                          roomName !== room.name &&
-                          onRenameRoom
-                        ) {
+                        const trimmedName = roomName.trim();
+
+                        // Validate room name
+                        if (!trimmedName) {
+                          await conditionalToast({
+                            title: "Invalid room name",
+                            description: "Room name cannot be empty",
+                            variant: "destructive",
+                          });
+                          setRoomName(room.name);
+                          return;
+                        }
+
+                        if (trimmedName.length > 30) {
+                          await conditionalToast({
+                            title: "Invalid room name",
+                            description: "Room name must be 1-30 characters",
+                            variant: "destructive",
+                          });
+                          setRoomName(room.name);
+                          return;
+                        }
+
+                        if (trimmedName !== room.name && onRenameRoom) {
                           try {
-                            await onRenameRoom(roomName.trim());
+                            await onRenameRoom(trimmedName);
                           } catch (error) {
                             console.error("Failed to rename room:", error);
                             setRoomName(room.name);
@@ -368,13 +387,32 @@ export const RoomPage: React.FC<RoomPageProps> = ({
                       onKeyDown={async (e) => {
                         if (e.key === "Enter") {
                           setIsEditingRoomName(false);
-                          if (
-                            roomName.trim() &&
-                            roomName !== room.name &&
-                            onRenameRoom
-                          ) {
+                          const trimmedName = roomName.trim();
+
+                          // Validate room name
+                          if (!trimmedName) {
+                            await conditionalToast({
+                              title: "Invalid room name",
+                              description: "Room name cannot be empty",
+                              variant: "destructive",
+                            });
+                            setRoomName(room.name);
+                            return;
+                          }
+
+                          if (trimmedName.length > 30) {
+                            await conditionalToast({
+                              title: "Invalid room name",
+                              description: "Room name must be 1-30 characters",
+                              variant: "destructive",
+                            });
+                            setRoomName(room.name);
+                            return;
+                          }
+
+                          if (trimmedName !== room.name && onRenameRoom) {
                             try {
-                              await onRenameRoom(roomName.trim());
+                              await onRenameRoom(trimmedName);
                             } catch (error) {
                               console.error("Failed to rename room:", error);
                               setRoomName(room.name);
@@ -515,13 +553,35 @@ export const RoomPage: React.FC<RoomPageProps> = ({
                         onChange={(e) => setUserName(e.target.value)}
                         onBlur={async () => {
                           setIsEditingUserName(false);
+                          const trimmedName = userName.trim();
+
+                          // Validate user name
+                          if (!trimmedName) {
+                            await conditionalToast({
+                              title: "Invalid user name",
+                              description: "User name cannot be empty",
+                              variant: "destructive",
+                            });
+                            setUserName(currentUser.name);
+                            return;
+                          }
+
+                          if (trimmedName.length > 20) {
+                            await conditionalToast({
+                              title: "Invalid user name",
+                              description: "User name must be 1-20 characters",
+                              variant: "destructive",
+                            });
+                            setUserName(currentUser.name);
+                            return;
+                          }
+
                           if (
-                            userName.trim() &&
-                            userName !== currentUser.name &&
+                            trimmedName !== currentUser.name &&
                             onRenameUser
                           ) {
                             try {
-                              await onRenameUser(userName.trim());
+                              await onRenameUser(trimmedName);
                             } catch (error) {
                               console.error("Failed to rename user:", error);
                               setUserName(currentUser.name);
@@ -531,13 +591,36 @@ export const RoomPage: React.FC<RoomPageProps> = ({
                         onKeyDown={async (e) => {
                           if (e.key === "Enter") {
                             setIsEditingUserName(false);
+                            const trimmedName = userName.trim();
+
+                            // Validate user name
+                            if (!trimmedName) {
+                              await conditionalToast({
+                                title: "Invalid user name",
+                                description: "User name cannot be empty",
+                                variant: "destructive",
+                              });
+                              setUserName(currentUser.name);
+                              return;
+                            }
+
+                            if (trimmedName.length > 20) {
+                              await conditionalToast({
+                                title: "Invalid user name",
+                                description:
+                                  "User name must be 1-20 characters",
+                                variant: "destructive",
+                              });
+                              setUserName(currentUser.name);
+                              return;
+                            }
+
                             if (
-                              userName.trim() &&
-                              userName !== currentUser.name &&
+                              trimmedName !== currentUser.name &&
                               onRenameUser
                             ) {
                               try {
-                                await onRenameUser(userName.trim());
+                                await onRenameUser(trimmedName);
                               } catch (error) {
                                 console.error("Failed to rename user:", error);
                                 setUserName(currentUser.name);

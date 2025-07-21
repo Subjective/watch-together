@@ -292,8 +292,8 @@ export default async function WatchTogetherLanding() {
                 </div>
                 <CardTitle>Universal Compatibility</CardTitle>
                 <CardDescription>
-                  Smart adapter system works with nearly all HTML5 video sites
-                  including Netflix, YouTube, Disney+, Hulu, and more
+                  Works with nearly all video sites including Netflix, YouTube,
+                  Disney+, Hulu, Crunchyroll, and more
                 </CardDescription>
               </CardHeader>
             </Card>

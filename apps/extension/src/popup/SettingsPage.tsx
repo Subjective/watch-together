@@ -72,6 +72,49 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      // Validate default user name
+      const trimmedUserName = settings.defaultUserName.trim();
+      if (trimmedUserName.length > 20) {
+        await conditionalToast(
+          {
+            title: "Invalid user name",
+            description: "Default user name must be 1-20 characters",
+            variant: "destructive",
+          },
+          { forceShow: true },
+        );
+        setIsSaving(false);
+        return;
+      }
+
+      // Validate default room name
+      const trimmedRoomName = settings.defaultRoomName.trim();
+      if (!trimmedRoomName) {
+        await conditionalToast(
+          {
+            title: "Invalid room name",
+            description: "Default room name cannot be empty",
+            variant: "destructive",
+          },
+          { forceShow: true },
+        );
+        setIsSaving(false);
+        return;
+      }
+
+      if (trimmedRoomName.length > 30) {
+        await conditionalToast(
+          {
+            title: "Invalid room name",
+            description: "Default room name must be 1-30 characters",
+            variant: "destructive",
+          },
+          { forceShow: true },
+        );
+        setIsSaving(false);
+        return;
+      }
+
       await StorageManager.setUserPreferences(settings);
       setHasChanges(false);
       await conditionalToast({

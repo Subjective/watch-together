@@ -13,7 +13,6 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import {
-  Github,
   Star,
   Download,
   Users,
@@ -22,11 +21,50 @@ import {
   Shield,
   Zap,
 } from "lucide-react";
+import { SiGithub, SiDiscord } from "react-icons/si";
 import Image from "next/image";
 import Link from "next/link";
 import { ExtensionMockup } from "@/components/extension-mockup";
 
-export default function WatchTogetherLanding() {
+interface GitHubRepo {
+  stargazers_count: number;
+}
+
+async function getGitHubStars(): Promise<number> {
+  try {
+    const response = await fetch(
+      "https://api.github.com/repos/Subjective/watch-together",
+      {
+        next: { revalidate: 3600 }, // Revalidate every hour
+        headers: {
+          Accept: "application/vnd.github.v3+json",
+          "User-Agent": "watch-together-website",
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(`GitHub API responded with ${response.status}`);
+    }
+
+    const repo: GitHubRepo = await response.json();
+    return repo.stargazers_count;
+  } catch (error) {
+    console.error("Failed to fetch GitHub stars:", error);
+    return 0; // Fallback to 0 if API fails
+  }
+}
+
+export default async function WatchTogetherLanding() {
+  const starCount = await getGitHubStars();
+
+  // Format star count for display
+  const formatStars = (count: number): string => {
+    if (count >= 1000) {
+      return `${(count / 1000).toFixed(1)}k`;
+    }
+    return count.toString();
+  };
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
       {/* Header */}
@@ -62,14 +100,14 @@ export default function WatchTogetherLanding() {
                 FAQ
               </Link>
               <Link
-                href="https://github.com/joshua/watch-together"
+                href="https://github.com/Subjective/watch-together"
                 className="flex items-center space-x-1 text-sm font-medium text-gray-600 hover:text-gray-900"
               >
-                <Github className="h-4 w-4" />
+                <SiGithub className="h-4 w-4" />
                 <span>GitHub</span>
                 <Badge variant="secondary" className="ml-1">
                   <Star className="h-3 w-3 mr-1" />
-                  1.2k
+                  {starCount > 0 ? formatStars(starCount) : "—"}
                 </Badge>
               </Link>
               <Link
@@ -97,7 +135,7 @@ export default function WatchTogetherLanding() {
             <div className="space-y-8">
               <div className="space-y-4">
                 <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-200">
-                  🎉 Now with Netflix & YouTube support
+                  🎉 Completely free & open source
                 </Badge>
                 <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight">
                   Watch videos{" "}
@@ -107,9 +145,9 @@ export default function WatchTogetherLanding() {
                   with friends
                 </h1>
                 <p className="text-xl text-gray-600 leading-relaxed">
-                  Synchronize video playback across multiple browsers. Chat in
-                  real-time while watching your favorite shows, movies, and
-                  videos with friends anywhere in the world.
+                  Synchronize video playback across multiple browsers with smart
+                  control modes and instant setup. Watch your favorite shows,
+                  movies, and videos with friends anywhere in the world.
                 </p>
               </div>
 
@@ -134,11 +172,11 @@ export default function WatchTogetherLanding() {
               <div className="flex items-center space-x-6 text-sm text-gray-500">
                 <div className="flex items-center space-x-1">
                   <Users className="h-4 w-4" />
-                  <span>50k+ active users</span>
+                  <span>Growing community</span>
                 </div>
                 <div className="flex items-center space-x-1">
                   <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                  <span>4.8/5 rating</span>
+                  <span>Open source project</span>
                 </div>
               </div>
             </div>
@@ -196,10 +234,10 @@ export default function WatchTogetherLanding() {
                 <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
                   <Users className="h-6 w-6 text-blue-600" />
                 </div>
-                <CardTitle>Real-time Chat</CardTitle>
+                <CardTitle>Smart Control Modes</CardTitle>
                 <CardDescription>
-                  Chat with friends while watching without missing a moment of
-                  the action
+                  Choose between host-only control for organized viewing or
+                  free-for-all mode for collaborative watching
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -237,8 +275,8 @@ export default function WatchTogetherLanding() {
                 </div>
                 <CardTitle>Universal Support</CardTitle>
                 <CardDescription>
-                  Works with Netflix, YouTube, Disney+, Hulu, and 50+ other
-                  platforms
+                  Works with any streaming site using HTML5 video players - from
+                  YouTube to Netflix and beyond
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -314,10 +352,13 @@ export default function WatchTogetherLanding() {
                   Which platforms are supported?
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-600">
-                  Watch Together supports over 50 platforms including Netflix,
-                  YouTube, Disney+, Hulu, Amazon Prime Video, HBO Max,
-                  Crunchyroll, Twitch, and many more. We&apos;re constantly
-                  adding support for new platforms based on user requests.
+                  Watch Together works with any streaming site that uses HTML5
+                  video players. This includes YouTube, Netflix, Twitch,
+                  Disney+, Hulu, Amazon Prime Video, and virtually any modern
+                  video platform. Our universal approach means compatibility
+                  without needing platform-specific updates, though custom
+                  adapters can be added for enhanced platform support.
+                  Contributions are welcome!
                 </AccordionContent>
               </AccordionItem>
 
@@ -338,9 +379,10 @@ export default function WatchTogetherLanding() {
                   How many people can watch together?
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-600">
-                  You can have up to 50 people in a single watch party. However,
-                  we recommend keeping groups smaller (5-10 people) for the best
-                  chat experience and performance.
+                  Watch Together can accommodate multiple people in a single
+                  room. The exact number depends on your internet connection and
+                  the video platform being used. For the best experience, we
+                  recommend smaller groups of 2-5 people.
                 </AccordionContent>
               </AccordionItem>
 
@@ -349,24 +391,36 @@ export default function WatchTogetherLanding() {
                   Is Watch Together free?
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-600">
-                  Yes! Watch Together is completely free to use. We believe
-                  watching together should be accessible to everyone. The
-                  extension has no ads, no premium features, and no hidden
-                  costs.
+                  Yes! Watch Together is completely free and open source. We
+                  believe watching together should be accessible to everyone.
+                  The extension has no ads, no premium features, no hidden
+                  costs, and the source code is publicly available on GitHub.
                 </AccordionContent>
               </AccordionItem>
 
               <AccordionItem value="item-6" className="border rounded-lg px-6">
                 <AccordionTrigger className="text-left">
+                  How do control modes work?
+                </AccordionTrigger>
+                <AccordionContent className="text-gray-600">
+                  Watch Together offers two control modes: Host-only mode where
+                  only the room creator can control playback, and Free-for-all
+                  mode where any participant can play, pause, or seek. Hosts can
+                  switch between modes at any time based on their preference for
+                  the viewing session.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="item-7" className="border rounded-lg px-6">
+                <AccordionTrigger className="text-left">
                   What if the video goes out of sync?
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-600">
-                  Watch Together automatically detects and corrects sync issues.
-                  If you notice you&apos;re out of sync, simply click the
-                  &quot;Sync&quot; button in the extension popup, and
-                  you&apos;ll be brought back in line with the group. The
-                  extension also has built-in lag compensation for different
-                  internet speeds.
+                  Watch Together synchronizes play, pause, and seek actions
+                  across all participants. If you notice synchronization issues,
+                  the extension will attempt to automatically resync. The
+                  extension works best when all participants have stable
+                  internet connections.
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
@@ -451,21 +505,6 @@ export default function WatchTogetherLanding() {
                     Contact
                   </Link>
                 </li>
-                <li>
-                  <Link
-                    href="https://buymeacoffee.com/watchtogether"
-                    className="hover:text-white flex items-center space-x-1"
-                  >
-                    <svg
-                      className="h-4 w-4"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                    >
-                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                    </svg>
-                    <span>Support Project</span>
-                  </Link>
-                </li>
               </ul>
             </div>
 
@@ -474,21 +513,20 @@ export default function WatchTogetherLanding() {
               <ul className="space-y-2 text-gray-400">
                 <li>
                   <Link
-                    href="https://github.com/joshua/watch-together"
+                    href="https://github.com/Subjective/watch-together"
                     className="hover:text-white flex items-center space-x-1"
                   >
-                    <Github className="h-4 w-4" />
+                    <SiGithub className="h-4 w-4" />
                     <span>GitHub</span>
                   </Link>
                 </li>
                 <li>
-                  <Link href="#" className="hover:text-white">
-                    Twitter
-                  </Link>
-                </li>
-                <li>
-                  <Link href="#" className="hover:text-white">
-                    Discord
+                  <Link
+                    href="#"
+                    className="hover:text-white flex items-center space-x-1"
+                  >
+                    <SiDiscord className="h-4 w-4" />
+                    <span>Discord</span>
                   </Link>
                 </li>
               </ul>

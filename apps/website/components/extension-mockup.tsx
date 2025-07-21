@@ -3,15 +3,14 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Copy, Play, Pause, MessageCircle, Settings } from "lucide-react";
+import { Copy, Play, Pause, Settings, UserCheck } from "lucide-react";
 import type { User, ConnectionStatus } from "@repo/types";
 
 export function ExtensionMockup() {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [showChat, setShowChat] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [roomCode] = useState("MOVIE-2024");
   const [connectionStatus] = useState<ConnectionStatus>("CONNECTED");
   // Use static base timestamp to ensure deterministic SSR/hydration
@@ -163,58 +162,98 @@ export function ExtensionMockup() {
               </div>
 
               {/* Controls */}
-              <div className="flex space-x-2">
-                <Button
-                  variant={isPlaying ? "default" : "secondary"}
-                  size="sm"
-                  onClick={() => setIsPlaying(!isPlaying)}
-                  className="flex-1"
-                >
-                  {isPlaying ? (
-                    <Pause className="h-4 w-4 mr-1" aria-hidden="true" />
-                  ) : (
-                    <Play className="h-4 w-4 mr-1" aria-hidden="true" />
-                  )}
-                  {isPlaying ? "Pause" : "Play"}
-                </Button>
-                <Button
-                  variant={showChat ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setShowChat(!showChat)}
-                >
-                  <MessageCircle className="h-4 w-4" aria-hidden="true" />
-                </Button>
-                <Button variant="outline" size="sm">
-                  <Settings className="h-4 w-4" aria-hidden="true" />
-                </Button>
+              <div className="space-y-2">
+                <div className="flex space-x-2">
+                  <Button
+                    variant={isPlaying ? "default" : "secondary"}
+                    size="sm"
+                    onClick={() => setIsPlaying(!isPlaying)}
+                    className="flex-1"
+                  >
+                    {isPlaying ? (
+                      <Pause className="h-4 w-4 mr-1" aria-hidden="true" />
+                    ) : (
+                      <Play className="h-4 w-4 mr-1" aria-hidden="true" />
+                    )}
+                    {isPlaying ? "Pause" : "Play"}
+                  </Button>
+                  <Button variant="outline" size="sm" title="Follow host video">
+                    <UserCheck className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                  <Button
+                    variant={showSettings ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowSettings(!showSettings)}
+                  >
+                    <Settings className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                </div>
+
+                {/* Control Mode Toggle */}
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">Control Mode:</span>
+                  <Badge variant="secondary" className="text-xs">
+                    Host Only
+                  </Badge>
+                </div>
               </div>
 
-              {/* Chat section */}
-              {showChat && (
-                <div className="border-t pt-3 space-y-2">
-                  <div className="text-sm font-medium">Chat</div>
-                  <div className="bg-gray-50 rounded p-2 h-20 overflow-y-auto text-xs space-y-1">
-                    <div>
-                      <span className="font-medium">Alex:</span> This movie is
-                      amazing! 🍿
+              {/* Settings section */}
+              {showSettings && (
+                <div className="border-t pt-3 space-y-3">
+                  <div className="text-sm font-medium">Room Settings</div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-600">
+                        Auto-follow host
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className="text-xs bg-green-50 text-green-700"
+                      >
+                        ON
+                      </Badge>
                     </div>
-                    <div>
-                      <span className="font-medium">Sarah:</span> I know right!
-                      The plot twist was unexpected
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-600">
+                        Notifications
+                      </span>
+                      <Badge variant="outline" className="text-xs">
+                        OFF
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-600">
+                        Enhanced URLs
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className="text-xs bg-blue-50 text-blue-700"
+                      >
+                        ON
+                      </Badge>
                     </div>
                   </div>
-                  <Input placeholder="Type a message..." className="text-sm" />
                 </div>
               )}
 
-              {/* Share button */}
-              <Button
-                variant="outline"
-                className="w-full bg-transparent"
-                size="sm"
-              >
-                📤 Invite More Friends
-              </Button>
+              {/* Action buttons */}
+              <div className="flex space-x-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 bg-transparent"
+                  size="sm"
+                >
+                  📤 Share Room
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1 bg-transparent"
+                  size="sm"
+                >
+                  🎯 Go to Host Video
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -223,7 +262,7 @@ export function ExtensionMockup() {
         <div className="absolute bottom-4 left-4">
           <Badge className="bg-green-600 hover:bg-green-600">
             <div className="w-2 h-2 bg-white rounded-full mr-2 animate-pulse"></div>
-            Synced with 3 viewers
+            In sync • 3 viewers
           </Badge>
         </div>
       </div>
@@ -231,8 +270,8 @@ export function ExtensionMockup() {
       {/* Interactive hint */}
       <div className="text-center mt-6">
         <p className="text-sm text-gray-600">
-          👆 Try clicking the play/pause button or chat toggle in the extension
-          popup above
+          👆 Try clicking the play/pause button or settings toggle in the
+          extension popup above
         </p>
       </div>
     </div>

@@ -145,28 +145,36 @@ export default async function WatchTogetherLanding() {
                   with friends
                 </h1>
                 <p className="text-xl text-gray-600 leading-relaxed">
-                  Synchronize video playback across multiple browsers with smart
-                  control modes and instant setup. Watch your favorite shows,
-                  movies, and videos with friends anywhere in the world.
+                  Synchronize video playback in real-time across multiple
+                  browsers with smart control modes and instant setup. Watch
+                  your favorite shows, movies, and videos with friends anywhere
+                  in the world.
                 </p>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4">
-                <Button
-                  size="lg"
-                  className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-8 py-3"
+                <Link
+                  href="https://github.com/Subjective/watch-together/releases"
+                  className="inline-flex"
                 >
-                  <Download className="mr-2 h-5 w-5" />
-                  Add to Chrome - Free
-                </Button>
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="px-8 py-3 bg-transparent"
-                >
-                  <Play className="mr-2 h-4 w-4" />
-                  Watch Demo
-                </Button>
+                  <Button
+                    size="lg"
+                    className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-8 py-3 w-full"
+                  >
+                    <Download className="mr-2 h-5 w-5" />
+                    Download Extension
+                  </Button>
+                </Link>
+                <Link href="#demo">
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="px-8 py-3 bg-transparent"
+                  >
+                    <Play className="mr-2 h-4 w-4" />
+                    View Demo
+                  </Button>
+                </Link>
               </div>
 
               <div className="flex items-center space-x-6 text-sm text-gray-500">
@@ -182,13 +190,22 @@ export default async function WatchTogetherLanding() {
             </div>
 
             <div className="relative">
-              <Image
-                src="/placeholder.svg?height=600&width=800"
-                alt="People watching videos together"
-                width={800}
-                height={600}
-                className="rounded-2xl shadow-2xl"
-              />
+              <div className="bg-gradient-to-br from-purple-100 to-blue-100 rounded-2xl shadow-2xl p-16 flex items-center justify-center">
+                <div className="text-center">
+                  <Image
+                    src="/window.svg"
+                    alt="Browser window representing video synchronization"
+                    width={200}
+                    height={200}
+                    className="mx-auto mb-6 opacity-60"
+                  />
+                  <p className="text-lg text-gray-600 font-medium">
+                    Synchronized video watching
+                    <br />
+                    across multiple browsers
+                  </p>
+                </div>
+              </div>
               <div className="absolute -bottom-6 -left-6 bg-white rounded-xl shadow-lg p-4">
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
@@ -221,10 +238,10 @@ export default async function WatchTogetherLanding() {
                 <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
                   <Sync className="h-6 w-6 text-purple-600" />
                 </div>
-                <CardTitle>Perfect Sync</CardTitle>
+                <CardTitle>Real-Time Sync</CardTitle>
                 <CardDescription>
-                  Automatic synchronization ensures everyone watches at exactly
-                  the same time
+                  Automatic real-time synchronization ensures everyone watches
+                  the same thing, at exactly the same time
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -250,7 +267,7 @@ export default async function WatchTogetherLanding() {
                 <CardTitle>Privacy First</CardTitle>
                 <CardDescription>
                   Your data stays private. No account required, no personal
-                  information stored
+                  information stored, and no ads ever
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -260,10 +277,10 @@ export default async function WatchTogetherLanding() {
                 <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mb-4">
                   <Zap className="h-6 w-6 text-yellow-600" />
                 </div>
-                <CardTitle>Lightning Fast</CardTitle>
+                <CardTitle>Peer-to-Peer Technology</CardTitle>
                 <CardDescription>
-                  Minimal latency and optimized performance for smooth watching
-                  experience
+                  Direct browser-to-browser communication using WebRTC for
+                  minimal latency and optimized performance
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -273,10 +290,10 @@ export default async function WatchTogetherLanding() {
                 <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-4">
                   <Play className="h-6 w-6 text-red-600" />
                 </div>
-                <CardTitle>Universal Support</CardTitle>
+                <CardTitle>Universal Compatibility</CardTitle>
                 <CardDescription>
-                  Works with any streaming site using HTML5 video players - from
-                  YouTube to Netflix and beyond
+                  Smart adapter system works with nearly all HTML5 video sites
+                  including Netflix, YouTube, Disney+, Hulu, and more
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -289,7 +306,7 @@ export default async function WatchTogetherLanding() {
                 <CardTitle>Easy Setup</CardTitle>
                 <CardDescription>
                   Install in seconds, share a link, and start watching together
-                  immediately
+                  immediately with automatic host following
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -313,8 +330,10 @@ export default async function WatchTogetherLanding() {
             </p>
           </div>
 
-          <div className="max-w-4xl mx-auto">
-            <ExtensionMockup />
+          <div className="max-w-5xl mx-auto">
+            <div className="w-full overflow-hidden">
+              <ExtensionMockup />
+            </div>
           </div>
         </div>
       </section>
@@ -338,12 +357,12 @@ export default async function WatchTogetherLanding() {
                   How does Watch Together work?
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-600">
-                  Watch Together creates a synchronized viewing session by
-                  connecting multiple browsers through our servers. When one
-                  person plays, pauses, or seeks, everyone else&apos;s video
-                  automatically syncs to match. Simply install the extension,
-                  visit a supported video site, click the extension icon, and
-                  share the generated link with friends.
+                  Watch Together uses WebRTC peer-to-peer technology to create
+                  synchronized viewing sessions with sub-second latency. When
+                  one person plays, pauses, or seeks, the action is instantly
+                  synchronized across all participants. Simply install the
+                  extension, visit a supported video site, and share the
+                  generated link with with friends.
                 </AccordionContent>
               </AccordionItem>
 
@@ -379,10 +398,11 @@ export default async function WatchTogetherLanding() {
                   How many people can watch together?
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-600">
-                  Watch Together can accommodate multiple people in a single
-                  room. The exact number depends on your internet connection and
-                  the video platform being used. For the best experience, we
-                  recommend smaller groups of 2-5 people.
+                  Watch Together supports multiple participants per room with no
+                  hard limit. Performance depends on network conditions and
+                  device capabilities. For optimal experience with real-time
+                  sync, we recommend groups of 2-10 people, though larger groups
+                  are possible.
                 </AccordionContent>
               </AccordionItem>
 
@@ -403,11 +423,12 @@ export default async function WatchTogetherLanding() {
                   How do control modes work?
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-600">
-                  Watch Together offers two control modes: Host-only mode where
-                  only the room creator can control playback, and Free-for-all
-                  mode where any participant can play, pause, or seek. Hosts can
-                  switch between modes at any time based on their preference for
-                  the viewing session.
+                  Watch Together offers Host-only mode (only the room creator
+                  controls playback) and Free-for-all mode (anyone can control).
+                  Hosts can toggle between modes anytime. Additionally,
+                  participants can enable &quot;Auto-follow host&quot; to
+                  automatically follow and sync with the host when they switch
+                  videos.
                 </AccordionContent>
               </AccordionItem>
 
@@ -418,9 +439,9 @@ export default async function WatchTogetherLanding() {
                 <AccordionContent className="text-gray-600">
                   Watch Together synchronizes play, pause, and seek actions
                   across all participants. If you notice synchronization issues,
-                  the extension will attempt to automatically resync. The
-                  extension works best when all participants have stable
-                  internet connections.
+                  try refreshing the page and the extension will try its best to
+                  automatically resync. The extension works best when all
+                  participants have stable internet connections.
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
@@ -439,13 +460,15 @@ export default async function WatchTogetherLanding() {
               Join thousands of users who are already enjoying synchronized
               video watching with friends
             </p>
-            <Button
-              size="lg"
-              className="bg-white text-purple-600 hover:bg-gray-100 px-8 py-3 text-lg"
-            >
-              <Download className="mr-2 h-5 w-5" />
-              Add to Chrome - Free
-            </Button>
+            <Link href="https://github.com/Subjective/watch-together/releases">
+              <Button
+                size="lg"
+                className="bg-white text-purple-600 hover:bg-gray-100 px-8 py-3 text-lg"
+              >
+                <Download className="mr-2 h-5 w-5" />
+                Download Extension
+              </Button>
+            </Link>
           </div>
         </div>
       </section>

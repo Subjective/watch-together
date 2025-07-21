@@ -25,7 +25,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 }) => {
   const [settings, setSettings] = useState<UserPreferences>({
     followMode: "AUTO_FOLLOW",
-    autoJoinRooms: false,
+    autoJoinRooms: true,
     notificationsEnabled: true,
     defaultUserName: "",
     defaultRoomName: "My Room",

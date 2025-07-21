@@ -292,7 +292,7 @@ export class StorageManager {
   private static getDefaultUserPreferencesPrivate(): UserPreferences {
     return {
       followMode: "AUTO_FOLLOW",
-      autoJoinRooms: false,
+      autoJoinRooms: true,
       notificationsEnabled: true,
       defaultUserName: "",
       defaultRoomName: "My Room",

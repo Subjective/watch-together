@@ -132,7 +132,7 @@ export const createMockRoomHistoryEntry = (overrides?: any) => ({
 
 export const createMockUserPreferences = (overrides?: any) => ({
   followMode: "AUTO_FOLLOW" as const,
-  autoJoinRooms: false,
+  autoJoinRooms: true,
   notificationsEnabled: true,
   defaultUserName: "Guest",
   defaultRoomName: "My Room",

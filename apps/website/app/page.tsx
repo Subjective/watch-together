@@ -437,11 +437,11 @@ export default async function WatchTogetherLanding() {
                   What if the video goes out of sync?
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-600">
-                  Watch Together synchronizes play, pause, and seek actions
-                  across all participants. If you notice synchronization issues,
-                  try refreshing the page and the extension will try its best to
-                  automatically resync. The extension works best when all
-                  participants have stable internet connections.
+                  Watch Together keeps playback, pausing, and seeking in sync
+                  for all participants. If you experience any sync issues, try
+                  refreshing the page and the extension will automatically
+                  attempt to resynchronize. For the best experience, ensure all
+                  participants have a stable internet connection.
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
@@ -484,9 +484,7 @@ export default async function WatchTogetherLanding() {
                 </div>
                 <span className="text-xl font-bold">Watch Together</span>
               </div>
-              <p className="text-gray-400">
-                Making video watching social, one sync at a time.
-              </p>
+              <p className="text-gray-400">Sync videos with friends.</p>
             </div>
 
             <div>

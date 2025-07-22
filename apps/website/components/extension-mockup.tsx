@@ -580,8 +580,7 @@ export function ExtensionMockup() {
                             Following {hostUser.name}
                           </span>
                           <p className="text-xs text-blue-600">
-                            You&apos;ll automatically sync to their video
-                            position
+                            You&apos;ll automatically follow them to new videos
                           </p>
                         </div>
                       </div>

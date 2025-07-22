@@ -380,7 +380,7 @@ describe("RoomPage", () => {
 
     expect(screen.getByText("Following Host User")).toBeInTheDocument();
     expect(
-      screen.getByText("You'll automatically sync to their video position"),
+      screen.getByText("You'll automatically follow them to new videos"),
     ).toBeInTheDocument();
   });
 

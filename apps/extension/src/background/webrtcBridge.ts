@@ -95,6 +95,25 @@ export class WebRTCManager {
           error: message.error,
         });
         break;
+
+      case "WEBRTC_ALL_CONNECTIONS_RESTARTED":
+        this.emit("ALL_CONNECTIONS_RESTARTED", {
+          restartedPeerIds: message.restartedPeerIds,
+        });
+        break;
+
+      case "WEBRTC_PEER_CONNECTION_RESTARTED":
+        this.emit("PEER_CONNECTION_RESTARTED", {
+          userId: message.userId,
+        });
+        break;
+
+      case "WEBRTC_ICE_RESTART_OFFER":
+        this.emit("ICE_RESTART_OFFER", {
+          userId: message.userId,
+          offer: message.offer,
+        });
+        break;
     }
   }
 
@@ -385,6 +404,26 @@ export class WebRTCManager {
           console.error("Failed to mark peer as host:", error);
         },
       );
+    }
+  }
+
+  /**
+   * Restart all peer connections with fresh ICE configuration
+   */
+  async restartAllConnections(): Promise<void> {
+    if (this.offscreenDocumentCreated) {
+      await this.sendToOffscreen("WEBRTC_RESTART_ALL_CONNECTIONS");
+      console.log("Initiated restart of all WebRTC peer connections");
+    }
+  }
+
+  /**
+   * Restart a specific peer connection
+   */
+  async restartPeerConnection(userId: string): Promise<void> {
+    if (this.offscreenDocumentCreated) {
+      await this.sendToOffscreen("WEBRTC_RESTART_PEER_CONNECTION", { userId });
+      console.log(`Initiated restart of peer connection for ${userId}`);
     }
   }
 

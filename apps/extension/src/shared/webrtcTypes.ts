@@ -70,6 +70,16 @@ export interface WebRTCSetIceServersMessage {
   data: { iceServers: RTCIceServer[] };
 }
 
+export interface WebRTCRestartAllConnectionsMessage {
+  type: "WEBRTC_RESTART_ALL_CONNECTIONS";
+  data?: undefined;
+}
+
+export interface WebRTCRestartPeerConnectionMessage {
+  type: "WEBRTC_RESTART_PEER_CONNECTION";
+  data: { userId: string };
+}
+
 export type ServiceWorkerToOffscreenMessage =
   | WebRTCInitializeMessage
   | WebRTCCreateOfferMessage
@@ -81,7 +91,9 @@ export type ServiceWorkerToOffscreenMessage =
   | WebRTCMarkPeerAsHostMessage
   | WebRTCClosePeerMessage
   | WebRTCCloseAllMessage
-  | WebRTCSetIceServersMessage;
+  | WebRTCSetIceServersMessage
+  | WebRTCRestartAllConnectionsMessage
+  | WebRTCRestartPeerConnectionMessage;
 
 // Offscreen → Service Worker Messages
 export interface WebRTCIceCandidateEvent {
@@ -118,13 +130,32 @@ export interface WebRTCDataChannelErrorEvent {
   error: string;
 }
 
+export interface WebRTCAllConnectionsRestartedEvent {
+  type: "WEBRTC_ALL_CONNECTIONS_RESTARTED";
+  restartedPeerIds: string[];
+}
+
+export interface WebRTCPeerConnectionRestartedEvent {
+  type: "WEBRTC_PEER_CONNECTION_RESTARTED";
+  userId: string;
+}
+
+export interface WebRTCIceRestartOfferEvent {
+  type: "WEBRTC_ICE_RESTART_OFFER";
+  userId: string;
+  offer: RTCSessionDescriptionInit;
+}
+
 export type OffscreenToServiceWorkerMessage =
   | WebRTCIceCandidateEvent
   | WebRTCConnectionStateChangeEvent
   | WebRTCDataChannelOpenEvent
   | WebRTCDataChannelCloseEvent
   | WebRTCSyncMessageEvent
-  | WebRTCDataChannelErrorEvent;
+  | WebRTCDataChannelErrorEvent
+  | WebRTCAllConnectionsRestartedEvent
+  | WebRTCPeerConnectionRestartedEvent
+  | WebRTCIceRestartOfferEvent;
 
 // Response types
 export interface WebRTCInitializeResponse {

@@ -87,6 +87,12 @@ export class OffscreenWebRTCManager {
 
       case "WEBRTC_SET_ICE_SERVERS":
         return this.setIceServers(message.data.iceServers);
+
+      case "WEBRTC_RESTART_ALL_CONNECTIONS":
+        return this.restartAllConnections();
+
+      case "WEBRTC_RESTART_PEER_CONNECTION":
+        return this.restartPeerConnection(message.data.userId);
     }
   }
 
@@ -375,5 +381,103 @@ export class OffscreenWebRTCManager {
     this.config.iceServers = iceServers;
     console.log("[Offscreen] Updated ICE servers", iceServers);
     return { success: true };
+  }
+
+  /**
+   * Restart all peer connections with fresh ICE configuration
+   */
+  private async restartAllConnections(): Promise<WebRTCSuccessResponse> {
+    try {
+      const peerIds = Array.from(this.peers.keys());
+      console.log(`[Offscreen] Restarting ${peerIds.length} peer connections`);
+
+      // Close all existing connections
+      for (const peer of this.peers.values()) {
+        peer.connection.close();
+      }
+      this.peers.clear();
+
+      // Notify service worker that all connections have been restarted
+      chrome.runtime.sendMessage({
+        type: "WEBRTC_ALL_CONNECTIONS_RESTARTED",
+        restartedPeerIds: peerIds,
+      });
+
+      console.log("[Offscreen] All peer connections restarted successfully");
+      return { success: true };
+    } catch (error) {
+      console.error("[Offscreen] Failed to restart all connections:", error);
+      return { success: false };
+    }
+  }
+
+  /**
+   * Restart a specific peer connection with ICE restart
+   */
+  private async restartPeerConnection(
+    userId: string,
+  ): Promise<WebRTCSuccessResponse> {
+    try {
+      const peer = this.peers.get(userId);
+      if (!peer) {
+        console.warn(
+          `[Offscreen] Cannot restart peer ${userId}: peer not found`,
+        );
+        return { success: false };
+      }
+
+      console.log(`[Offscreen] Restarting peer connection for ${userId}`);
+
+      // First try ICE restart (faster recovery)
+      if (peer.connection.connectionState !== "closed") {
+        try {
+          await this.restartIce(userId);
+          console.log(`[Offscreen] ICE restart initiated for peer ${userId}`);
+          return { success: true };
+        } catch (iceError) {
+          console.warn(
+            `[Offscreen] ICE restart failed for ${userId}, falling back to full restart:`,
+            iceError,
+          );
+        }
+      }
+
+      // Fallback to full connection restart
+      peer.connection.close();
+      this.peers.delete(userId);
+
+      // Notify service worker that this peer needs to be reconnected
+      chrome.runtime.sendMessage({
+        type: "WEBRTC_PEER_CONNECTION_RESTARTED",
+        userId: userId,
+      });
+
+      console.log(`[Offscreen] Peer connection restarted for ${userId}`);
+      return { success: true };
+    } catch (error) {
+      console.error(`[Offscreen] Failed to restart peer ${userId}:`, error);
+      return { success: false };
+    }
+  }
+
+  /**
+   * Attempt ICE restart for a peer connection (faster than full restart)
+   */
+  private async restartIce(userId: string): Promise<void> {
+    const peer = this.peers.get(userId);
+    if (!peer) {
+      throw new Error(`Peer not found: ${userId}`);
+    }
+
+    // Create new offer with ICE restart
+    const offer = await peer.connection.createOffer({ iceRestart: true });
+    await peer.connection.setLocalDescription(offer);
+
+    // Send ICE restart offer through service worker
+    chrome.runtime.sendMessage({
+      type: "WEBRTC_ICE_RESTART_OFFER",
+      userId: userId,
+      offer: offer,
+    });
   }
 }

@@ -59,7 +59,7 @@ vi.mock("../../apps/extension/src/background/storage", () => {
   };
 });
 
-vi.mock("../../apps/extension/src/background/webrtc", () => {
+vi.mock("../../apps/extension/src/background/webrtcBridge", () => {
   const webrtcMock = {
     initialize: vi.fn().mockResolvedValue(undefined),
     closeAllConnections: vi.fn(),
@@ -67,17 +67,33 @@ vi.mock("../../apps/extension/src/background/webrtc", () => {
     createAnswer: vi.fn().mockResolvedValue({ type: "answer", sdp: "test" }),
     addIceCandidate: vi.fn().mockResolvedValue(undefined),
     setRemoteDescription: vi.fn().mockResolvedValue(undefined),
+    setIceServers: vi.fn(),
+    restartAllConnections: vi.fn().mockResolvedValue(undefined),
+    restartPeerConnection: vi.fn().mockResolvedValue(undefined),
     on: vi.fn(),
     off: vi.fn(),
     emit: vi.fn(),
   };
   return {
     WebRTCManager: vi.fn().mockImplementation(() => webrtcMock),
-    defaultWebRTCConfig: { iceServers: [] },
   };
 });
 
 import { RoomManager } from "../../apps/extension/src/background/roomManager";
+
+// Mock global fetch for TURN server requests
+global.fetch = vi.fn().mockResolvedValue({
+  ok: true,
+  json: vi.fn().mockResolvedValue({
+    iceServers: [
+      {
+        urls: "turn:test-turn-server.com",
+        username: "test",
+        credential: "test",
+      },
+    ],
+  }),
+});
 
 const mockChrome = {
   runtime: {
@@ -119,6 +135,7 @@ global.chrome = mockChrome;
 
 describe("Auto rejoin on WebSocket reconnection", () => {
   let roomManager: RoomManager;
+  let webrtcMock: any;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -128,6 +145,12 @@ describe("Auto rejoin on WebSocket reconnection", () => {
       "../../apps/extension/src/background/websocket",
     );
     wsMock = new (WebSocketManager as any)();
+
+    // Get the mocked WebRTC instance
+    const { WebRTCManager } = await vi.importMock(
+      "../../apps/extension/src/background/webrtcBridge",
+    );
+    webrtcMock = new (WebRTCManager as any)();
 
     roomManager = new RoomManager({
       websocketUrl: "wss://test.example.com",
@@ -144,6 +167,13 @@ describe("Auto rejoin on WebSocket reconnection", () => {
           id: "user-1",
           name: "Host",
           isHost: true,
+          isConnected: true,
+          joinedAt: Date.now(),
+        },
+        {
+          id: "user-2",
+          name: "Participant",
+          isHost: false,
           isConnected: true,
           joinedAt: Date.now(),
         },
@@ -165,6 +195,9 @@ describe("Auto rejoin on WebSocket reconnection", () => {
       hasFollowNotification: false,
       followNotificationUrl: null,
     };
+
+    // Mock the webrtc instance on the room manager
+    (roomManager as any).webrtc = webrtcMock;
   });
 
   it("sends JOIN_ROOM after reconnection from DISCONNECTED state", async () => {
@@ -240,5 +273,164 @@ describe("Auto rejoin on WebSocket reconnection", () => {
     );
 
     consoleSpy.mockRestore();
+  });
+
+  describe("WebRTC Recovery", () => {
+    it("fetches fresh TURN credentials during reconnection", async () => {
+      // Simulate connection status change from DISCONNECTED to CONNECTED
+      wsMock.trigger("CONNECTION_STATUS_CHANGE", { status: "CONNECTED" });
+
+      // Allow async operations to complete
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Verify that fetch was called to get fresh TURN credentials
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining("/turn-credentials"),
+      );
+
+      // Verify that setIceServers was called with fresh credentials
+      expect(webrtcMock.setIceServers).toHaveBeenCalledWith([
+        { urls: "stun:stun.l.google.com:19302" }, // default STUN servers
+        { urls: "stun:stun1.l.google.com:19302" },
+        {
+          urls: "turn:test-turn-server.com",
+          username: "test",
+          credential: "test",
+        },
+      ]);
+    });
+
+    it("closes and reinitializes WebRTC connections during recovery", async () => {
+      // Simulate connection status change from DISCONNECTED to CONNECTED
+      wsMock.trigger("CONNECTION_STATUS_CHANGE", { status: "CONNECTED" });
+
+      // Allow async operations to complete
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Verify WebRTC recovery sequence
+      expect(webrtcMock.closeAllConnections).toHaveBeenCalledTimes(1);
+      expect(webrtcMock.setIceServers).toHaveBeenCalledTimes(1);
+      expect(webrtcMock.initialize).toHaveBeenCalledWith("user-1", true);
+    });
+
+    it("handles failed peer connections proactively", async () => {
+      // Set up room manager in connected state
+      (roomManager as any).extensionState.isConnected = true;
+      (roomManager as any).extensionState.connectionStatus = "CONNECTED";
+
+      // Mock WebSocket as connected
+      wsMock.isConnected.mockReturnValue(true);
+
+      // Simulate failed WebRTC peer connection
+      const connectionStateData = {
+        userId: "user-2",
+        state: "failed" as RTCPeerConnectionState,
+      };
+
+      // Get the registered event handler for PEER_CONNECTION_STATE_CHANGE
+      const onCall = webrtcMock.on.mock.calls.find(
+        (call: any) => call[0] === "PEER_CONNECTION_STATE_CHANGE",
+      );
+      expect(onCall).toBeDefined();
+      const stateChangeHandler = onCall[1];
+
+      // Trigger the connection state change
+      await stateChangeHandler(connectionStateData);
+
+      // Allow async recovery to complete - need more time for exponential backoff
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+
+      // Verify that peer connection restart was attempted
+      expect(webrtcMock.restartPeerConnection).toHaveBeenCalledWith("user-2");
+    });
+
+    it("retries WebRTC recovery with exponential backoff on failure", async () => {
+      // Mock WebSocket send to fail first time, succeed on retry
+      let callCount = 0;
+      wsMock.send.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.reject(new Error("First attempt failed"));
+        }
+        return Promise.resolve();
+      });
+
+      // Simulate connection status change
+      wsMock.trigger("CONNECTION_STATUS_CHANGE", { status: "CONNECTED" });
+
+      // Allow first attempt to fail
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Get the initial call count (should be 1 for the failed attempt)
+      const initialCallCount = wsMock.send.mock.calls.length;
+      expect(initialCallCount).toBe(1);
+
+      // Wait for retry (should happen after ~2s delay)
+      await new Promise((resolve) => setTimeout(resolve, 2200));
+
+      // Verify retry was attempted (should be at least 1 more call than initial)
+      expect(wsMock.send.mock.calls.length).toBeGreaterThan(initialCallCount);
+
+      // Verify the retry call was a JOIN_ROOM message
+      const lastCall =
+        wsMock.send.mock.calls[wsMock.send.mock.calls.length - 1];
+      expect(lastCall[0]).toMatchObject({
+        type: "JOIN_ROOM",
+        roomId: "room-123",
+        userId: "user-1",
+        userName: "Host",
+        timestamp: expect.any(Number),
+      });
+    });
+
+    it("handles WebRTC connection restart events from offscreen document", async () => {
+      // Set up room manager in connected state
+      (roomManager as any).extensionState.isConnected = true;
+      (roomManager as any).extensionState.connectionStatus = "CONNECTED";
+
+      // Get the registered event handler for ALL_CONNECTIONS_RESTARTED
+      const onCall = webrtcMock.on.mock.calls.find(
+        (call: any) => call[0] === "ALL_CONNECTIONS_RESTARTED",
+      );
+      expect(onCall).toBeDefined();
+      const restartHandler = onCall[1];
+
+      // Simulate all connections restarted event
+      await restartHandler({ restartedPeerIds: ["user-2"] });
+
+      // Allow async operations to complete
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Verify that new offers were created for restarted peers (host behavior)
+      expect(webrtcMock.createOffer).toHaveBeenCalledWith("user-2");
+      expect(wsMock.send).toHaveBeenCalledWith({
+        type: "WEBRTC_OFFER",
+        roomId: "room-123",
+        userId: "user-1",
+        targetUserId: "user-2",
+        offer: { type: "offer", sdp: "test" },
+        timestamp: expect.any(Number),
+      });
+    });
+
+    it("resets recovery retry state on successful data channel connection", async () => {
+      // Set up some recovery retry state
+      (roomManager as any).peerRecoveryRetries.set("user-2", 1);
+
+      // Get the registered event handler for DATA_CHANNEL_OPEN
+      const onCall = webrtcMock.on.mock.calls.find(
+        (call: any) => call[0] === "DATA_CHANNEL_OPEN",
+      );
+      expect(onCall).toBeDefined();
+      const dataChannelHandler = onCall[1];
+
+      // Simulate data channel open
+      await dataChannelHandler({ userId: "user-2" });
+
+      // Verify retry state was cleared
+      expect((roomManager as any).peerRecoveryRetries.has("user-2")).toBe(
+        false,
+      );
+    });
   });
 });

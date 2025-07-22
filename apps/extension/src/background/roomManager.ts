@@ -251,6 +251,9 @@ export class RoomManager {
               connectionStatus: "CONNECTED",
             });
 
+            // Reset WebRTC recovery retry state on successful room creation
+            this.resetWebRTCRecoveryRetry();
+
             // Update badge with initial participant count
             await this.updateBadge();
 
@@ -389,6 +392,9 @@ export class RoomManager {
               currentUser: this.currentUser,
               connectionStatus: "CONNECTED",
             });
+
+            // Reset WebRTC recovery retry state on successful room join
+            this.resetWebRTCRecoveryRetry();
 
             // Update badge with initial participant count
             await this.updateBadge();
@@ -1057,7 +1063,7 @@ export class RoomManager {
   }
 
   /**
-   * Rejoin the current room after WebSocket reconnection
+   * Rejoin the current room after WebSocket reconnection with comprehensive WebRTC recovery
    */
   private async rejoinRoomAfterReconnect(): Promise<void> {
     if (!this.currentRoom || !this.currentUser) return;
@@ -1065,13 +1071,24 @@ export class RoomManager {
     try {
       console.log("[RoomManager] Auto-rejoining room after reconnection");
 
-      // Reset WebRTC connections and reinitialize
+      // Step 1: Close all existing WebRTC connections
       this.webrtc.closeAllConnections();
+
+      // Step 2: Fetch fresh TURN credentials (they may have expired during outage)
+      console.log("[RoomManager] Fetching fresh TURN credentials for recovery");
+      const freshTurnServers = await this.fetchTurnServers(this.currentUser.id);
+      if (freshTurnServers.length > defaultWebRTCConfig.iceServers.length) {
+        this.webrtc.setIceServers(freshTurnServers);
+        console.log("[RoomManager] Updated WebRTC with fresh TURN servers");
+      }
+
+      // Step 3: Reinitialize WebRTC with fresh configuration
       await this.webrtc.initialize(
         this.currentUser.id,
         this.currentUser.isHost,
       );
 
+      // Step 4: Send JOIN_ROOM message to rejoin the room
       const message: JoinRoomMessage = {
         type: "JOIN_ROOM",
         roomId: this.currentRoom.id,
@@ -1081,9 +1098,279 @@ export class RoomManager {
       };
 
       await this.websocket.send(message);
-      console.log("[RoomManager] Auto-rejoin request sent");
+      console.log(
+        "[RoomManager] Auto-rejoin request sent with fresh WebRTC configuration",
+      );
     } catch (error) {
       console.error("[RoomManager] Failed to auto-rejoin room:", error);
+      // If auto-rejoin fails, we should retry with exponential backoff
+      await this.scheduleWebRTCRecoveryRetry();
+    }
+  }
+
+  /**
+   * Retry WebRTC recovery with exponential backoff
+   */
+  private webrtcRecoveryRetryCount = 0;
+  private webrtcRecoveryMaxRetries = 3;
+  private webrtcRecoveryRetryTimeoutId: number | null = null;
+
+  private async scheduleWebRTCRecoveryRetry(): Promise<void> {
+    if (this.webrtcRecoveryRetryCount >= this.webrtcRecoveryMaxRetries) {
+      console.error("[RoomManager] Max WebRTC recovery attempts reached");
+      this.webrtcRecoveryRetryCount = 0;
+      return;
+    }
+
+    // Exponential backoff: 2s, 4s, 8s
+    const delay = 2000 * Math.pow(2, this.webrtcRecoveryRetryCount);
+    const jitter = Math.random() * 0.1 * delay;
+    const finalDelay = delay + jitter;
+
+    console.log(
+      `[RoomManager] Scheduling WebRTC recovery retry in ${finalDelay}ms (attempt ${this.webrtcRecoveryRetryCount + 1}/${this.webrtcRecoveryMaxRetries})`,
+    );
+
+    if (this.webrtcRecoveryRetryTimeoutId) {
+      clearTimeout(this.webrtcRecoveryRetryTimeoutId);
+    }
+
+    this.webrtcRecoveryRetryTimeoutId = setTimeout(() => {
+      this.webrtcRecoveryRetryCount++;
+      this.rejoinRoomAfterReconnect().catch((error) => {
+        console.error("[RoomManager] WebRTC recovery retry failed:", error);
+      });
+    }, finalDelay) as unknown as number;
+  }
+
+  /**
+   * Reset WebRTC recovery retry state on successful operations
+   */
+  private resetWebRTCRecoveryRetry(): void {
+    this.webrtcRecoveryRetryCount = 0;
+    if (this.webrtcRecoveryRetryTimeoutId) {
+      clearTimeout(this.webrtcRecoveryRetryTimeoutId);
+      this.webrtcRecoveryRetryTimeoutId = null;
+    }
+  }
+
+  /**
+   * Handle WebRTC peer connection state changes for proactive recovery
+   */
+  private async handleWebRTCConnectionStateChange(data: {
+    userId: string;
+    state: RTCPeerConnectionState;
+  }): Promise<void> {
+    console.log(
+      `[RoomManager] WebRTC connection state change for ${data.userId}: ${data.state}`,
+    );
+
+    // Only attempt recovery if we're in a room and connected to signaling
+    if (
+      !this.currentRoom ||
+      !this.currentUser ||
+      !this.websocket.isConnected()
+    ) {
+      return;
+    }
+
+    // Handle failed connections proactively
+    if (data.state === "failed" || data.state === "disconnected") {
+      console.warn(
+        `[RoomManager] WebRTC connection ${data.state} for ${data.userId}, initiating recovery`,
+      );
+
+      // Attempt to recover this specific peer connection
+      await this.recoverSinglePeerConnection(data.userId);
+    }
+  }
+
+  /**
+   * Recover a single peer connection with exponential backoff
+   */
+  private peerRecoveryRetries = new Map<string, number>();
+
+  private async recoverSinglePeerConnection(userId: string): Promise<void> {
+    const currentRetries = this.peerRecoveryRetries.get(userId) || 0;
+    const maxRetries = 2; // Fewer retries for individual peers
+
+    if (currentRetries >= maxRetries) {
+      console.error(
+        `[RoomManager] Max recovery attempts reached for peer ${userId}`,
+      );
+      this.peerRecoveryRetries.delete(userId);
+      return;
+    }
+
+    try {
+      // Wait a moment before retry (exponential backoff)
+      const delay = 1000 * Math.pow(2, currentRetries); // 1s, 2s
+      await new Promise((resolve) => setTimeout(resolve, delay));
+
+      console.log(
+        `[RoomManager] Attempting to recover peer ${userId} (attempt ${currentRetries + 1})`,
+      );
+
+      // Use the new WebRTC restart method which includes ICE restart as first attempt
+      await this.webrtc.restartPeerConnection(userId);
+
+      this.peerRecoveryRetries.set(userId, currentRetries + 1);
+
+      // Clean up retry count after timeout (will be cleared earlier by successful connection)
+      setTimeout(() => {
+        this.peerRecoveryRetries.delete(userId);
+      }, 30000); // Clean up after 30 seconds
+    } catch (error) {
+      console.error(`[RoomManager] Failed to recover peer ${userId}:`, error);
+      this.peerRecoveryRetries.set(userId, currentRetries + 1);
+
+      // Schedule retry if we haven't hit max attempts
+      if (currentRetries + 1 < maxRetries) {
+        setTimeout(
+          () => {
+            this.recoverSinglePeerConnection(userId);
+          },
+          2000 * Math.pow(2, currentRetries + 1),
+        );
+      }
+    }
+  }
+
+  /**
+   * Handle all WebRTC connections restarted event from offscreen document
+   */
+  private async handleAllConnectionsRestarted(data: {
+    restartedPeerIds: string[];
+  }): Promise<void> {
+    console.log(
+      `[RoomManager] All WebRTC connections restarted for peers:`,
+      data.restartedPeerIds,
+    );
+
+    if (
+      !this.currentRoom ||
+      !this.currentUser ||
+      !this.websocket.isConnected()
+    ) {
+      return;
+    }
+
+    // If we're the host, re-establish connections to all peers
+    if (this.currentUser.isHost) {
+      console.log("[RoomManager] Re-establishing WebRTC connections as host");
+
+      for (const user of this.currentRoom.users) {
+        if (
+          user.id !== this.currentUser.id &&
+          data.restartedPeerIds.includes(user.id)
+        ) {
+          try {
+            console.log(
+              `[RoomManager] Creating new offer for restarted peer ${user.id}`,
+            );
+            const offer = await this.webrtc.createOffer(user.id);
+            await this.websocket.send({
+              type: "WEBRTC_OFFER",
+              roomId: this.currentRoom.id,
+              userId: this.currentUser.id,
+              targetUserId: user.id,
+              offer,
+              timestamp: Date.now(),
+            });
+          } catch (error) {
+            console.error(
+              `[RoomManager] Failed to create offer for ${user.id}:`,
+              error,
+            );
+          }
+        }
+      }
+    }
+
+    // Clear recovery retry states for successfully restarted peers
+    for (const peerId of data.restartedPeerIds) {
+      this.peerRecoveryRetries.delete(peerId);
+    }
+  }
+
+  /**
+   * Handle individual peer connection restarted event
+   */
+  private async handlePeerConnectionRestarted(data: {
+    userId: string;
+  }): Promise<void> {
+    console.log(`[RoomManager] Peer connection restarted for ${data.userId}`);
+
+    if (
+      !this.currentRoom ||
+      !this.currentUser ||
+      !this.websocket.isConnected()
+    ) {
+      return;
+    }
+
+    // If we're the host, re-establish connection to this specific peer
+    if (this.currentUser.isHost) {
+      try {
+        console.log(
+          `[RoomManager] Re-establishing connection to peer ${data.userId} as host`,
+        );
+        const offer = await this.webrtc.createOffer(data.userId);
+        await this.websocket.send({
+          type: "WEBRTC_OFFER",
+          roomId: this.currentRoom.id,
+          userId: this.currentUser.id,
+          targetUserId: data.userId,
+          offer,
+          timestamp: Date.now(),
+        });
+      } catch (error) {
+        console.error(
+          `[RoomManager] Failed to re-establish connection to ${data.userId}:`,
+          error,
+        );
+      }
+    }
+
+    // Clear recovery retry state for this peer
+    this.peerRecoveryRetries.delete(data.userId);
+  }
+
+  /**
+   * Handle ICE restart offer from offscreen document
+   */
+  private async handleIceRestartOffer(data: {
+    userId: string;
+    offer: RTCSessionDescriptionInit;
+  }): Promise<void> {
+    console.log(`[RoomManager] ICE restart offer received for ${data.userId}`);
+
+    if (
+      !this.currentRoom ||
+      !this.currentUser ||
+      !this.websocket.isConnected()
+    ) {
+      return;
+    }
+
+    // Send ICE restart offer through WebSocket signaling
+    try {
+      await this.websocket.send({
+        type: "WEBRTC_OFFER",
+        roomId: this.currentRoom.id,
+        userId: this.currentUser.id,
+        targetUserId: data.userId,
+        offer: data.offer,
+        timestamp: Date.now(),
+      });
+      console.log(
+        `[RoomManager] Sent ICE restart offer to ${data.userId} via signaling`,
+      );
+    } catch (error) {
+      console.error(
+        `[RoomManager] Failed to send ICE restart offer to ${data.userId}:`,
+        error,
+      );
     }
   }
 
@@ -1115,6 +1402,11 @@ export class RoomManager {
     await this.websocket.disconnect();
     this.websocket.reset(); // Reset WebSocket state for fresh initialization
     this.eventListeners.clear();
+
+    // Clean up recovery retry states
+    this.resetWebRTCRecoveryRetry();
+    this.peerRecoveryRetries.clear();
+
     await this.badgeManager.clearBadge();
   }
 
@@ -1146,6 +1438,24 @@ export class RoomManager {
     );
     this.webrtc.on("DATA_CHANNEL_OPEN", (data) => {
       void this.handleDataChannelOpen(data as { userId: string });
+    });
+    this.webrtc.on("PEER_CONNECTION_STATE_CHANGE", (data) => {
+      void this.handleWebRTCConnectionStateChange(
+        data as { userId: string; state: RTCPeerConnectionState },
+      );
+    });
+    this.webrtc.on("ALL_CONNECTIONS_RESTARTED", (data) => {
+      void this.handleAllConnectionsRestarted(
+        data as { restartedPeerIds: string[] },
+      );
+    });
+    this.webrtc.on("PEER_CONNECTION_RESTARTED", (data) => {
+      void this.handlePeerConnectionRestarted(data as { userId: string });
+    });
+    this.webrtc.on("ICE_RESTART_OFFER", (data) => {
+      void this.handleIceRestartOffer(
+        data as { userId: string; offer: RTCSessionDescriptionInit },
+      );
     });
 
     // Adapter event handlers
@@ -1765,13 +2075,19 @@ export class RoomManager {
   }
 
   private async handleDataChannelOpen(data: { userId: string }): Promise<void> {
+    // Reset peer recovery retry state on successful connection
+    this.peerRecoveryRetries.delete(data.userId);
+    console.log(
+      `[RoomManager] Data channel opened with ${data.userId}, connection recovered successfully`,
+    );
+
     if (!this.currentUser?.isHost || !this.currentRoom?.hostVideoState) {
       return;
     }
 
     const hostState = this.currentRoom.hostVideoState;
     console.log(
-      `[RoomManager] Data channel opened with ${data.userId}, sending initial host state:`,
+      `[RoomManager] Sending initial host state to ${data.userId}:`,
       `${hostState.isPlaying ? "PLAYING" : "PAUSED"} at ${hostState.currentTime}s`,
     );
 

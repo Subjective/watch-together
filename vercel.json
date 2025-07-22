@@ -1,4 +1,4 @@
 {
-  "installCommand": "corepack enable && pnpm install",
+  "installCommand": "cd ../.. && corepack enable && pnpm install --filter=...@repo/website...",
   "buildCommand": "pnpm run build"
 }

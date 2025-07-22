@@ -13,12 +13,13 @@ export interface WebRTCManagerConfig {
 
 /**
  * Default WebRTC configuration for the Watch Together extension
- * Uses Google's public STUN servers for NAT traversal
+ * Uses Cloudflare STUN servers for basic NAT traversal
+ * TURN servers are fetched dynamically from the backend API
  */
 export const defaultWebRTCConfig: WebRTCManagerConfig = {
   iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "stun:stun.cloudflare.com:3478" },
+    { urls: "stun:stun.cloudflare.com:53" },
   ],
   iceCandidatePoolSize: 10,
   dataChannelOptions: {

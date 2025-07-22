@@ -3,13 +3,12 @@
  */
 
 import { RoomState } from "./roomState";
-import { generateTurnCredentials } from "./turnCredentials";
-import { randomUUID } from "crypto";
+import { generateCloudflareCredentials } from "./cloudflareApiCredentials";
 
 export interface Env {
   ROOM_STATE: DurableObjectNamespace;
-  TURN_SECRET: string;
-  TURN_URLS: string;
+  TURN_KEY_ID: string;
+  TURN_KEY_API_TOKEN: string;
 }
 
 export { RoomState };
@@ -60,14 +59,45 @@ export default {
       }
 
       if (url.pathname === "/turn-credentials") {
-        const userId = url.searchParams.get("userId") || randomUUID();
-        const secret = env.TURN_SECRET;
-        const urls = env.TURN_URLS.split(/,\s*/);
-        const creds = generateTurnCredentials(secret, urls, userId);
+        try {
+          const ttl = parseInt(url.searchParams.get("ttl") || "3600", 10);
 
-        return new Response(JSON.stringify(creds), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+          // Validate TTL parameter
+          if (ttl < 300 || ttl > 86400) {
+            return new Response(
+              JSON.stringify({
+                error: "TTL must be between 300 and 86400 seconds",
+              }),
+              {
+                status: 400,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              },
+            );
+          }
+
+          const creds = await generateCloudflareCredentials(
+            env.TURN_KEY_ID,
+            env.TURN_KEY_API_TOKEN,
+            ttl,
+          );
+
+          return new Response(JSON.stringify(creds), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        } catch (error) {
+          console.error("TURN credentials error:", error);
+
+          return new Response(
+            JSON.stringify({
+              error: "Failed to generate TURN credentials",
+              details: error instanceof Error ? error.message : "Unknown error",
+            }),
+            {
+              status: 500,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
       }
 
       return new Response("Not Found", {

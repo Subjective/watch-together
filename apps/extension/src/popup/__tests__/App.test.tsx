@@ -44,7 +44,12 @@ describe("App", () => {
   });
 
   it("should render home page by default", async () => {
-    render(<App />);
+    await act(async () => {
+      render(<App />);
+    });
+
+    // Wait for async useEffect operations to complete
+    await screen.findByText("Watch Together");
 
     expect(screen.getByText("Watch Together")).toBeInTheDocument();
     expect(
@@ -83,7 +88,9 @@ describe("App", () => {
       }),
     });
 
-    render(<App />);
+    await act(async () => {
+      render(<App />);
+    });
 
     // Wait for the component to render the room page
     await screen.findByText("Test Room");
@@ -97,7 +104,12 @@ describe("App", () => {
     const user = userEvent.setup();
     const chrome = getChromeForTest();
 
-    render(<App />);
+    await act(async () => {
+      render(<App />);
+    });
+
+    // Wait for component to initialize
+    await screen.findByText("Watch Together");
 
     const createButton = screen.getByRole("button", { name: "Create Room" });
     await user.click(createButton);
@@ -114,7 +126,12 @@ describe("App", () => {
     const user = userEvent.setup();
     const chrome = getChromeForTest();
 
-    render(<App />);
+    await act(async () => {
+      render(<App />);
+    });
+
+    // Wait for component to initialize
+    await screen.findByText("Watch Together");
 
     const roomInput = screen.getByPlaceholderText("Enter room code to join...");
     const joinButton = screen.getByRole("button", { name: "Join" });
@@ -134,7 +151,12 @@ describe("App", () => {
   it("should load state from chrome storage on mount", async () => {
     const chrome = getChromeForTest();
 
-    render(<App />);
+    await act(async () => {
+      render(<App />);
+    });
+
+    // Wait for async initialization to complete
+    await screen.findByText("Watch Together");
 
     expect(chrome.storage.local.get).toHaveBeenCalledWith("extensionState");
     expect(chrome.storage.onChanged.addListener).toHaveBeenCalled();
@@ -144,9 +166,12 @@ describe("App", () => {
   it("should handle storage changes", async () => {
     const chrome = getChromeForTest();
 
-    render(<App />);
+    await act(async () => {
+      render(<App />);
+    });
 
-    // Verify we start on the home page
+    // Wait for initial render and verify we start on the home page
+    await screen.findByText("Watch Together");
     expect(screen.getByText("Watch Together")).toBeInTheDocument();
     expect(
       screen.getByText("Synchronized video watching with friends"),

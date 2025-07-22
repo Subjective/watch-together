@@ -25,5 +25,5 @@ enabled = true
 head_sampling_rate = 1
 
 [vars]
-TURN_SECRET = "your-turn-secret-here"
-TURN_URLS = "turns:global.turn.cloudflare.com:443?transport=tcp,turn:global.turn.cloudflare.com:3478?transport=udp"
+TURN_KEY_ID = "your-cloudflare-turn-key-id"
+TURN_KEY_API_TOKEN = "your-cloudflare-api-token"

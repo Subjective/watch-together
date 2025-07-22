@@ -23,7 +23,11 @@ interface ConnectedUser extends User {
   lastActivity: number;
 }
 
-interface RoomStateData {
+/**
+ * Backend-specific room data stored in Durable Object state
+ * Contains additional fields for server restart recovery
+ */
+export interface RoomStateData {
   id: string;
   name: string;
   hostId: string;
@@ -33,6 +37,8 @@ interface RoomStateData {
   hostVideoState: VideoState | null;
   createdAt: number;
   lastActivity: number;
+  serverRestartRecoveryStarted?: number; // Timestamp when server restart recovery began
+  originalHostId?: string; // Original host before server restart, used for fallback timeout
 }
 
 /**
@@ -376,30 +382,121 @@ export class RoomState {
         return;
       }
 
-      // Clean up any users from storage who don't have active connections
+      // Handle server restart recovery: preserve original host context
       // This happens when the server restarts and users are loaded from storage
       // but their connections are lost
+      const originalHostId = this.roomData.hostId;
+      const HOST_RECOVERY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
       if (this.roomData.users.length > 0 && this.connections.size === 0) {
         console.log(
-          `Cleaning up ${this.roomData.users.length} disconnected users from storage`,
+          `Server restart detected: Cleaning up ${this.roomData.users.length} disconnected users from storage while preserving original host context (hostId: ${originalHostId})`,
         );
         this.roomData.users = [];
+
+        // Mark the start of server restart recovery if not already marked
+        if (!this.roomData.serverRestartRecoveryStarted) {
+          this.roomData.serverRestartRecoveryStarted = Date.now();
+          this.roomData.originalHostId = originalHostId;
+          console.log(
+            `Started server restart recovery timer for original host ${originalHostId}`,
+          );
+        }
       }
 
       const now = Date.now();
       const isFirstUserInRoom = this.roomData.users.length === 0;
 
+      // Check if we're in recovery mode and if the original host recovery has timed out
+      const isInRecoveryMode =
+        this.roomData.serverRestartRecoveryStarted &&
+        this.roomData.originalHostId;
+      const recoveryTimedOut =
+        isInRecoveryMode &&
+        now - this.roomData.serverRestartRecoveryStarted! >
+          HOST_RECOVERY_TIMEOUT_MS;
+
+      // Determine if this user should be the host
+      let shouldBeHost = false;
+      if (isFirstUserInRoom) {
+        if (originalHostId && !recoveryTimedOut) {
+          // Server restart scenario: only assign host status if this user matches the original hostId
+          shouldBeHost = message.userId === originalHostId;
+          console.log(
+            `Server restart recovery: User ${message.userId} ${shouldBeHost ? "matches" : "does not match"} original host ${originalHostId}`,
+          );
+        } else if (recoveryTimedOut) {
+          // Original host didn't return within timeout - assign host to first user
+          shouldBeHost = true;
+          console.log(
+            `Original host ${this.roomData.originalHostId} recovery timed out after ${HOST_RECOVERY_TIMEOUT_MS / 1000}s, assigning host to ${message.userId}`,
+          );
+          // Clear recovery state
+          this.roomData.serverRestartRecoveryStarted = undefined;
+          this.roomData.originalHostId = undefined;
+        } else {
+          // Normal empty room scenario: first user becomes host
+          shouldBeHost = true;
+        }
+      } else if (
+        isInRecoveryMode &&
+        !recoveryTimedOut &&
+        message.userId === this.roomData.originalHostId
+      ) {
+        // Special case: Original host returning after others have joined during recovery
+        shouldBeHost = true;
+        console.log(
+          `Original host ${message.userId} returned during recovery, promoting to host and demoting current host`,
+        );
+
+        // Find and demote current host
+        const currentHost = this.roomData.users.find((u) => u.isHost);
+        if (currentHost) {
+          currentHost.isHost = false;
+          console.log(`Demoted ${currentHost.id} from host to participant`);
+
+          // Notify all users about the host change
+          this.broadcast({
+            type: "HOST_CHANGED",
+            roomId: this.roomData.id,
+            newHostId: message.userId,
+            previousHostId: currentHost.id,
+            timestamp: Date.now(),
+          });
+        }
+      }
+
       const newUser: User = {
         id: message.userId,
         name: message.userName,
-        isHost: isFirstUserInRoom, // Make first user in empty room the host
+        isHost: shouldBeHost,
         isConnected: true,
         joinedAt: now,
       };
 
       // Update hostId if this user becomes host
-      if (isFirstUserInRoom) {
+      if (shouldBeHost) {
         this.roomData.hostId = message.userId;
+        console.log(`User ${message.userId} assigned as host`);
+
+        // If this was the original host returning, clear recovery state
+        if (
+          isInRecoveryMode &&
+          message.userId === this.roomData.originalHostId
+        ) {
+          console.log(
+            `Original host ${message.userId} successfully returned, clearing recovery state`,
+          );
+          this.roomData.serverRestartRecoveryStarted = undefined;
+          this.roomData.originalHostId = undefined;
+        }
+      } else if (isFirstUserInRoom && originalHostId && !recoveryTimedOut) {
+        // Keep the original hostId even if the current user isn't the host
+        // This will be used for subsequent users who join
+        this.roomData.hostId = originalHostId;
+        console.log(
+          `Preserving original hostId ${originalHostId} for future host assignment`,
+        );
       }
 
       // Add user to room data

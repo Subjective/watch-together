@@ -404,6 +404,19 @@ export class RoomManager {
               StorageManager.addRoomToHistory(this.currentRoom);
             }
 
+            // Establish WebRTC connections with existing users in the room
+            try {
+              await this.establishWebRTCConnections();
+              console.log(
+                "[RoomManager] WebRTC connections established after room join",
+              );
+            } catch (error) {
+              console.error(
+                "[RoomManager] Failed to establish WebRTC connections after join:",
+                error,
+              );
+            }
+
             resolve(this.currentRoom!);
           }
         };
@@ -1101,11 +1114,188 @@ export class RoomManager {
       console.log(
         "[RoomManager] Auto-rejoin request sent with fresh WebRTC configuration",
       );
+
+      // Step 5: Wait for ROOM_JOINED response and establish WebRTC connections
+      await this.waitForRejoinAndEstablishConnections(this.currentRoom.id);
     } catch (error) {
       console.error("[RoomManager] Failed to auto-rejoin room:", error);
       // If auto-rejoin fails, we should retry with exponential backoff
       await this.scheduleWebRTCRecoveryRetry();
     }
+  }
+
+  /**
+   * Wait for ROOM_JOINED response after rejoin and establish WebRTC connections
+   */
+  private async waitForRejoinAndEstablishConnections(
+    roomId: string,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const cleanup = () => {
+        this.websocket.off("ROOM_JOINED", onRoomJoined);
+        this.websocket.off("ERROR", onError);
+      };
+
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error("Rejoin timeout - no ROOM_JOINED response"));
+      }, 10000);
+
+      const onRoomJoined = async (response: any) => {
+        if (response.type === "ROOM_JOINED" && response.roomId === roomId) {
+          clearTimeout(timeout);
+          cleanup();
+
+          try {
+            // Update room state with server response
+            this.currentRoom = response.roomState;
+            this.currentUser =
+              response.roomState.users.find(
+                (u: User) => u.id === this.currentUser?.id,
+              ) || null;
+
+            if (!this.currentUser) {
+              throw new Error("User not found in room state after rejoin");
+            }
+
+            // Update WebRTC host status
+            this.webrtc.setHostStatus(this.currentUser.isHost);
+
+            // Update extension state
+            this.updateExtensionState({
+              isConnected: true,
+              currentRoom: this.currentRoom,
+              currentUser: this.currentUser,
+              connectionStatus: "CONNECTED",
+            });
+
+            console.log(
+              "[RoomManager] Successfully rejoined room, establishing WebRTC connections",
+            );
+
+            // Establish WebRTC connections with all users in the room
+            await this.establishWebRTCConnections();
+
+            console.log("[RoomManager] WebRTC recovery completed successfully");
+
+            // Reset retry count on success
+            this.webrtcRecoveryRetryCount = 0;
+
+            resolve();
+          } catch (error) {
+            console.error(
+              "[RoomManager] Failed to establish connections after rejoin:",
+              error,
+            );
+            reject(error);
+          }
+        }
+      };
+
+      const onError = (response: any) => {
+        if (response.type === "ERROR") {
+          clearTimeout(timeout);
+          cleanup();
+          reject(new Error(response.error || "Unknown error during rejoin"));
+        }
+      };
+
+      this.websocket.on("ROOM_JOINED", onRoomJoined);
+      this.websocket.on("ERROR", onError);
+    });
+  }
+
+  /**
+   * Unified method to establish WebRTC connections with all users in the room
+   * Ensures robust connection establishment for all scenarios: normal joins, rejoins, reconnections
+   */
+  private async establishWebRTCConnections(): Promise<void> {
+    if (!this.currentRoom || !this.currentUser) {
+      console.warn(
+        "[RoomManager] Cannot establish WebRTC connections: missing room or user",
+      );
+      return;
+    }
+
+    console.log(
+      "[RoomManager] Establishing WebRTC connections with all room members",
+    );
+
+    // Get all other users in the room (excluding self)
+    const otherUsers = this.currentRoom.users.filter(
+      (user) => user.id !== this.currentUser!.id && user.isConnected,
+    );
+
+    if (otherUsers.length === 0) {
+      console.log("[RoomManager] No other connected users in room");
+      return;
+    }
+
+    console.log(
+      `[RoomManager] Found ${otherUsers.length} other users to connect to:`,
+      otherUsers.map((u) => `${u.name} (${u.id})`),
+    );
+
+    // Deterministic connection coordination to prevent race conditions
+    // Use string comparison to ensure consistent offer/answer roles
+    for (const otherUser of otherUsers) {
+      try {
+        // Determine who should create the offer based on user IDs (deterministic)
+        const shouldCreateOffer = this.shouldCreateOfferForUser(otherUser.id);
+
+        if (shouldCreateOffer) {
+          console.log(
+            `[RoomManager] Creating offer for user: ${otherUser.name} (${otherUser.id})`,
+          );
+
+          const offer = await this.webrtc.createOffer(otherUser.id);
+
+          const offerMessage: WebRTCOfferMessage = {
+            type: "WEBRTC_OFFER",
+            roomId: this.currentRoom.id,
+            userId: this.currentUser.id,
+            targetUserId: otherUser.id,
+            offer,
+            timestamp: Date.now(),
+          };
+
+          await this.websocket.send(offerMessage);
+          console.log(`[RoomManager] Offer sent to ${otherUser.name}`);
+        } else {
+          console.log(
+            `[RoomManager] Waiting for offer from user: ${otherUser.name} (${otherUser.id})`,
+          );
+        }
+      } catch (error) {
+        console.error(
+          `[RoomManager] Failed to establish connection with ${otherUser.name}:`,
+          error,
+        );
+      }
+    }
+  }
+
+  /**
+   * Deterministic method to decide who creates offers to prevent race conditions
+   * Host always creates offers, or if both are non-host, lexicographically smaller ID creates offer
+   */
+  private shouldCreateOfferForUser(otherUserId: string): boolean {
+    if (!this.currentUser) return false;
+
+    // If I'm the host, I create offers for everyone
+    if (this.currentUser.isHost) {
+      return true;
+    }
+
+    // If the other user is the host, they create the offer (I wait)
+    const otherUser = this.currentRoom?.users.find((u) => u.id === otherUserId);
+    if (otherUser?.isHost) {
+      return false;
+    }
+
+    // If neither is host, use lexicographic comparison for deterministic ordering
+    // The user with the lexicographically smaller ID creates the offer
+    return this.currentUser.id < otherUserId;
   }
 
   /**
@@ -1485,26 +1675,21 @@ export class RoomManager {
       // Update badge with new participant count
       await this.updateBadge();
 
-      // If we're the host, initiate WebRTC connection to new user
-      if (
-        this.currentUser?.isHost &&
-        response.joinedUser.id !== this.currentUser.id
-      ) {
+      // Establish WebRTC connection with new user using unified method
+      // This handles both host and participant scenarios with proper coordination
+      if (response.joinedUser.id !== this.currentUser?.id) {
         try {
-          const offer = await this.webrtc.createOffer(response.joinedUser.id);
-
-          const offerMessage: WebRTCOfferMessage = {
-            type: "WEBRTC_OFFER",
-            roomId: this.currentRoom!.id,
-            userId: this.currentUser!.id,
-            targetUserId: response.joinedUser.id,
-            offer,
-            timestamp: Date.now(),
-          };
-
-          await this.websocket.send(offerMessage);
+          // Use the unified connection establishment method
+          // It will determine who should create the offer based on roles and IDs
+          await this.establishWebRTCConnections();
+          console.log(
+            `[RoomManager] WebRTC connections updated after user ${response.joinedUser.name} joined`,
+          );
         } catch (error) {
-          console.error("Failed to create offer for new user:", error);
+          console.error(
+            "Failed to establish WebRTC connections after user joined:",
+            error,
+          );
         }
       }
 

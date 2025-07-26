@@ -134,11 +134,32 @@ export const App: React.FC = () => {
         let hasAdapter = false;
         if (currentTabId) {
           try {
-            const res = await chrome.tabs.sendMessage(currentTabId, {
-              type: "CHECK_ADAPTER_STATUS",
-              timestamp: Date.now(),
+            // Get all frames in the tab
+            const frames = await chrome.webNavigation.getAllFrames({
+              tabId: currentTabId,
             });
-            hasAdapter = !!res?.hasAdapter;
+
+            if (frames && frames.length > 0) {
+              // Check each frame for adapter
+              const frameChecks = await Promise.allSettled(
+                frames.map((frame) =>
+                  chrome.tabs.sendMessage(
+                    currentTabId,
+                    {
+                      type: "CHECK_ADAPTER_STATUS",
+                      timestamp: Date.now(),
+                    },
+                    { frameId: frame.frameId },
+                  ),
+                ),
+              );
+
+              // If any frame has an adapter, set hasAdapter to true
+              hasAdapter = frameChecks.some(
+                (result) =>
+                  result.status === "fulfilled" && result.value?.hasAdapter,
+              );
+            }
           } catch {
             // No adapter available on current tab, hasAdapter remains false
             hasAdapter = false;

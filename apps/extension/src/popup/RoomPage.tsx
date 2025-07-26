@@ -159,13 +159,32 @@ export const RoomPage: React.FC<RoomPageProps> = ({
         return;
       }
 
-      const response = await chrome.tabs.sendMessage(currentTabId, {
-        type: "CHECK_ADAPTER_STATUS",
-        timestamp: Date.now(),
+      // Get all frames in the tab
+      const frames = await chrome.webNavigation.getAllFrames({
+        tabId: currentTabId,
       });
 
-      if (response?.hasAdapter !== undefined) {
-        setHasCurrentTabAdapter(response.hasAdapter);
+      if (frames && frames.length > 0) {
+        // Check each frame for adapter
+        const frameChecks = await Promise.allSettled(
+          frames.map((frame) =>
+            chrome.tabs.sendMessage(
+              currentTabId,
+              {
+                type: "CHECK_ADAPTER_STATUS",
+                timestamp: Date.now(),
+              },
+              { frameId: frame.frameId },
+            ),
+          ),
+        );
+
+        // If any frame has an adapter, set hasCurrentTabAdapter to true
+        const hasAdapter = frameChecks.some(
+          (result) => result.status === "fulfilled" && result.value?.hasAdapter,
+        );
+
+        setHasCurrentTabAdapter(hasAdapter);
       } else {
         setHasCurrentTabAdapter(false);
       }

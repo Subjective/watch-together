@@ -3,12 +3,7 @@
   "name": "Watch Together",
   "version": "1.0.0",
   "description": "Synchronized video watching across multiple streaming sites",
-  "permissions": [
-    "storage",
-    "activeTab",
-    "tabs",
-    "offscreen"
-  ],
+  "permissions": ["storage", "activeTab", "tabs", "offscreen", "webNavigation"],
   "host_permissions": [
     "https://*.youtube.com/*",
     "https://*.netflix.com/*",
@@ -38,9 +33,7 @@
         "http://localhost/*",
         "file://*/*"
       ],
-      "exclude_matches": [
-        "https://*.crunchyroll.com/*"
-      ],
+      "exclude_matches": ["https://*.crunchyroll.com/*"],
       "js": ["preloader.js"],
       "run_at": "document_start",
       "type": "module"
@@ -58,9 +51,7 @@
         "http://localhost/*",
         "file://*/*"
       ],
-      "exclude_matches": [
-        "https://*.crunchyroll.com/*"
-      ],
+      "exclude_matches": ["https://*.crunchyroll.com/*"],
       "js": ["content.js"],
       "type": "module"
     },

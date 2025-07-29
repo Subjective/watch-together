@@ -1,0 +1,24 @@
+# Build outputs
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Dependencies
+node_modules/
+
+# Generated files
+**/*.d.ts
+
+# Scripts that use Node.js APIs
+packages/*/scripts/
+
+# Generated icon files
+apps/extension/public/icons/
+
+# Other
+*.config.js
+*.config.ts
+vite.config.ts
+vitest.config.ts
+next.config.ts

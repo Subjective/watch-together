@@ -25,6 +25,7 @@ import { SiGithub, SiDiscord } from "react-icons/si";
 import Image from "next/image";
 import Link from "next/link";
 import { ExtensionMockup } from "@/components/extension-mockup";
+import { Logo } from "@repo/logo";
 
 interface GitHubRepo {
   stargazers_count: number;
@@ -72,9 +73,7 @@ export default async function WatchTogetherLanding() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <div className="flex items-center space-x-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-r from-purple-600 to-blue-600">
-                <Play className="h-4 w-4 text-white" />
-              </div>
+              <Logo size={32} />
               <span className="text-xl font-bold text-gray-900">
                 Watch Together
               </span>
@@ -479,9 +478,7 @@ export default async function WatchTogetherLanding() {
           <div className="grid md:grid-cols-4 gap-8">
             <div className="space-y-4">
               <div className="flex items-center space-x-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-r from-purple-600 to-blue-600">
-                  <Play className="h-4 w-4 text-white" />
-                </div>
+                <Logo size={32} />
                 <span className="text-xl font-bold">Watch Together</span>
               </div>
               <p className="text-gray-400">Sync videos with friends.</p>

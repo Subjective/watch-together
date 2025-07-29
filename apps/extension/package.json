@@ -21,6 +21,7 @@
     "@radix-ui/react-switch": "^1.2.5",
     "@radix-ui/react-toast": "^1.2.14",
     "@repo/adapters": "workspace:*",
+    "@repo/logo": "workspace:*",
     "@repo/types": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

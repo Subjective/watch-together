@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postbuild": "cp -f node_modules/@repo/logo/dist/assets/icons/favicon.png app/favicon.png 2>/dev/null || true",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"

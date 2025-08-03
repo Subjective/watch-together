@@ -419,11 +419,11 @@ export class RoomState {
       // Determine if this user should be the host
       let shouldBeHost = false;
       if (isFirstUserInRoom) {
-        if (originalHostId && !recoveryTimedOut) {
+        if (isInRecoveryMode && !recoveryTimedOut) {
           // Server restart scenario: only assign host status if this user matches the original hostId
-          shouldBeHost = message.userId === originalHostId;
+          shouldBeHost = message.userId === this.roomData.originalHostId;
           console.log(
-            `Server restart recovery: User ${message.userId} ${shouldBeHost ? "matches" : "does not match"} original host ${originalHostId}`,
+            `Server restart recovery: User ${message.userId} ${shouldBeHost ? "matches" : "does not match"} original host ${this.roomData.originalHostId}`,
           );
         } else if (recoveryTimedOut) {
           // Original host didn't return within timeout - assign host to first user
@@ -894,6 +894,20 @@ export class RoomState {
     if (this.roomData.users.length === 0) {
       const roomId = this.roomData.id;
       console.log(`Room ${roomId} is now empty - scheduling cleanup alarm`);
+
+      // Clear server restart recovery state since room is now naturally empty
+      // This ensures that when someone rejoins later, they are treated as joining
+      // a fresh empty room rather than a room in recovery mode
+      if (
+        this.roomData.serverRestartRecoveryStarted ||
+        this.roomData.originalHostId
+      ) {
+        console.log(
+          `Clearing server restart recovery state for naturally empty room ${roomId}`,
+        );
+        this.roomData.serverRestartRecoveryStarted = undefined;
+        this.roomData.originalHostId = undefined;
+      }
 
       // Stop user activity monitoring since no users remain
       this.stopUserActivityMonitoring();

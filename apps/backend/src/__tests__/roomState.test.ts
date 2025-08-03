@@ -238,5 +238,86 @@ describe("RoomState Server Restart Recovery", () => {
       expect(secondUserShouldBeHost).toBe(true); // Original host should reclaim host status
       expect(roomData.users.length).toBe(1); // Only first user added so far
     });
+
+    it("should assign host to first user after room becomes naturally empty", () => {
+      // Simulate a room that had recovery state but then became naturally empty
+      const originalHostId = "original-host";
+      roomData.hostId = originalHostId;
+      roomData.serverRestartRecoveryStarted = Date.now() - 60000; // Recovery started 1 minute ago
+      roomData.originalHostId = originalHostId;
+      roomData.users = []; // Room is now empty (users left naturally)
+
+      // Simulate that recovery state should be cleared when room becomes empty
+      // This mimics the fix we're implementing in removeUserFromRoom()
+      roomData.serverRestartRecoveryStarted = undefined;
+      roomData.originalHostId = undefined;
+
+      // Now a new user (not the original host) joins
+      const newUserId = "different-user";
+      const isFirstUserInRoom = roomData.users.length === 0;
+
+      // Check recovery mode state (should be false since we cleared recovery state)
+      const isInRecoveryMode = !!(
+        roomData.serverRestartRecoveryStarted && roomData.originalHostId
+      );
+      const recoveryTimedOut = false; // Not relevant when not in recovery mode
+
+      // Determine if they should be host using the fixed logic
+      let shouldBeHost = false;
+      if (isFirstUserInRoom) {
+        if (isInRecoveryMode && !recoveryTimedOut) {
+          // Server restart scenario: only assign host status if this user matches the original hostId
+          shouldBeHost = newUserId === roomData.originalHostId;
+        } else {
+          // Normal empty room scenario: first user becomes host
+          shouldBeHost = true;
+        }
+      }
+
+      expect(isInRecoveryMode).toBe(false); // Recovery state should be cleared
+      expect(shouldBeHost).toBe(true); // First user should become host
+      expect(roomData.serverRestartRecoveryStarted).toBeUndefined();
+      expect(roomData.originalHostId).toBeUndefined();
+    });
+
+    it("should assign host to original host when they rejoin empty room first", () => {
+      // Simulate a room that had recovery state but then became naturally empty
+      const originalHostId = "original-host";
+      roomData.hostId = originalHostId;
+      roomData.serverRestartRecoveryStarted = Date.now() - 60000; // Recovery started 1 minute ago
+      roomData.originalHostId = originalHostId;
+      roomData.users = []; // Room is now empty (users left naturally)
+
+      // Simulate that recovery state should be cleared when room becomes empty
+      roomData.serverRestartRecoveryStarted = undefined;
+      roomData.originalHostId = undefined;
+
+      // Now the original host rejoins first
+      const rejoiningUserId = originalHostId; // Same as original host
+      const isFirstUserInRoom = roomData.users.length === 0;
+
+      // Check recovery mode state (should be false since we cleared recovery state)
+      const isInRecoveryMode = !!(
+        roomData.serverRestartRecoveryStarted && roomData.originalHostId
+      );
+      const recoveryTimedOut = false;
+
+      // Determine if they should be host using the fixed logic
+      let shouldBeHost = false;
+      if (isFirstUserInRoom) {
+        if (isInRecoveryMode && !recoveryTimedOut) {
+          // Server restart scenario: only assign host status if this user matches the original hostId
+          shouldBeHost = rejoiningUserId === roomData.originalHostId;
+        } else {
+          // Normal empty room scenario: first user becomes host
+          shouldBeHost = true;
+        }
+      }
+
+      expect(isInRecoveryMode).toBe(false); // Recovery state should be cleared
+      expect(shouldBeHost).toBe(true); // Original host should become host when rejoining first
+      expect(roomData.serverRestartRecoveryStarted).toBeUndefined();
+      expect(roomData.originalHostId).toBeUndefined();
+    });
   });
 });

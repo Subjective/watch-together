@@ -319,7 +319,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     Auto-follow Host
                   </Label>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Automatically sync to the host&apos;s video position
+                    Automatically follow the host to new videos
                   </p>
                 </div>
                 <Switch

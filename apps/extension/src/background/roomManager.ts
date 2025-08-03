@@ -33,6 +33,7 @@ import {
   requestAdapterState,
 } from "./adapterHandler";
 import { BadgeManager } from "./badgeManager";
+import { RoomStateManager } from "./state/roomStateManager";
 
 export interface RoomManagerConfig {
   websocketUrl: string;
@@ -46,9 +47,7 @@ export class RoomManager {
   private websocket: WebSocketManager;
   private webrtc: WebRTCManager;
   private badgeManager: BadgeManager;
-  private currentRoom: RoomState | null = null;
-  private currentUser: User | null = null;
-  private extensionState: ExtensionState;
+  private stateManager: RoomStateManager;
   private eventListeners: Map<string, ((data: any) => void)[]> = new Map();
   private lastHostVideoUrl: string | null = null;
   private lastVideoAdapterUrl: string | null = null;
@@ -78,16 +77,13 @@ export class RoomManager {
     // Initialize badge manager
     this.badgeManager = new BadgeManager();
 
-    // Initialize extension state with default follow mode (will be updated in initialize())
-    this.extensionState = {
-      isConnected: false,
-      currentRoom: null,
-      connectionStatus: "DISCONNECTED",
-      currentUser: null,
-      followMode: "AUTO_FOLLOW", // This will be updated from user preferences in initialize()
-      hasFollowNotification: false,
-      followNotificationUrl: null,
-    };
+    // Initialize state manager
+    this.stateManager = new RoomStateManager();
+
+    // Subscribe to state changes to emit STATE_UPDATE events
+    this.stateManager.subscribe((state) => {
+      this.emit("STATE_UPDATE", state);
+    });
 
     this.setupEventHandlers();
   }
@@ -97,26 +93,24 @@ export class RoomManager {
    */
   async initialize(): Promise<void> {
     try {
-      // Restore extension state from storage
-      this.extensionState = await StorageManager.getExtensionState();
+      // Initialize state manager first
+      await this.stateManager.initialize();
 
       // Load user's default follow mode preference and apply it
       const userPreferences = await StorageManager.getUserPreferences();
-      this.extensionState.followMode = userPreferences.followMode;
+      await this.stateManager.setFollowMode(userPreferences.followMode);
 
-      // Restore internal room manager state from persisted extension state
-      if (this.extensionState.currentRoom && this.extensionState.currentUser) {
-        this.currentRoom = this.extensionState.currentRoom;
-        this.currentUser = this.extensionState.currentUser;
+      // Check if we have existing room state
+      const currentRoom = this.stateManager.getCurrentRoom();
+      const currentUser = this.stateManager.getCurrentUser();
+
+      if (currentRoom && currentUser) {
         console.log(
-          `Restored room state: ${this.currentRoom.name} (${this.currentRoom.id})`,
+          `Restored room state: ${currentRoom.name} (${currentRoom.id})`,
         );
 
         // Update connection status to reflect actual state (likely disconnected on startup)
-        this.updateExtensionState({
-          isConnected: false,
-          connectionStatus: "DISCONNECTED",
-        });
+        await this.stateManager.setConnectionStatus("DISCONNECTED");
 
         // Clear badge on initialization since we're not connected yet
         await this.badgeManager.clearBadge();
@@ -216,14 +210,18 @@ export class RoomManager {
             clearTimeout(timeout);
             cleanup();
 
-            this.currentRoom = response.roomState;
-            this.currentUser =
-              response.roomState.users.find((u: User) => u.id === userId) ||
-              null;
+            const roomState = response.roomState;
+            const currentUser =
+              roomState.users.find((u: User) => u.id === userId) || null;
+
+            // Update state manager with new room and user
+            await this.stateManager.setRoom(roomState);
+            await this.stateManager.setUser(currentUser);
+            await this.stateManager.setConnectionStatus("CONNECTED");
 
             // WebRTC already initialized before creating room
             // Ensure WebRTC bridge knows we're the host
-            if (this.currentUser?.isHost) {
+            if (currentUser?.isHost) {
               this.webrtc.setHostStatus(true);
               console.log(
                 "[RoomManager] Set WebRTC host status to true for room creator",
@@ -240,16 +238,9 @@ export class RoomManager {
             } else {
               console.log(
                 "[RoomManager] User is not host when creating room:",
-                this.currentUser,
+                currentUser,
               );
             }
-
-            this.updateExtensionState({
-              isConnected: true,
-              currentRoom: this.currentRoom,
-              currentUser: this.currentUser,
-              connectionStatus: "CONNECTED",
-            });
 
             // Reset WebRTC recovery retry state on successful room creation
             this.resetWebRTCRecoveryRetry();
@@ -258,11 +249,9 @@ export class RoomManager {
             await this.updateBadge();
 
             // Store room in history for host
-            if (this.currentRoom) {
-              StorageManager.addRoomToHistory(this.currentRoom);
-            }
+            StorageManager.addRoomToHistory(roomState);
 
-            resolve(this.currentRoom!);
+            resolve(roomState);
           }
         };
 
@@ -282,14 +271,9 @@ export class RoomManager {
       console.error("Failed to create room:", error);
       await this.websocket.disconnect();
       this.webrtc.closeAllConnections();
-      this.currentRoom = null;
-      this.currentUser = null;
-      this.updateExtensionState({
-        isConnected: false,
-        currentRoom: null,
-        currentUser: null,
-        connectionStatus: "DISCONNECTED",
-      });
+
+      // Reset state on error
+      await this.stateManager.resetState();
 
       // Clear badge on error
       await this.badgeManager.clearBadge();
@@ -359,22 +343,26 @@ export class RoomManager {
             clearTimeout(timeout);
             cleanup();
 
-            this.currentRoom = response.roomState;
-            this.currentUser =
-              response.roomState.users.find((u: User) => u.id === userId) ||
-              null;
+            const roomState = response.roomState;
+            const currentUser =
+              roomState.users.find((u: User) => u.id === userId) || null;
+
+            // Update state manager with joined room and user
+            await this.stateManager.setRoom(roomState);
+            await this.stateManager.setUser(currentUser);
+            await this.stateManager.setConnectionStatus("CONNECTED");
 
             // WebRTC already initialized before joining
             // Ensure WebRTC bridge knows our host status
             console.log(
               "[RoomManager] Join response - current user:",
-              this.currentUser,
+              currentUser,
             );
             console.log(
               "[RoomManager] Join response - all users:",
               response.roomState.users,
             );
-            if (this.currentUser?.isHost) {
+            if (currentUser?.isHost) {
               this.webrtc.setHostStatus(true);
               console.log(
                 "[RoomManager] Set WebRTC host status to true for room joiner",
@@ -382,16 +370,9 @@ export class RoomManager {
             } else {
               console.log(
                 "[RoomManager] User is not host when joining room, isHost:",
-                this.currentUser?.isHost,
+                currentUser?.isHost,
               );
             }
-
-            this.updateExtensionState({
-              isConnected: true,
-              currentRoom: this.currentRoom,
-              currentUser: this.currentUser,
-              connectionStatus: "CONNECTED",
-            });
 
             // Reset WebRTC recovery retry state on successful room join
             this.resetWebRTCRecoveryRetry();
@@ -400,9 +381,7 @@ export class RoomManager {
             await this.updateBadge();
 
             // Store room in history
-            if (this.currentRoom) {
-              StorageManager.addRoomToHistory(this.currentRoom);
-            }
+            StorageManager.addRoomToHistory(roomState);
 
             // Establish WebRTC connections with existing users in the room
             try {
@@ -417,7 +396,7 @@ export class RoomManager {
               );
             }
 
-            resolve(this.currentRoom!);
+            resolve(roomState);
           }
         };
 
@@ -472,14 +451,9 @@ export class RoomManager {
       console.error("Failed to join room:", error);
       await this.websocket.disconnect();
       this.webrtc.closeAllConnections();
-      this.currentRoom = null;
-      this.currentUser = null;
-      this.updateExtensionState({
-        isConnected: false,
-        currentRoom: null,
-        currentUser: null,
-        connectionStatus: "DISCONNECTED",
-      });
+
+      // Reset state on error
+      await this.stateManager.resetState();
 
       // Clear badge on error
       await this.badgeManager.clearBadge();
@@ -492,7 +466,10 @@ export class RoomManager {
    */
   async leaveRoom(): Promise<void> {
     try {
-      if (!this.currentRoom || !this.currentUser) {
+      const currentRoom = this.stateManager.getCurrentRoom();
+      const currentUser = this.stateManager.getCurrentUser();
+
+      if (!currentRoom || !currentUser) {
         return;
       }
 
@@ -500,8 +477,8 @@ export class RoomManager {
       try {
         const message: LeaveRoomMessage = {
           type: "LEAVE_ROOM",
-          roomId: this.currentRoom.id,
-          userId: this.currentUser.id,
+          roomId: currentRoom.id,
+          userId: currentUser.id,
           timestamp: Date.now(),
         };
 
@@ -519,18 +496,8 @@ export class RoomManager {
       // Disconnect WebSocket to clean up connection state
       await this.websocket.disconnect();
 
-      // Reset state
-      this.currentRoom = null;
-      this.currentUser = null;
-
-      this.updateExtensionState({
-        isConnected: false,
-        currentRoom: null,
-        currentUser: null,
-        connectionStatus: "DISCONNECTED",
-        hasFollowNotification: false,
-        followNotificationUrl: null,
-      });
+      // Reset state using state manager
+      await this.stateManager.resetState();
 
       // Clear badge when leaving room
       await this.badgeManager.clearBadge();
@@ -546,14 +513,14 @@ export class RoomManager {
    * Toggle control mode (host only)
    */
   async toggleControlMode(): Promise<void> {
-    if (!this.currentRoom || !this.currentUser?.isHost) {
+    const { room, user } = this.ensureConnectedState();
+
+    if (!user.isHost) {
       throw new Error("Only host can toggle control mode");
     }
 
     const newMode: ControlMode =
-      this.currentRoom.controlMode === "HOST_ONLY"
-        ? "FREE_FOR_ALL"
-        : "HOST_ONLY";
+      room.controlMode === "HOST_ONLY" ? "FREE_FOR_ALL" : "HOST_ONLY";
 
     await this.setControlMode(newMode);
   }
@@ -562,25 +529,22 @@ export class RoomManager {
    * Set control mode to a specific value (host only)
    */
   private async setControlMode(newMode: ControlMode): Promise<void> {
-    if (!this.currentRoom || !this.currentUser?.isHost) {
+    const { room, user } = this.ensureConnectedState();
+
+    if (!user.isHost) {
       throw new Error("Only host can set control mode");
     }
 
-    if (this.currentRoom.controlMode === newMode) {
+    if (room.controlMode === newMode) {
       return; // Already in the desired mode
     }
 
-    // Update local state
-    this.currentRoom.controlMode = newMode;
+    // Update control mode in state manager
+    await this.stateManager.updateControlMode(newMode);
     this.webrtc.setControlMode(newMode);
 
     // Broadcast to peers
     await this.webrtc.broadcastControlModeChange(newMode);
-
-    // Update storage
-    this.updateExtensionState({
-      currentRoom: this.currentRoom,
-    });
 
     console.log("Control mode changed to:", newMode);
   }
@@ -589,16 +553,19 @@ export class RoomManager {
    * Apply the new host's preferred default control mode
    */
   private async applyHostPreferredControlMode(): Promise<void> {
-    if (!this.currentRoom || !this.currentUser?.isHost) {
+    const connectedState = this.getConnectedState();
+    if (!connectedState || !connectedState.user.isHost) {
       return;
     }
+
+    const { room } = connectedState;
 
     try {
       const userPreferences = await StorageManager.getUserPreferences();
 
-      if (this.currentRoom.controlMode !== userPreferences.defaultControlMode) {
+      if (room.controlMode !== userPreferences.defaultControlMode) {
         console.log(
-          `[RoomManager] New host applying preferred control mode: ${this.currentRoom.controlMode} → ${userPreferences.defaultControlMode}`,
+          `[RoomManager] New host applying preferred control mode: ${room.controlMode} → ${userPreferences.defaultControlMode}`,
         );
         await this.setControlMode(userPreferences.defaultControlMode);
       } else {
@@ -616,7 +583,10 @@ export class RoomManager {
    * Rename the current room (host only)
    */
   async renameRoom(newRoomName: string): Promise<void> {
-    if (!this.currentRoom || !this.currentUser?.isHost) {
+    const currentRoom = this.stateManager.getCurrentRoom();
+    const currentUser = this.stateManager.getCurrentUser();
+
+    if (!currentRoom || !currentUser?.isHost) {
       throw new Error("Only host can rename room");
     }
 
@@ -625,11 +595,11 @@ export class RoomManager {
       throw new Error("Room name must be 1-30 characters");
     }
 
-    const roomId = this.currentRoom.id;
+    const roomId = currentRoom.id;
     const message: RenameRoomMessage = {
       type: "RENAME_ROOM",
       roomId,
-      userId: this.currentUser.id,
+      userId: currentUser.id,
       newRoomName: trimmedName,
       timestamp: Date.now(),
     };
@@ -671,7 +641,10 @@ export class RoomManager {
    * Rename the current user
    */
   async renameUser(newUserName: string): Promise<void> {
-    if (!this.currentRoom || !this.currentUser) {
+    const currentRoom = this.stateManager.getCurrentRoom();
+    const currentUser = this.stateManager.getCurrentUser();
+
+    if (!currentRoom || !currentUser) {
       throw new Error("Not in a room");
     }
 
@@ -680,11 +653,11 @@ export class RoomManager {
       throw new Error("User name must be 1-20 characters");
     }
 
-    const roomId = this.currentRoom.id;
+    const roomId = currentRoom.id;
     const message: RenameUserMessage = {
       type: "RENAME_USER",
       roomId,
-      userId: this.currentUser.id,
+      userId: currentUser.id,
       newUserName: trimmedName,
       timestamp: Date.now(),
     };
@@ -702,10 +675,7 @@ export class RoomManager {
       }, 5000); // Shorter 5-second timeout
 
       const onUserRenamed = (response: any) => {
-        if (
-          response.roomId === roomId &&
-          response.userId === this.currentUser?.id
-        ) {
+        if (response.roomId === roomId && response.userId === currentUser?.id) {
           clearTimeout(timeout);
           this.websocket.off("USER_RENAMED", onUserRenamed);
           this.websocket.off("ERROR", onError);
@@ -729,13 +699,9 @@ export class RoomManager {
    * Set follow mode
    */
   async setFollowMode(mode: FollowMode): Promise<void> {
-    this.extensionState.followMode = mode;
-
-    // Update extension state for current session only
+    // Update follow mode in state manager
     // Note: This only affects the current session, not user's default preferences
-    this.updateExtensionState({
-      followMode: mode,
-    });
+    await this.stateManager.setFollowMode(mode);
 
     console.log("Follow mode set to:", mode, "(session only)");
   }
@@ -747,12 +713,10 @@ export class RoomManager {
     action: "PLAY" | "PAUSE" | "SEEK",
     seekTime?: number,
   ): Promise<void> {
-    if (!this.currentRoom || !this.currentUser) {
-      throw new Error("Not in a room");
-    }
+    const { room, user } = this.ensureConnectedState();
 
-    if (this.currentRoom.controlMode === "HOST_ONLY") {
-      if (this.currentUser.isHost) {
+    if (room.controlMode === "HOST_ONLY") {
+      if (user.isHost) {
         // Host broadcasts state update
         await this.webrtc.broadcastHostState(
           action === "PLAY" ? "PLAYING" : "PAUSED",
@@ -779,18 +743,14 @@ export class RoomManager {
    * Update host current URL for display purposes only (no auto-follow)
    */
   async updateHostCurrentUrl(url: string): Promise<void> {
-    if (!this.currentRoom || !this.currentUser) {
-      throw new Error("Not in a room");
-    }
-    if (!this.currentUser.isHost) {
+    const { user } = this.ensureConnectedState();
+
+    if (!user.isHost) {
       console.warn("Only host can update current URL");
       return;
     }
     // Update room state with host's current URL (for display only)
-    this.currentRoom.hostCurrentUrl = url;
-    this.updateExtensionState({
-      currentRoom: this.currentRoom,
-    });
+    await this.stateManager.updateRoom({ hostCurrentUrl: url });
     console.log("Host current URL updated for display:", url);
   }
 
@@ -799,7 +759,9 @@ export class RoomManager {
    */
   private async handleHostVideoSwitch(hostVideoUrl: string): Promise<void> {
     try {
-      if (this.extensionState.followMode === "AUTO_FOLLOW") {
+      const followMode = this.stateManager.getFollowMode();
+
+      if (followMode === "AUTO_FOLLOW") {
         // Check if participant already has this video URL open
         const hasExistingTab = await this.hasTabWithVideoUrl(hostVideoUrl);
 
@@ -815,13 +777,7 @@ export class RoomManager {
       } else {
         // Manual follow mode - show notification
         console.log("Manual follow: Showing notification for host's video");
-        await StorageManager.updateExtensionState({
-          hasFollowNotification: true,
-          followNotificationUrl: hostVideoUrl,
-        });
-
-        // Broadcast state update to trigger UI refresh
-        this.emit("STATE_UPDATE", this.getExtensionState());
+        await this.stateManager.setFollowNotification(true, hostVideoUrl);
       }
     } catch (error) {
       console.error("Failed to handle host video switch:", error);
@@ -908,21 +864,21 @@ export class RoomManager {
    * Get current extension state
    */
   getExtensionState(): ExtensionState {
-    return { ...this.extensionState };
+    return this.stateManager.getState();
   }
 
   /**
    * Get current room state
    */
   getCurrentRoom(): RoomState | null {
-    return this.currentRoom ? { ...this.currentRoom } : null;
+    return this.stateManager.getCurrentRoom();
   }
 
   /**
    * Get current user
    */
   getCurrentUser(): User | null {
-    return this.currentUser ? { ...this.currentUser } : null;
+    return this.stateManager.getCurrentUser();
   }
 
   /**
@@ -930,6 +886,70 @@ export class RoomManager {
    */
   getCurrentVideoTabId(): number | null {
     return this.currentVideoTabId;
+  }
+
+  // State validation guard methods
+
+  /**
+   * Ensure we're connected to a room with both room and user state
+   * @throws Error if not connected
+   * @returns Validated room and user state
+   */
+  private ensureConnectedState(): { room: RoomState; user: User } {
+    const room = this.stateManager.getCurrentRoom();
+    const user = this.stateManager.getCurrentUser();
+
+    if (!room || !user) {
+      throw new Error("Cannot perform operation: not connected to room");
+    }
+
+    return { room, user };
+  }
+
+  /**
+   * Ensure we have room state (user may be optional)
+   * @throws Error if no room
+   * @returns Validated room state
+   */
+  private ensureRoomExists(): RoomState {
+    const room = this.stateManager.getCurrentRoom();
+
+    if (!room) {
+      throw new Error("Cannot perform operation: no current room");
+    }
+
+    return room;
+  }
+
+  /**
+   * Ensure we have user state (room may be optional)
+   * @throws Error if no user
+   * @returns Validated user state
+   */
+  // @ts-expect-error - Utility method for future use
+  private ensureUserExists(): User {
+    const user = this.stateManager.getCurrentUser();
+
+    if (!user) {
+      throw new Error("Cannot perform operation: no current user");
+    }
+
+    return user;
+  }
+
+  /**
+   * Get connected state for optional operations (returns null if not connected)
+   * @returns Connected state or null
+   */
+  private getConnectedState(): { room: RoomState; user: User } | null {
+    const room = this.stateManager.getCurrentRoom();
+    const user = this.stateManager.getCurrentUser();
+
+    if (!room || !user) {
+      return null;
+    }
+
+    return { room, user };
   }
 
   /**
@@ -1054,22 +1074,23 @@ export class RoomManager {
   private async handleConnectionStatusChange(data: {
     status: ConnectionStatus;
   }): Promise<void> {
-    const wasConnected = this.extensionState.isConnected;
+    const currentState = this.stateManager.getState();
+    const wasConnected = currentState.isConnected;
 
-    await this.updateExtensionState({
-      connectionStatus: data.status,
-      isConnected: data.status === "CONNECTED",
-    });
+    await this.stateManager.setConnectionStatus(data.status);
 
     // Update badge with new connection status
     await this.updateBadge();
 
     // Auto-rejoin room after reconnection
+    const currentRoom = this.stateManager.getCurrentRoom();
+    const currentUser = this.stateManager.getCurrentUser();
+
     if (
       data.status === "CONNECTED" &&
       !wasConnected &&
-      this.currentRoom &&
-      this.currentUser
+      currentRoom &&
+      currentUser
     ) {
       await this.rejoinRoomAfterReconnect();
     }
@@ -1079,7 +1100,10 @@ export class RoomManager {
    * Rejoin the current room after WebSocket reconnection with comprehensive WebRTC recovery
    */
   private async rejoinRoomAfterReconnect(): Promise<void> {
-    if (!this.currentRoom || !this.currentUser) return;
+    const currentRoom = this.stateManager.getCurrentRoom();
+    const currentUser = this.stateManager.getCurrentUser();
+
+    if (!currentRoom || !currentUser) return;
 
     try {
       console.log("[RoomManager] Auto-rejoining room after reconnection");
@@ -1089,24 +1113,21 @@ export class RoomManager {
 
       // Step 2: Fetch fresh TURN credentials (they may have expired during outage)
       console.log("[RoomManager] Fetching fresh TURN credentials for recovery");
-      const freshTurnServers = await this.fetchTurnServers(this.currentUser.id);
+      const freshTurnServers = await this.fetchTurnServers(currentUser.id);
       if (freshTurnServers.length > defaultWebRTCConfig.iceServers.length) {
         this.webrtc.setIceServers(freshTurnServers);
         console.log("[RoomManager] Updated WebRTC with fresh TURN servers");
       }
 
       // Step 3: Reinitialize WebRTC with fresh configuration
-      await this.webrtc.initialize(
-        this.currentUser.id,
-        this.currentUser.isHost,
-      );
+      await this.webrtc.initialize(currentUser.id, currentUser.isHost);
 
       // Step 4: Send JOIN_ROOM message to rejoin the room
       const message: JoinRoomMessage = {
         type: "JOIN_ROOM",
-        roomId: this.currentRoom.id,
-        userId: this.currentUser.id,
-        userName: this.currentUser.name,
+        roomId: currentRoom.id,
+        userId: currentUser.id,
+        userName: currentUser.name,
         timestamp: Date.now(),
       };
 
@@ -1116,7 +1137,7 @@ export class RoomManager {
       );
 
       // Step 5: Wait for ROOM_JOINED response and establish WebRTC connections
-      await this.waitForRejoinAndEstablishConnections(this.currentRoom.id);
+      await this.waitForRejoinAndEstablishConnections(currentRoom.id);
     } catch (error) {
       console.error("[RoomManager] Failed to auto-rejoin room:", error);
       // If auto-rejoin fails, we should retry with exponential backoff
@@ -1147,27 +1168,24 @@ export class RoomManager {
           cleanup();
 
           try {
-            // Update room state with server response
-            this.currentRoom = response.roomState;
-            this.currentUser =
-              response.roomState.users.find(
-                (u: User) => u.id === this.currentUser?.id,
+            // Update room and user state with server response
+            const roomState = response.roomState;
+            const currentUser =
+              roomState.users.find(
+                (u: User) => u.id === this.stateManager.getCurrentUser()?.id,
               ) || null;
 
-            if (!this.currentUser) {
+            if (!currentUser) {
               throw new Error("User not found in room state after rejoin");
             }
 
-            // Update WebRTC host status
-            this.webrtc.setHostStatus(this.currentUser.isHost);
+            // Update state manager
+            await this.stateManager.setRoom(roomState);
+            await this.stateManager.setUser(currentUser);
+            await this.stateManager.setConnectionStatus("CONNECTED");
 
-            // Update extension state
-            this.updateExtensionState({
-              isConnected: true,
-              currentRoom: this.currentRoom,
-              currentUser: this.currentUser,
-              connectionStatus: "CONNECTED",
-            });
+            // Update WebRTC host status
+            this.webrtc.setHostStatus(currentUser.isHost);
 
             console.log(
               "[RoomManager] Successfully rejoined room, establishing WebRTC connections",
@@ -1210,7 +1228,10 @@ export class RoomManager {
    * Ensures robust connection establishment for all scenarios: normal joins, rejoins, reconnections
    */
   private async establishWebRTCConnections(): Promise<void> {
-    if (!this.currentRoom || !this.currentUser) {
+    const currentRoom = this.stateManager.getCurrentRoom();
+    const currentUser = this.stateManager.getCurrentUser();
+
+    if (!currentRoom || !currentUser) {
       console.warn(
         "[RoomManager] Cannot establish WebRTC connections: missing room or user",
       );
@@ -1222,8 +1243,8 @@ export class RoomManager {
     );
 
     // Get all other users in the room (excluding self)
-    const otherUsers = this.currentRoom.users.filter(
-      (user) => user.id !== this.currentUser!.id && user.isConnected,
+    const otherUsers = currentRoom.users.filter(
+      (user) => user.id !== currentUser.id && user.isConnected,
     );
 
     if (otherUsers.length === 0) {
@@ -1252,8 +1273,8 @@ export class RoomManager {
 
           const offerMessage: WebRTCOfferMessage = {
             type: "WEBRTC_OFFER",
-            roomId: this.currentRoom.id,
-            userId: this.currentUser.id,
+            roomId: currentRoom.id,
+            userId: currentUser.id,
             targetUserId: otherUser.id,
             offer,
             timestamp: Date.now(),
@@ -1280,22 +1301,25 @@ export class RoomManager {
    * Host always creates offers, or if both are non-host, lexicographically smaller ID creates offer
    */
   private shouldCreateOfferForUser(otherUserId: string): boolean {
-    if (!this.currentUser) return false;
+    const currentUser = this.stateManager.getCurrentUser();
+    const currentRoom = this.stateManager.getCurrentRoom();
+
+    if (!currentUser) return false;
 
     // If I'm the host, I create offers for everyone
-    if (this.currentUser.isHost) {
+    if (currentUser.isHost) {
       return true;
     }
 
     // If the other user is the host, they create the offer (I wait)
-    const otherUser = this.currentRoom?.users.find((u) => u.id === otherUserId);
+    const otherUser = currentRoom?.users.find((u) => u.id === otherUserId);
     if (otherUser?.isHost) {
       return false;
     }
 
     // If neither is host, use lexicographic comparison for deterministic ordering
     // The user with the lexicographically smaller ID creates the offer
-    return this.currentUser.id < otherUserId;
+    return currentUser.id < otherUserId;
   }
 
   /**
@@ -1356,11 +1380,10 @@ export class RoomManager {
     );
 
     // Only attempt recovery if we're in a room and connected to signaling
-    if (
-      !this.currentRoom ||
-      !this.currentUser ||
-      !this.websocket.isConnected()
-    ) {
+    const currentRoom = this.stateManager.getCurrentRoom();
+    const currentUser = this.stateManager.getCurrentUser();
+
+    if (!currentRoom || !currentUser || !this.websocket.isConnected()) {
       return;
     }
 
@@ -1437,21 +1460,20 @@ export class RoomManager {
       data.restartedPeerIds,
     );
 
-    if (
-      !this.currentRoom ||
-      !this.currentUser ||
-      !this.websocket.isConnected()
-    ) {
+    const currentRoom = this.stateManager.getCurrentRoom();
+    const currentUser = this.stateManager.getCurrentUser();
+
+    if (!currentRoom || !currentUser || !this.websocket.isConnected()) {
       return;
     }
 
     // If we're the host, re-establish connections to all peers
-    if (this.currentUser.isHost) {
+    if (currentUser.isHost) {
       console.log("[RoomManager] Re-establishing WebRTC connections as host");
 
-      for (const user of this.currentRoom.users) {
+      for (const user of currentRoom.users) {
         if (
-          user.id !== this.currentUser.id &&
+          user.id !== currentUser.id &&
           data.restartedPeerIds.includes(user.id)
         ) {
           try {
@@ -1461,8 +1483,8 @@ export class RoomManager {
             const offer = await this.webrtc.createOffer(user.id);
             await this.websocket.send({
               type: "WEBRTC_OFFER",
-              roomId: this.currentRoom.id,
-              userId: this.currentUser.id,
+              roomId: currentRoom.id,
+              userId: currentUser.id,
               targetUserId: user.id,
               offer,
               timestamp: Date.now(),
@@ -1491,16 +1513,15 @@ export class RoomManager {
   }): Promise<void> {
     console.log(`[RoomManager] Peer connection restarted for ${data.userId}`);
 
-    if (
-      !this.currentRoom ||
-      !this.currentUser ||
-      !this.websocket.isConnected()
-    ) {
+    const currentRoom = this.stateManager.getCurrentRoom();
+    const currentUser = this.stateManager.getCurrentUser();
+
+    if (!currentRoom || !currentUser || !this.websocket.isConnected()) {
       return;
     }
 
     // If we're the host, re-establish connection to this specific peer
-    if (this.currentUser.isHost) {
+    if (currentUser.isHost) {
       try {
         console.log(
           `[RoomManager] Re-establishing connection to peer ${data.userId} as host`,
@@ -1508,8 +1529,8 @@ export class RoomManager {
         const offer = await this.webrtc.createOffer(data.userId);
         await this.websocket.send({
           type: "WEBRTC_OFFER",
-          roomId: this.currentRoom.id,
-          userId: this.currentUser.id,
+          roomId: currentRoom.id,
+          userId: currentUser.id,
           targetUserId: data.userId,
           offer,
           timestamp: Date.now(),
@@ -1535,11 +1556,10 @@ export class RoomManager {
   }): Promise<void> {
     console.log(`[RoomManager] ICE restart offer received for ${data.userId}`);
 
-    if (
-      !this.currentRoom ||
-      !this.currentUser ||
-      !this.websocket.isConnected()
-    ) {
+    const currentRoom = this.stateManager.getCurrentRoom();
+    const currentUser = this.stateManager.getCurrentUser();
+
+    if (!currentRoom || !currentUser || !this.websocket.isConnected()) {
       return;
     }
 
@@ -1547,8 +1567,8 @@ export class RoomManager {
     try {
       await this.websocket.send({
         type: "WEBRTC_OFFER",
-        roomId: this.currentRoom.id,
-        userId: this.currentUser.id,
+        roomId: currentRoom.id,
+        userId: currentUser.id,
         targetUserId: data.userId,
         offer: data.offer,
         timestamp: Date.now(),
@@ -1569,11 +1589,14 @@ export class RoomManager {
    */
   private async updateBadge(): Promise<void> {
     try {
-      if (this.currentRoom && this.extensionState.isConnected) {
-        const participantCount = this.currentRoom.users.length;
+      const currentRoom = this.stateManager.getCurrentRoom();
+      const currentState = this.stateManager.getState();
+
+      if (currentRoom && currentState.isConnected) {
+        const participantCount = currentRoom.users.length;
         await this.badgeManager.updateBadge(
           participantCount,
-          this.extensionState.connectionStatus,
+          currentState.connectionStatus,
           true,
         );
       } else {
@@ -1596,6 +1619,9 @@ export class RoomManager {
     // Clean up recovery retry states
     this.resetWebRTCRecoveryRetry();
     this.peerRecoveryRetries.clear();
+
+    // Clean up state manager
+    await this.stateManager.cleanup();
 
     await this.badgeManager.clearBadge();
   }
@@ -1665,19 +1691,17 @@ export class RoomManager {
   }
 
   private async handleUserJoined(response: any): Promise<void> {
-    if (this.currentRoom && response.roomId === this.currentRoom.id) {
-      this.updateRoomFromServer(response.roomState);
+    const connectedState = this.getConnectedState();
 
-      this.updateExtensionState({
-        currentRoom: this.currentRoom,
-      });
+    if (connectedState && response.roomId === connectedState.room.id) {
+      await this.updateRoomFromServer(response.roomState);
 
       // Update badge with new participant count
       await this.updateBadge();
 
       // Establish WebRTC connection with new user using unified method
       // This handles both host and participant scenarios with proper coordination
-      if (response.joinedUser.id !== this.currentUser?.id) {
+      if (response.joinedUser.id !== connectedState.user.id) {
         try {
           // Use the unified connection establishment method
           // It will determine who should create the offer based on roles and IDs
@@ -1698,19 +1722,19 @@ export class RoomManager {
   }
 
   private async handleUserLeft(response: any): Promise<void> {
-    if (this.currentRoom && response.roomId === this.currentRoom.id) {
-      this.updateRoomFromServer(response.roomState);
+    const connectedState = this.getConnectedState();
+
+    if (connectedState && response.roomId === connectedState.room.id) {
+      await this.updateRoomFromServer(response.roomState);
 
       // Close WebRTC connection to departed user
       this.webrtc.closePeerConnection(response.leftUserId);
 
       // Handle host promotion
-      if (
-        response.newHostId === this.currentUser?.id &&
-        this.currentUser &&
-        this.currentRoom
-      ) {
-        this.currentUser.isHost = true;
+      if (response.newHostId === connectedState.user.id) {
+        // Update user to be host in state manager
+        await this.stateManager.updateUser({ isHost: true });
+
         // Update WebRTC bridge host status to enable control mode changes
         this.webrtc.setHostStatus(true);
 
@@ -1724,15 +1748,19 @@ export class RoomManager {
         // Capture initial video state to populate hostVideoState
         await this.captureInitialVideoState();
 
+        // Get updated room state after promotion
+        const { room: updatedRoom, user: updatedUser } =
+          this.ensureConnectedState();
+
         // Establish connections to all users (following existing pattern)
-        for (const user of this.currentRoom.users) {
-          if (user.id !== this.currentUser.id) {
+        for (const user of updatedRoom.users) {
+          if (user.id !== updatedUser.id) {
             try {
               const offer = await this.webrtc.createOffer(user.id);
               await this.websocket.send({
                 type: "WEBRTC_OFFER",
-                roomId: this.currentRoom.id,
-                userId: this.currentUser.id,
+                roomId: updatedRoom.id,
+                userId: updatedUser.id,
                 targetUserId: user.id,
                 offer,
                 timestamp: Date.now(),
@@ -1743,10 +1771,6 @@ export class RoomManager {
           }
         }
       }
-
-      this.updateExtensionState({
-        currentRoom: this.currentRoom,
-      });
 
       // Update badge with new participant count
       await this.updateBadge();
@@ -1759,16 +1783,15 @@ export class RoomManager {
    * Handle ROOM_RENAMED WebSocket messages
    */
   private async handleRoomRenamed(response: any): Promise<void> {
-    if (this.currentRoom && response.roomId === this.currentRoom.id) {
-      this.updateRoomFromServer(response.roomState);
+    const connectedState = this.getConnectedState();
 
-      this.updateExtensionState({
-        currentRoom: this.currentRoom,
-      });
+    if (connectedState && response.roomId === connectedState.room.id) {
+      await this.updateRoomFromServer(response.roomState);
 
       // Update room history with new name
-      if (this.currentRoom) {
-        StorageManager.addRoomToHistory(this.currentRoom);
+      const updatedRoom = this.stateManager.getCurrentRoom();
+      if (updatedRoom) {
+        StorageManager.addRoomToHistory(updatedRoom);
       }
 
       console.log("Room renamed to:", response.newRoomName);
@@ -1779,21 +1802,18 @@ export class RoomManager {
    * Handle USER_RENAMED WebSocket messages
    */
   private async handleUserRenamed(response: any): Promise<void> {
-    if (this.currentRoom && response.roomId === this.currentRoom.id) {
-      this.updateRoomFromServer(response.roomState);
+    const connectedState = this.getConnectedState();
+
+    if (connectedState && response.roomId === connectedState.room.id) {
+      await this.updateRoomFromServer(response.roomState);
 
       // Update current user if they were the one renamed
-      if (this.currentUser && response.userId === this.currentUser.id) {
-        this.currentUser.name = response.newUserName;
+      if (response.userId === connectedState.user.id) {
+        await this.stateManager.updateUser({ name: response.newUserName });
 
         // Note: We no longer update user preferences when renaming in a session
         // This keeps session changes separate from default preferences
       }
-
-      this.updateExtensionState({
-        currentRoom: this.currentRoom,
-        currentUser: this.currentUser,
-      });
 
       console.log(
         `User renamed: ${response.userId} -> "${response.newUserName}"`,
@@ -1802,12 +1822,13 @@ export class RoomManager {
   }
 
   private async handleWebRTCOffer(message: any): Promise<void> {
-    if (message.targetUserId === this.currentUser?.id) {
+    const connectedState = this.getConnectedState();
+
+    if (connectedState && message.targetUserId === connectedState.user.id) {
+      const { room, user } = connectedState;
       try {
         // Find if the offering user is the host
-        const offeringUser = this.currentRoom?.users.find(
-          (u) => u.id === message.userId,
-        );
+        const offeringUser = room.users.find((u) => u.id === message.userId);
 
         console.log("Handling WebRTC offer from:", message.userId);
 
@@ -1824,7 +1845,7 @@ export class RoomManager {
         const answerMessage: WebRTCAnswerMessage = {
           type: "WEBRTC_ANSWER",
           roomId: message.roomId,
-          userId: this.currentUser!.id,
+          userId: user.id,
           targetUserId: message.userId,
           answer,
           timestamp: Date.now(),
@@ -1853,7 +1874,9 @@ export class RoomManager {
   }
 
   private async handleWebRTCAnswer(message: any): Promise<void> {
-    if (message.targetUserId === this.currentUser?.id) {
+    const connectedState = this.getConnectedState();
+
+    if (connectedState && message.targetUserId === connectedState.user.id) {
       try {
         await this.webrtc.handleAnswer(message.userId, message.answer);
       } catch (error) {
@@ -1863,7 +1886,9 @@ export class RoomManager {
   }
 
   private async handleWebRTCIceCandidate(message: any): Promise<void> {
-    if (message.targetUserId === this.currentUser?.id) {
+    const connectedState = this.getConnectedState();
+
+    if (connectedState && message.targetUserId === connectedState.user.id) {
       try {
         await this.webrtc.addIceCandidate(message.userId, message.candidate);
       } catch (error) {
@@ -1873,7 +1898,11 @@ export class RoomManager {
   }
 
   private async handleLocalIceCandidate(data: any): Promise<void> {
-    if (this.currentRoom && this.currentUser) {
+    const connectedState = this.getConnectedState();
+
+    if (connectedState) {
+      const { room, user } = connectedState;
+
       // Validate WebSocket connection before sending ICE candidate
       if (!this.websocket.isConnected()) {
         console.warn("WebSocket not connected, deferring ICE candidate");
@@ -1883,8 +1912,8 @@ export class RoomManager {
 
       const candidateMessage: WebRTCIceCandidateMessage = {
         type: "WEBRTC_ICE_CANDIDATE",
-        roomId: this.currentRoom.id,
-        userId: this.currentUser.id,
+        roomId: room.id,
+        userId: user.id,
         targetUserId: data.targetUserId,
         candidate: data.candidate,
         timestamp: Date.now(),
@@ -1902,49 +1931,44 @@ export class RoomManager {
   private async handleHostStateUpdate(message: any): Promise<void> {
     console.log(`[RoomManager] Received host state update:`, message);
 
+    const connectedState = this.getConnectedState();
+
     // Client receives host state update
-    if (!this.currentUser?.isHost) {
+    if (connectedState && !connectedState.user.isHost) {
       console.log(`[RoomManager] Applying host state as client`);
 
       // Update host video state for participants to see in UI
-      if (this.currentRoom) {
-        const hostVideoState = {
-          isPlaying: message.state === "PLAYING",
-          currentTime: message.time || 0,
-          duration: 0, // Duration will be updated from actual video events
-          playbackRate: 1,
-          url: message.hostVideoUrl || "",
-          lastUpdated: message.timestamp,
-        };
+      const hostVideoState = {
+        isPlaying: message.state === "PLAYING",
+        currentTime: message.time || 0,
+        duration: 0, // Duration will be updated from actual video events
+        playbackRate: 1,
+        url: message.hostVideoUrl || "",
+        lastUpdated: message.timestamp,
+      };
 
-        this.currentRoom.hostVideoState = hostVideoState;
+      await this.stateManager.updateHostVideoState(hostVideoState);
 
-        // Check if host switched to a new video and trigger auto-follow (only for non-empty URLs)
-        if (
-          message.hostVideoUrl &&
-          this.lastHostVideoUrl !== message.hostVideoUrl
-        ) {
-          console.log(
-            `[RoomManager] Host switched video: ${this.lastHostVideoUrl} -> ${message.hostVideoUrl}`,
-          );
-          await this.handleHostVideoSwitch(message.hostVideoUrl);
-          this.lastHostVideoUrl = message.hostVideoUrl;
-        } else if (!message.hostVideoUrl) {
-          // Host cleared video state
-          this.lastHostVideoUrl = null;
-        }
-
-        // Update extension state to trigger UI refresh
-        this.updateExtensionState({
-          currentRoom: this.currentRoom,
-        });
-
-        console.log(`[RoomManager] Updated host video state for participant:`, {
-          url: hostVideoState.url,
-          playing: hostVideoState.isPlaying,
-          time: hostVideoState.currentTime,
-        });
+      // Check if host switched to a new video and trigger auto-follow (only for non-empty URLs)
+      if (
+        message.hostVideoUrl &&
+        this.lastHostVideoUrl !== message.hostVideoUrl
+      ) {
+        console.log(
+          `[RoomManager] Host switched video: ${this.lastHostVideoUrl} -> ${message.hostVideoUrl}`,
+        );
+        await this.handleHostVideoSwitch(message.hostVideoUrl);
+        this.lastHostVideoUrl = message.hostVideoUrl;
+      } else if (!message.hostVideoUrl) {
+        // Host cleared video state
+        this.lastHostVideoUrl = null;
       }
+
+      console.log(`[RoomManager] Updated host video state for participant:`, {
+        url: hostVideoState.url,
+        playing: hostVideoState.isPlaying,
+        time: hostVideoState.currentTime,
+      });
 
       await this.applyVideoState(message);
     } else {
@@ -1953,17 +1977,19 @@ export class RoomManager {
   }
 
   private async handleUnifiedSync(message: any): Promise<void> {
+    const connectedState = this.getConnectedState();
+
     // Only process unified sync commands in FREE_FOR_ALL mode
-    if (!this.currentRoom || this.currentRoom.controlMode !== "FREE_FOR_ALL") {
+    if (!connectedState || connectedState.room.controlMode !== "FREE_FOR_ALL") {
       console.warn(
-        `[RoomManager] Ignoring unified sync command in ${this.currentRoom?.controlMode || "unknown"} mode:`,
+        `[RoomManager] Ignoring unified sync command in ${connectedState?.room.controlMode || "unknown"} mode:`,
         message.type,
       );
       return;
     }
 
     // Skip commands from ourselves to prevent infinite feedback loops
-    if (message.fromUserId === this.currentUser?.id) {
+    if (message.fromUserId === connectedState.user.id) {
       console.log(
         `[RoomManager] Skipping self-originated unified sync command:`,
         message.type,
@@ -2234,29 +2260,22 @@ export class RoomManager {
   private timeupdateThrottleMs = 1000; // Minimum time between timeupdate syncs (1s)
   private seekTolerance = 0.5; // Don't seek if within 0.5 seconds
 
-  private handleControlModeChange(message: any): void {
+  private async handleControlModeChange(message: any): Promise<void> {
     console.log("[RoomManager] Received control mode change:", message);
-    if (this.currentRoom) {
-      console.log(
-        `[RoomManager] Updating control mode from ${this.currentRoom.controlMode} to ${message.mode}`,
-      );
-      this.currentRoom.controlMode = message.mode;
-      this.webrtc.setControlMode(message.mode);
+    const room = this.ensureRoomExists();
 
-      this.updateExtensionState({
-        currentRoom: this.currentRoom,
-      });
+    console.log(
+      `[RoomManager] Updating control mode from ${room.controlMode} to ${message.mode}`,
+    );
 
-      this.emit("CONTROL_MODE_CHANGED", {
-        mode: message.mode,
-        fromUserId: message.fromUserId,
-      });
-      console.log("[RoomManager] Control mode change processed successfully");
-    } else {
-      console.warn(
-        "[RoomManager] Cannot process control mode change - no current room",
-      );
-    }
+    await this.stateManager.updateControlMode(message.mode);
+    this.webrtc.setControlMode(message.mode);
+
+    this.emit("CONTROL_MODE_CHANGED", {
+      mode: message.mode,
+      fromUserId: message.fromUserId,
+    });
+    console.log("[RoomManager] Control mode change processed successfully");
   }
 
   private async handleDataChannelOpen(data: { userId: string }): Promise<void> {
@@ -2266,11 +2285,18 @@ export class RoomManager {
       `[RoomManager] Data channel opened with ${data.userId}, connection recovered successfully`,
     );
 
-    if (!this.currentUser?.isHost || !this.currentRoom?.hostVideoState) {
+    const connectedState = this.getConnectedState();
+
+    if (
+      !connectedState ||
+      !connectedState.user.isHost ||
+      !connectedState.room.hostVideoState
+    ) {
       return;
     }
 
-    const hostState = this.currentRoom.hostVideoState;
+    const { room } = connectedState;
+    const hostState = room.hostVideoState!; // We already checked it exists above
     console.log(
       `[RoomManager] Sending initial host state to ${data.userId}:`,
       `${hostState.isPlaying ? "PLAYING" : "PAUSED"} at ${hostState.currentTime}s`,
@@ -2284,15 +2310,12 @@ export class RoomManager {
     );
 
     // Also sync control mode to newly connected user
-    if (this.currentRoom.controlMode) {
+    if (room.controlMode) {
       console.log(
         `[RoomManager] Sending control mode to ${data.userId}:`,
-        this.currentRoom.controlMode,
+        room.controlMode,
       );
-      await this.webrtc.sendControlModeToUser(
-        this.currentRoom.controlMode,
-        data.userId,
-      );
+      await this.webrtc.sendControlModeToUser(room.controlMode, data.userId);
     }
   }
 
@@ -2300,12 +2323,18 @@ export class RoomManager {
    * Handle adapter connection for immediate state sync on page refresh
    */
   private async handleAdapterConnection(tabId: number): Promise<void> {
+    const connectedState = this.getConnectedState();
+
     // Only apply host state if user is a participant and host state exists
-    if (this.currentUser?.isHost || !this.currentRoom?.hostVideoState) {
+    if (
+      !connectedState ||
+      connectedState.user.isHost ||
+      !connectedState.room.hostVideoState
+    ) {
       return;
     }
 
-    const hostState = this.currentRoom.hostVideoState;
+    const hostState = connectedState.room.hostVideoState;
     console.log(
       `[RoomManager] Adapter connected in tab ${tabId}, applying stored host state:`,
       `${hostState.isPlaying ? "PLAYING" : "PAUSED"} at ${hostState.currentTime}s`,
@@ -2325,7 +2354,9 @@ export class RoomManager {
    * Capture initial video state during room creation to populate hostVideoState
    */
   private async captureInitialVideoState(): Promise<void> {
-    if (!this.currentUser?.isHost || !this.currentRoom) {
+    const connectedState = this.getConnectedState();
+
+    if (!connectedState || !connectedState.user.isHost) {
       return;
     }
 
@@ -2357,12 +2388,9 @@ export class RoomManager {
             lastUpdated: Date.now(),
           };
 
-          // Direct update - no events needed
-          this.currentRoom.hostVideoState = videoState;
-          this.currentRoom.videoState = videoState;
-
-          // Trigger UI update
-          this.updateExtensionState({ currentRoom: this.currentRoom });
+          // Update through state manager
+          await this.stateManager.updateVideoState(videoState);
+          await this.stateManager.updateHostVideoState(videoState);
 
           console.log(
             `[RoomManager] Successfully captured initial host video state:`,
@@ -2384,9 +2412,12 @@ export class RoomManager {
 
   private async handleAdapterEvent(detail: AdapterEventDetail): Promise<void> {
     // Only process events if we're in a room and connected
-    if (!this.currentRoom || !this.currentUser) {
+    const connectedState = this.getConnectedState();
+    if (!connectedState) {
       return;
     }
+
+    const { room, user } = connectedState;
 
     // Update the last video adapter URL when video events occur
     await this.updateLastVideoAdapterUrl();
@@ -2430,9 +2461,9 @@ export class RoomManager {
       case "seeking":
       case "seeked":
         // For control events, broadcast based on control mode
-        if (this.currentRoom.controlMode === "HOST_ONLY") {
+        if (room.controlMode === "HOST_ONLY") {
           // In host-only mode, only the host can trigger control events
-          if (this.currentUser.isHost) {
+          if (user.isHost) {
             await this.broadcastHostStateUpdate(detail);
           } else {
             // Block adapter events from non-host participants in HOST_ONLY mode
@@ -2442,14 +2473,12 @@ export class RoomManager {
             );
 
             // Reapply host state to keep participant in sync
-            if (this.currentRoom.hostVideoState) {
+            if (room.hostVideoState) {
               await this.applyVideoState({
-                state: this.currentRoom.hostVideoState.isPlaying
-                  ? "PLAYING"
-                  : "PAUSED",
-                time: this.currentRoom.hostVideoState.currentTime,
+                state: room.hostVideoState.isPlaying ? "PLAYING" : "PAUSED",
+                time: room.hostVideoState.currentTime,
                 timestamp: Date.now(),
-                hostVideoUrl: this.currentRoom.hostVideoState.url,
+                hostVideoUrl: room.hostVideoState.url,
                 isRemoteOrigin: true,
               });
             }
@@ -2471,7 +2500,7 @@ export class RoomManager {
           this.lastTimeupdateSync = timeupdateNow;
 
           // Only broadcast timeupdate from the designated host (for auto-follow tracking)
-          if (this.currentUser.isHost) {
+          if (user.isHost) {
             await this.broadcastHostStateUpdate(detail);
           }
           // In free-for-all mode, timeupdate events are used for drift detection
@@ -2512,7 +2541,8 @@ export class RoomManager {
     detail: AdapterEventDetail,
   ): Promise<void> {
     // Defensive check: don't broadcast if not in a room
-    if (!this.currentRoom || !this.currentUser) {
+    const connectedState = this.getConnectedState();
+    if (!connectedState) {
       return;
     }
 
@@ -2562,9 +2592,12 @@ export class RoomManager {
   private async updateLocalVideoState(
     detail: AdapterEventDetail,
   ): Promise<void> {
-    if (!this.currentRoom) {
+    const connectedState = this.getConnectedState();
+    if (!connectedState) {
       return;
     }
+
+    const { user } = connectedState;
 
     // Use tracked video adapter URL for video state
     const videoUrl = this.lastVideoAdapterUrl || "";
@@ -2579,23 +2612,18 @@ export class RoomManager {
     };
 
     // Update different video states based on user role
-    if (this.currentUser?.isHost) {
+    if (user.isHost) {
       // Host updates both host video state (for participants to see) and own video state
-      this.currentRoom.hostVideoState = videoState;
-      this.currentRoom.videoState = videoState;
+      await this.stateManager.updateHostVideoState(videoState);
+      await this.stateManager.updateVideoState(videoState);
     } else {
       // Participants only update their own local video state
-      this.currentRoom.videoState = videoState;
+      await this.stateManager.updateVideoState(videoState);
     }
-
-    // Update extension state to trigger UI refresh
-    this.updateExtensionState({
-      currentRoom: this.currentRoom,
-    });
 
     // Only log significant events, not timeupdate
     if (detail.event !== "timeupdate") {
-      const role = this.currentUser?.isHost ? "host" : "participant";
+      const role = user.isHost ? "host" : "participant";
       console.log(
         `[RoomManager] Updated ${role} video state: ${videoState.isPlaying ? "Playing" : "Paused"} at ${videoState.currentTime}s`,
         videoUrl ? `on ${videoUrl}` : "",
@@ -2607,9 +2635,13 @@ export class RoomManager {
    * Clear video state when video tab is closed
    */
   async clearVideoState(): Promise<void> {
-    if (!this.currentRoom || !this.currentUser) {
+    const connectedState = this.getConnectedState();
+
+    if (!connectedState) {
       return;
     }
+
+    const { user } = connectedState;
 
     // Create cleared video state
     const clearedVideoState = {
@@ -2622,10 +2654,10 @@ export class RoomManager {
     };
 
     // Update different video states based on user role
-    if (this.currentUser.isHost) {
+    if (user.isHost) {
       // Host clears both host video state (for participants to see) and own video state
-      this.currentRoom.hostVideoState = clearedVideoState;
-      this.currentRoom.videoState = clearedVideoState;
+      await this.stateManager.updateHostVideoState(clearedVideoState);
+      await this.stateManager.updateVideoState(clearedVideoState);
 
       // Broadcast cleared state to participants
       await this.webrtc.broadcastHostState(
@@ -2635,40 +2667,40 @@ export class RoomManager {
       );
     } else {
       // Participants only clear their own local video state
-      this.currentRoom.videoState = clearedVideoState;
+      await this.stateManager.updateVideoState(clearedVideoState);
     }
 
     // Clear the tracked video adapter URL and tab ID
     this.lastVideoAdapterUrl = null;
     this.currentVideoTabId = null;
 
-    // Update extension state to trigger UI refresh
-    this.updateExtensionState({
-      currentRoom: this.currentRoom,
-    });
-
     console.log(
-      `[RoomManager] Cleared video state for ${this.currentUser.isHost ? "host" : "participant"}`,
+      `[RoomManager] Cleared video state for ${user.isHost ? "host" : "participant"}`,
     );
   }
 
   /**
    * Update room state from server response, preserving client-managed fields
    */
-  private updateRoomFromServer(serverRoomState: any): void {
-    if (!this.currentRoom) {
+  private async updateRoomFromServer(serverRoomState: any): Promise<void> {
+    const currentRoom = this.stateManager.getCurrentRoom();
+
+    if (!currentRoom) {
       // First time - accept everything
-      this.currentRoom = serverRoomState;
+      await this.stateManager.setRoom(serverRoomState);
       return;
     }
 
     // Subsequent updates - only update server-managed fields
-    this.currentRoom.id = serverRoomState.id;
-    this.currentRoom.name = serverRoomState.name;
-    this.currentRoom.hostId = serverRoomState.hostId;
-    this.currentRoom.users = serverRoomState.users;
-    this.currentRoom.createdAt = serverRoomState.createdAt;
-    this.currentRoom.lastActivity = serverRoomState.lastActivity;
+    // Preserve client-managed fields by only updating specific properties
+    await this.stateManager.updateRoom({
+      id: serverRoomState.id,
+      name: serverRoomState.name,
+      hostId: serverRoomState.hostId,
+      users: serverRoomState.users,
+      createdAt: serverRoomState.createdAt,
+      lastActivity: serverRoomState.lastActivity,
+    });
 
     // Preserve client-managed fields:
     // - controlMode (managed by WebRTC)
@@ -2676,19 +2708,6 @@ export class RoomManager {
     // - videoState (managed by adapter events)
     // - hostVideoState (managed by WebRTC messages)
     // - hostCurrentUrl (managed by tab navigation)
-  }
-
-  private async updateExtensionState(
-    updates: Partial<ExtensionState>,
-  ): Promise<void> {
-    this.extensionState = { ...this.extensionState, ...updates };
-
-    try {
-      await StorageManager.setExtensionState(this.extensionState);
-      this.emit("STATE_UPDATE", this.extensionState);
-    } catch (error) {
-      console.error("Failed to update extension state:", error);
-    }
   }
 
   private emit(eventType: string, data: any): void {

@@ -9,7 +9,6 @@ import type {
   ExtensionState,
   ControlMode,
   FollowMode,
-  CreateRoomMessage,
   JoinRoomMessage,
   LeaveRoomMessage,
   RenameRoomMessage,
@@ -25,6 +24,7 @@ import { defaultWebRTCConfig } from "@repo/types";
 import { WebSocketManager, defaultWebSocketConfig } from "./websocket";
 import { WebRTCManager } from "./webrtcBridge";
 import { StorageManager } from "./storage";
+import { RoomConnectionService } from "./services/roomConnectionService";
 import {
   adapterEventTarget,
   type AdapterEventDetail,
@@ -44,6 +44,7 @@ export interface RoomManagerConfig {
 }
 
 export class RoomManager {
+  private connectionService: RoomConnectionService;
   private websocket: WebSocketManager;
   private webrtc: WebRTCManager;
   private badgeManager: BadgeManager;
@@ -55,37 +56,80 @@ export class RoomManager {
   private isApplyingRemoteCommand: boolean = false;
 
   constructor(config: RoomManagerConfig) {
-    // Initialize WebSocket manager
-    this.websocket = new WebSocketManager({
-      url: config.websocketUrl,
-      maxRetries: 5,
-      baseRetryDelay: 1000,
-      maxRetryDelay: 30000,
-      heartbeatInterval: 30000,
-    });
-
-    // Initialize WebRTC manager
-    this.webrtc = new WebRTCManager({
-      iceServers: config.webrtcConfig.iceServers,
-      iceCandidatePoolSize: config.webrtcConfig.iceCandidatePoolSize,
-      dataChannelOptions: {
-        ordered: true,
-        maxRetransmits: 3,
-      },
-    });
-
     // Initialize badge manager
     this.badgeManager = new BadgeManager();
 
     // Initialize state manager
     this.stateManager = new RoomStateManager();
 
+    // Initialize connection service with state manager
+    this.connectionService = new RoomConnectionService({
+      websocketConfig: {
+        url: config.websocketUrl,
+        maxRetries: 5,
+        baseRetryDelay: 1000,
+        maxRetryDelay: 30000,
+        heartbeatInterval: 30000,
+      },
+      webrtcConfig: {
+        iceServers: config.webrtcConfig.iceServers,
+        iceCandidatePoolSize: config.webrtcConfig.iceCandidatePoolSize,
+      },
+      stateManager: this.stateManager,
+    });
+
+    // Get WebSocket and WebRTC managers from connection service
+    // We need these for event handling
+    this.websocket = this.connectionService.getWebSocketManager();
+    this.webrtc = this.connectionService.getWebRTCManager();
+
     // Subscribe to state changes to emit STATE_UPDATE events
     this.stateManager.subscribe((state) => {
       this.emit("STATE_UPDATE", state);
     });
 
+    // Subscribe to connection service events
+    this.setupConnectionServiceEvents();
+
     this.setupEventHandlers();
+  }
+
+  /**
+   * Setup connection service event handlers
+   */
+  private setupConnectionServiceEvents(): void {
+    // Handle successful room connection
+    this.connectionService.on("ROOM_CONNECTED", async (_result) => {
+      console.log("[RoomManager] Room connected via ConnectionService");
+      await this.updateBadge();
+    });
+
+    // Handle room disconnection
+    this.connectionService.on("ROOM_DISCONNECTED", async () => {
+      console.log("[RoomManager] Room disconnected via ConnectionService");
+      await this.badgeManager.clearBadge();
+    });
+
+    // Handle successful auto-rejoin
+    this.connectionService.on("ROOM_REJOINED", async (_result) => {
+      console.log("[RoomManager] Room auto-rejoined successfully");
+      await this.updateBadge();
+
+      // Re-establish WebRTC connections after rejoin
+      await this.establishWebRTCConnections();
+    });
+
+    // Handle auto-rejoin failure
+    this.connectionService.on("AUTO_REJOIN_FAILED", async ({ error }) => {
+      console.error("[RoomManager] Auto-rejoin failed:", error);
+      await this.badgeManager.clearBadge();
+    });
+
+    // Handle WebRTC reconnection trigger
+    this.connectionService.on("TRIGGER_WEBRTC_RECONNECT", async (_data) => {
+      console.log("[RoomManager] Triggering WebRTC reconnection after rejoin");
+      await this.establishWebRTCConnections();
+    });
   }
 
   /**
@@ -95,6 +139,9 @@ export class RoomManager {
     try {
       // Initialize state manager first
       await this.stateManager.initialize();
+
+      // Initialize connection service (creates offscreen document, etc.)
+      await this.connectionService.initialize();
 
       // Load user's default follow mode preference and apply it
       const userPreferences = await StorageManager.getUserPreferences();
@@ -156,127 +203,38 @@ export class RoomManager {
     predefinedRoomId?: string,
   ): Promise<RoomState> {
     try {
-      const userId = this.generateUserId();
       const roomId = predefinedRoomId || this.generateRoomId();
 
-      // Disconnect any existing WebSocket connection
-      await this.websocket.disconnect();
-
-      // Update WebSocket URL with roomId
-      const baseUrl = defaultWebSocketConfig.url;
-      this.websocket.updateUrl(`${baseUrl}?roomId=${roomId}`);
-
-      // Connect WebSocket with the roomId
-      await this.websocket.connect();
-
-      // Only proceed if truly connected
-      if (!this.websocket.isConnected()) {
-        throw new Error("Failed to establish stable WebSocket connection");
-      }
-
-      // Fetch TURN servers and initialize WebRTC BEFORE creating the room
-      const turnServers = await this.fetchTurnServers(userId);
-      if (turnServers.length > defaultWebRTCConfig.iceServers.length) {
-        this.webrtc.setIceServers(turnServers);
-      }
-      await this.webrtc.initialize(userId, true);
-
-      const message: CreateRoomMessage = {
-        type: "CREATE_ROOM",
+      // Delegate to RoomConnectionService
+      const result = await this.connectionService.connectToRoom(
         roomId,
-        userId,
         userName,
-        roomName: roomName,
-        timestamp: Date.now(),
-      };
+        true, // asHost
+        roomName,
+      );
 
-      await this.websocket.send(message);
+      // Apply room creator's preferred default control mode
+      const currentUser = this.stateManager.getCurrentUser();
+      if (currentUser?.isHost) {
+        console.log(
+          "[RoomManager] Applying room creator's preferred control mode",
+        );
+        await this.applyHostPreferredControlMode();
 
-      // Wait for room creation response
-      return new Promise((resolve, reject) => {
-        const cleanup = () => {
-          this.websocket.off("ROOM_CREATED", onRoomCreated);
-          this.websocket.off("ERROR", onError);
-        };
+        // Capture initial video state to populate hostVideoState
+        await this.captureInitialVideoState();
+      }
 
-        const timeout = setTimeout(() => {
-          cleanup();
-          this.websocket.disconnect();
-          reject(new Error("Room creation timeout"));
-        }, 10000);
+      // Reset WebRTC recovery retry state on successful room creation
+      this.resetWebRTCRecoveryRetry();
 
-        const onRoomCreated = async (response: any) => {
-          if (response.type === "ROOM_CREATED" && response.roomId === roomId) {
-            clearTimeout(timeout);
-            cleanup();
-
-            const roomState = response.roomState;
-            const currentUser =
-              roomState.users.find((u: User) => u.id === userId) || null;
-
-            // Update state manager with new room and user
-            await this.stateManager.setRoom(roomState);
-            await this.stateManager.setUser(currentUser);
-            await this.stateManager.setConnectionStatus("CONNECTED");
-
-            // WebRTC already initialized before creating room
-            // Ensure WebRTC bridge knows we're the host
-            if (currentUser?.isHost) {
-              this.webrtc.setHostStatus(true);
-              console.log(
-                "[RoomManager] Set WebRTC host status to true for room creator",
-              );
-
-              // Apply room creator's preferred default control mode
-              console.log(
-                "[RoomManager] Applying room creator's preferred control mode",
-              );
-              await this.applyHostPreferredControlMode();
-
-              // Capture initial video state to populate hostVideoState
-              await this.captureInitialVideoState();
-            } else {
-              console.log(
-                "[RoomManager] User is not host when creating room:",
-                currentUser,
-              );
-            }
-
-            // Reset WebRTC recovery retry state on successful room creation
-            this.resetWebRTCRecoveryRetry();
-
-            // Update badge with initial participant count
-            await this.updateBadge();
-
-            // Store room in history for host
-            StorageManager.addRoomToHistory(roomState);
-
-            resolve(roomState);
-          }
-        };
-
-        const onError = (response: any) => {
-          if (response.type === "ERROR") {
-            clearTimeout(timeout);
-            cleanup();
-            this.websocket.disconnect();
-            reject(new Error(response.error));
-          }
-        };
-
-        this.websocket.on("ROOM_CREATED", onRoomCreated);
-        this.websocket.on("ERROR", onError);
-      });
+      return result.room;
     } catch (error) {
       console.error("Failed to create room:", error);
-      await this.websocket.disconnect();
-      this.webrtc.closeAllConnections();
-
-      // Reset state on error
-      await this.stateManager.resetState();
 
       // Clear badge on error
       await this.badgeManager.clearBadge();
+
       throw error;
     }
   }

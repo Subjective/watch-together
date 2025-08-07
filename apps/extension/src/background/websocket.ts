@@ -27,6 +27,15 @@ export class WebSocketManager {
   private pongTimeoutId: number | null = null;
   private readonly PONG_TIMEOUT = 10000; // 10 seconds
   private eventListeners: Map<string, ((data: any) => void)[]> = new Map();
+  
+  // Message queue for offline buffering
+  private messageQueue: SignalingMessage[] = [];
+  private readonly MAX_QUEUE_SIZE = 50;
+  
+  // Connection state tracking
+  private isIntentionalDisconnect = false;
+  private lastConnectedAt: number | null = null;
+  private reconnectAttempts = 0;
 
   constructor(config: WebSocketConfig) {
     this.config = config;
@@ -44,6 +53,7 @@ export class WebSocketManager {
     }
 
     this.setConnectionStatus("CONNECTING");
+    this.isIntentionalDisconnect = false;
 
     try {
       this.ws = new WebSocket(this.config.url);
@@ -74,13 +84,22 @@ export class WebSocketManager {
 
       this.setConnectionStatus("CONNECTED");
       this.retryCount = 0;
+      this.reconnectAttempts = 0;
+      this.lastConnectedAt = Date.now();
       this.startHeartbeat();
 
       console.log("WebSocket connected successfully");
+      
+      // Flush any queued messages after successful connection
+      await this.flushMessageQueue();
+      
     } catch (error) {
       console.error("WebSocket connection failed:", error);
       this.setConnectionStatus("ERROR");
-      this.scheduleReconnection();
+      
+      if (!this.isIntentionalDisconnect) {
+        this.scheduleReconnection();
+      }
     }
   }
 
@@ -88,6 +107,7 @@ export class WebSocketManager {
    * Disconnect from WebSocket server
    */
   async disconnect(): Promise<void> {
+    this.isIntentionalDisconnect = true;
     this.clearReconnectionTimer();
     this.stopHeartbeat();
 
@@ -100,6 +120,10 @@ export class WebSocketManager {
 
     // Reset retry count to prevent future reconnection attempts
     this.retryCount = 0;
+    this.reconnectAttempts = 0;
+    
+    // Clear message queue on intentional disconnect
+    this.messageQueue = [];
 
     this.setConnectionStatus("DISCONNECTED");
   }
@@ -109,7 +133,14 @@ export class WebSocketManager {
    */
   async send(message: SignalingMessage): Promise<void> {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      throw new Error("WebSocket is not connected");
+      // Queue message if not connected (unless it's a time-sensitive message)
+      if (this.shouldQueueMessage(message)) {
+        this.queueMessage(message);
+        console.log(`WebSocket not connected, queued message: ${message.type}`);
+        return;
+      } else {
+        throw new Error("WebSocket is not connected");
+      }
     }
 
     try {
@@ -117,7 +148,73 @@ export class WebSocketManager {
       console.log("WebSocket message sent:", message.type);
     } catch (error) {
       console.error("Failed to send WebSocket message:", error);
+      
+      // Try to queue the message for retry
+      if (this.shouldQueueMessage(message)) {
+        this.queueMessage(message);
+      }
+      
       throw error;
+    }
+  }
+
+  /**
+   * Queue a message for later sending
+   */
+  private queueMessage(message: SignalingMessage): void {
+    // Remove oldest messages if queue is full
+    while (this.messageQueue.length >= this.MAX_QUEUE_SIZE) {
+      const removed = this.messageQueue.shift();
+      console.warn(`Message queue full, dropping oldest message: ${removed?.type}`);
+    }
+    
+    this.messageQueue.push(message);
+    console.log(`Queued message ${message.type}, queue size: ${this.messageQueue.length}`);
+  }
+
+  /**
+   * Determine if a message should be queued
+   */
+  private shouldQueueMessage(message: SignalingMessage): boolean {
+    // Don't queue time-sensitive messages like PING/PONG
+    const nonQueueableTypes = ["PING", "PONG"];
+    
+    // Don't queue room creation/join messages as they need immediate response
+    const criticalTypes = ["CREATE_ROOM", "JOIN_ROOM"];
+    
+    if (nonQueueableTypes.includes(message.type)) {
+      return false;
+    }
+    
+    if (criticalTypes.includes(message.type)) {
+      return false;
+    }
+    
+    // Queue other messages like ICE candidates, offers, answers, etc.
+    return true;
+  }
+
+  /**
+   * Flush queued messages after reconnection
+   */
+  private async flushMessageQueue(): Promise<void> {
+    if (this.messageQueue.length === 0) {
+      return;
+    }
+    
+    console.log(`Flushing ${this.messageQueue.length} queued messages`);
+    
+    const messages = [...this.messageQueue];
+    this.messageQueue = [];
+    
+    for (const message of messages) {
+      try {
+        // Add a small delay between messages to avoid overwhelming the server
+        await new Promise(resolve => setTimeout(resolve, 50));
+        await this.send(message);
+      } catch (error) {
+        console.error(`Failed to send queued message ${message.type}:`, error);
+      }
     }
   }
 
@@ -236,9 +333,24 @@ export class WebSocketManager {
   }
 
   private scheduleReconnection(): void {
+    // Don't reconnect if it was an intentional disconnect
+    if (this.isIntentionalDisconnect) {
+      console.log("Skipping reconnection - disconnect was intentional");
+      return;
+    }
+    
     if (this.retryCount >= this.config.maxRetries) {
       console.error("Max reconnection attempts reached");
       this.setConnectionStatus("ERROR");
+      
+      // Emit event for higher-level handling
+      const listeners = this.eventListeners.get("MAX_RETRIES_REACHED");
+      if (listeners) {
+        listeners.forEach((callback) => callback({ 
+          attempts: this.retryCount,
+          lastConnectedAt: this.lastConnectedAt 
+        }));
+      }
       return;
     }
 
@@ -254,12 +366,13 @@ export class WebSocketManager {
     const finalDelay = delay + jitter;
 
     console.log(
-      `Scheduling reconnection in ${finalDelay}ms (attempt ${this.retryCount + 1})`,
+      `Scheduling reconnection in ${finalDelay}ms (attempt ${this.retryCount + 1}/${this.config.maxRetries})`,
     );
 
     this.clearReconnectionTimer();
     this.retryTimeoutId = setTimeout(() => {
       this.retryCount++;
+      this.reconnectAttempts++;
       this.connect();
     }, finalDelay) as unknown as number;
   }
@@ -355,8 +468,40 @@ export class WebSocketManager {
     // Reset state
     this.connectionStatus = "DISCONNECTED";
     this.retryCount = 0;
+    this.reconnectAttempts = 0;
+    this.isIntentionalDisconnect = false;
+    this.lastConnectedAt = null;
+    this.messageQueue = [];
 
     console.log("WebSocket manager reset");
+  }
+
+  /**
+   * Get connection statistics
+   */
+  getConnectionStats(): {
+    status: ConnectionStatus;
+    reconnectAttempts: number;
+    queuedMessages: number;
+    lastConnectedAt: number | null;
+    isReconnecting: boolean;
+  } {
+    return {
+      status: this.connectionStatus,
+      reconnectAttempts: this.reconnectAttempts,
+      queuedMessages: this.messageQueue.length,
+      lastConnectedAt: this.lastConnectedAt,
+      isReconnecting: this.retryCount > 0 && !this.isIntentionalDisconnect,
+    };
+  }
+
+  /**
+   * Clear message queue
+   */
+  clearMessageQueue(): void {
+    const count = this.messageQueue.length;
+    this.messageQueue = [];
+    console.log(`Cleared ${count} messages from queue`);
   }
 }
 

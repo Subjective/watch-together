@@ -26,18 +26,44 @@ global.chrome = {
       addListener: vi.fn(),
       removeListener: vi.fn(),
       hasListener: vi.fn().mockReturnValue(false),
+      getRules: vi.fn(),
+      removeRules: vi.fn(),
+      addRules: vi.fn(),
+      hasListeners: vi.fn().mockReturnValue(false),
     },
   },
   offscreen: {
     createDocument: vi.fn().mockResolvedValue(undefined),
+    closeDocument: vi.fn().mockResolvedValue(undefined),
+    hasDocument: vi.fn().mockResolvedValue(false),
+    Reason: {
+      AUDIO_PLAYBACK: "AUDIO_PLAYBACK",
+      CLIPBOARD: "CLIPBOARD",
+      DISPLAY_MEDIA: "DISPLAY_MEDIA",
+      DOM_PARSER: "DOM_PARSER",
+      DOM_SCRAPING: "DOM_SCRAPING",
+      GEOLOCATION: "GEOLOCATION",
+      IFRAME_SCRIPTING: "IFRAME_SCRIPTING",
+      LOCAL_STORAGE: "LOCAL_STORAGE",
+      MATCH_MEDIA: "MATCH_MEDIA",
+      TESTING: "TESTING",
+      USER_MEDIA: "USER_MEDIA",
+      WEB_RTC: "WEB_RTC",
+      WORKERS: "WORKERS",
+    },
   },
   storage: {
     local: {
       get: vi.fn().mockResolvedValue({}),
       set: vi.fn().mockResolvedValue(undefined),
+      getBytesInUse: vi.fn().mockResolvedValue(0),
+      clear: vi.fn().mockResolvedValue(undefined),
+      remove: vi.fn().mockResolvedValue(undefined),
+      setAccessLevel: vi.fn().mockResolvedValue(undefined),
+      QUOTA_BYTES: 10485760,
     },
   },
-} as const;
+} as any;
 
 // Mock fetch for TURN credentials
 global.fetch = vi.fn().mockResolvedValue({
@@ -99,6 +125,7 @@ describe("RoomConnectionService", () => {
     mockStateManager = {
       setRoom: vi.fn().mockResolvedValue(undefined),
       setUser: vi.fn().mockResolvedValue(undefined),
+      setRoomAndUser: vi.fn().mockResolvedValue(undefined),
       setConnectionStatus: vi.fn().mockResolvedValue(undefined),
       resetState: vi.fn().mockResolvedValue(undefined),
       getCurrentRoom: vi.fn().mockReturnValue(null),
@@ -237,7 +264,11 @@ describe("RoomConnectionService", () => {
               const listeners = eventHandlers.get("ROOM_CREATED") || [];
               listeners.forEach((callback) => {
                 // Use the userId from the message to ensure consistency
-                const mockUser = createMockUser(message.userId, userName, true);
+                const mockUser = createMockUser(
+                  message.userId || "user-123",
+                  userName,
+                  true,
+                );
                 const mockRoom = createMockRoomState(roomId, roomName, [
                   mockUser,
                 ]);
@@ -273,8 +304,10 @@ describe("RoomConnectionService", () => {
       expect(mockWebSocketManager.connect).toHaveBeenCalled();
       expect(mockWebRTCManager.initialize).toHaveBeenCalled();
       expect(mockWebRTCManager.setHostStatus).toHaveBeenCalledWith(true);
-      expect(mockStateManager.setRoom).toHaveBeenCalledWith(expect.any(Object));
-      expect(mockStateManager.setUser).toHaveBeenCalledWith(expect.any(Object));
+      expect(mockStateManager.setRoomAndUser).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.any(Object),
+      );
       expect(mockStateManager.setConnectionStatus).toHaveBeenCalledWith(
         "CONNECTED",
       );
@@ -323,7 +356,7 @@ describe("RoomConnectionService", () => {
                 const hostUser = createMockUser("host-123", "Host", true);
                 // Use the userId from the message to ensure consistency
                 const participantUser = createMockUser(
-                  message.userId,
+                  message.userId || "participant-123",
                   userName,
                   false,
                 );
@@ -465,8 +498,7 @@ describe("RoomConnectionService", () => {
       // Verify that auto-rejoin was attempted (methods should be called)
       expect(mockWebRTCManager.closeAllConnections).toHaveBeenCalled();
       expect(mockWebRTCManager.initialize).toHaveBeenCalled();
-      expect(mockStateManager.setRoom).toHaveBeenCalled();
-      expect(mockStateManager.setUser).toHaveBeenCalled();
+      expect(mockStateManager.setRoomAndUser).toHaveBeenCalled();
       expect(mockStateManager.setConnectionStatus).toHaveBeenCalledWith(
         "CONNECTED",
       );

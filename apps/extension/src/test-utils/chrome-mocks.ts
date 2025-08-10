@@ -107,11 +107,31 @@ export const createStorageMock = () => ({
 });
 
 /**
+ * Create a mock Chrome Action API
+ */
+export const createActionMock = () => ({
+  setBadgeText: vi.fn().mockResolvedValue(undefined),
+  setBadgeBackgroundColor: vi.fn().mockResolvedValue(undefined),
+  getBadgeText: vi.fn().mockResolvedValue(""),
+  getBadgeBackgroundColor: vi.fn().mockResolvedValue([0, 0, 0, 0]),
+  setTitle: vi.fn().mockResolvedValue(undefined),
+  getTitle: vi.fn().mockResolvedValue("Watch Together"),
+  setIcon: vi.fn().mockResolvedValue(undefined),
+  setPopup: vi.fn().mockResolvedValue(undefined),
+  getPopup: vi.fn().mockResolvedValue(""),
+  enable: vi.fn().mockResolvedValue(undefined),
+  disable: vi.fn().mockResolvedValue(undefined),
+  isEnabled: vi.fn().mockResolvedValue(true),
+  onClicked: createChromeEventMock(),
+});
+
+/**
  * Create a complete Chrome API mock
  */
 export const createChromeMock = () => ({
   runtime: createRuntimeMock(),
   storage: createStorageMock(),
+  action: createActionMock(),
   // Add other Chrome APIs as needed
 });
 
@@ -144,6 +164,11 @@ export const resetChromeMocks = (
   const runtimeOnMessage = chromeMock.runtime.onMessage as any;
   if (runtimeOnMessage._trigger) {
     runtimeOnMessage._listeners?.clear();
+  }
+
+  const actionOnClicked = chromeMock.action.onClicked as any;
+  if (actionOnClicked._trigger) {
+    actionOnClicked._listeners?.clear();
   }
 };
 

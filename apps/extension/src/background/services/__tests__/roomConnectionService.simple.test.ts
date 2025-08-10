@@ -4,7 +4,6 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { RoomConnectionService } from "../roomConnectionService";
-import type { RoomStateManager } from "../../state/roomStateManager";
 
 // Mock WebSocket and WebRTC modules
 vi.mock("../../websocket");
@@ -45,17 +44,38 @@ global.chrome = {
       addListener: vi.fn(),
       removeListener: vi.fn(),
       hasListener: vi.fn().mockReturnValue(false),
+      getRules: vi.fn(),
+      removeRules: vi.fn(),
+      addRules: vi.fn(),
+      hasListeners: vi.fn().mockReturnValue(false),
     },
   },
   offscreen: {
     createDocument: vi.fn().mockResolvedValue(undefined),
+    closeDocument: vi.fn().mockResolvedValue(undefined),
+    hasDocument: vi.fn().mockResolvedValue(false),
+    Reason: {
+      AUDIO_PLAYBACK: "AUDIO_PLAYBACK",
+      CLIPBOARD: "CLIPBOARD",
+      DISPLAY_MEDIA: "DISPLAY_MEDIA",
+      DOM_PARSER: "DOM_PARSER",
+      DOM_SCRAPING: "DOM_SCRAPING",
+      GEOLOCATION: "GEOLOCATION",
+      IFRAME_SCRIPTING: "IFRAME_SCRIPTING",
+      LOCAL_STORAGE: "LOCAL_STORAGE",
+      MATCH_MEDIA: "MATCH_MEDIA",
+      TESTING: "TESTING",
+      USER_MEDIA: "USER_MEDIA",
+      WEB_RTC: "WEB_RTC",
+      WORKERS: "WORKERS",
+    },
   },
-} as const;
+} as any;
 
 global.fetch = vi.fn().mockResolvedValue({
   ok: true,
   json: vi.fn().mockResolvedValue({ iceServers: [] }),
-}) as const;
+}) as any;
 
 describe("RoomConnectionService", () => {
   let service: RoomConnectionService;
@@ -73,7 +93,7 @@ describe("RoomConnectionService", () => {
         iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
         iceCandidatePoolSize: 10,
       },
-      stateManager: mockStateManager as RoomStateManager,
+      stateManager: mockStateManager as any,
     });
 
     // Override the managers with our mocks

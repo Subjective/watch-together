@@ -305,9 +305,8 @@ export class RoomManager {
             const currentUser =
               roomState.users.find((u: User) => u.id === userId) || null;
 
-            // Update state manager with joined room and user
-            await this.stateManager.setRoom(roomState);
-            await this.stateManager.setUser(currentUser);
+            // Update state manager atomically to prevent validation warnings
+            await this.stateManager.setRoomAndUser(roomState, currentUser);
             await this.stateManager.setConnectionStatus("CONNECTED");
 
             // WebRTC already initialized before joining
@@ -1137,9 +1136,8 @@ export class RoomManager {
               throw new Error("User not found in room state after rejoin");
             }
 
-            // Update state manager
-            await this.stateManager.setRoom(roomState);
-            await this.stateManager.setUser(currentUser);
+            // Update state manager atomically to prevent validation warnings
+            await this.stateManager.setRoomAndUser(roomState, currentUser);
             await this.stateManager.setConnectionStatus("CONNECTED");
 
             // Update WebRTC host status

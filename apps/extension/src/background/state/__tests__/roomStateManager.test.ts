@@ -108,8 +108,7 @@ describe("RoomStateManager", () => {
 
   describe("getters", () => {
     beforeEach(async () => {
-      await stateManager.setRoom(mockRoom);
-      await stateManager.setUser(mockUser);
+      await stateManager.setRoomAndUser(mockRoom, mockUser);
       await stateManager.setConnectionStatus("CONNECTED");
     });
 
@@ -166,6 +165,31 @@ describe("RoomStateManager", () => {
       await stateManager.setFollowMode("MANUAL_FOLLOW");
 
       expect(stateManager.getFollowMode()).toBe("MANUAL_FOLLOW");
+    });
+
+    it("should set room and user atomically", async () => {
+      await stateManager.setRoomAndUser(mockRoom, mockUser);
+
+      const room = stateManager.getCurrentRoom();
+      const user = stateManager.getCurrentUser();
+
+      expect(room).toEqual(mockRoom);
+      expect(user).toEqual(mockUser);
+      expect(StorageManager.setExtensionState).toHaveBeenCalled();
+    });
+
+    it("should set room and user to null atomically", async () => {
+      // First set some state
+      await stateManager.setRoomAndUser(mockRoom, mockUser);
+
+      // Then clear it atomically
+      await stateManager.setRoomAndUser(null, null);
+
+      const room = stateManager.getCurrentRoom();
+      const user = stateManager.getCurrentUser();
+
+      expect(room).toBeNull();
+      expect(user).toBeNull();
     });
 
     it("should set follow notification", async () => {
@@ -249,8 +273,7 @@ describe("RoomStateManager", () => {
 
   describe("state reset", () => {
     beforeEach(async () => {
-      await stateManager.setRoom(mockRoom);
-      await stateManager.setUser(mockUser);
+      await stateManager.setRoomAndUser(mockRoom, mockUser);
       await stateManager.setConnectionStatus("CONNECTED");
       await stateManager.setFollowNotification(true, "http://example.com");
     });

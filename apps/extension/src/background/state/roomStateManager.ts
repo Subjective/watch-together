@@ -153,6 +153,21 @@ export class RoomStateManager {
   }
 
   /**
+   * Atomically set both room and user to prevent validation warnings
+   * during state initialization. This prevents the race condition where
+   * setRoom() is called before setUser(), causing temporary state inconsistency.
+   */
+  async setRoomAndUser(
+    room: RoomState | null,
+    user: User | null,
+  ): Promise<void> {
+    await this.updateState({
+      currentRoom: room,
+      currentUser: user,
+    });
+  }
+
+  /**
    * Set connection status
    */
   async setConnectionStatus(status: ConnectionStatus): Promise<void> {

@@ -19,7 +19,7 @@ import {
   Play,
   FolderSyncIcon as Sync,
   Shield,
-  Zap,
+  Settings2,
 } from "lucide-react";
 import { SiGithub, SiDiscord } from "react-icons/si";
 import Image from "next/image";
@@ -144,10 +144,9 @@ export default async function WatchTogetherLanding() {
                   with friends
                 </h1>
                 <p className="text-xl text-gray-600 leading-relaxed">
-                  Synchronize video playback in real-time across multiple
-                  browsers with smart control modes and instant setup. Watch
-                  your favorite shows, movies, and videos with friends anywhere
-                  in the world.
+                  Synchronize video playback in real-time across browsers with
+                  powerful features and instant setup. Watch your favorite
+                  shows, movies, and videos with friends anywhere in the world.
                 </p>
               </div>
 
@@ -234,52 +233,26 @@ export default async function WatchTogetherLanding() {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
               <CardHeader>
+                <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
+                  <Download className="h-6 w-6 text-indigo-600" />
+                </div>
+                <CardTitle>Instant Setup</CardTitle>
+                <CardDescription>
+                  Install the extension, create a room, and start watching
+                  together in seconds.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
+              <CardHeader>
                 <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
                   <Sync className="h-6 w-6 text-purple-600" />
                 </div>
                 <CardTitle>Real-Time Sync</CardTitle>
                 <CardDescription>
-                  Automatic real-time synchronization ensures everyone watches
-                  the same thing, at exactly the same time
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-              <CardHeader>
-                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-                  <Users className="h-6 w-6 text-blue-600" />
-                </div>
-                <CardTitle>Smart Control Modes</CardTitle>
-                <CardDescription>
-                  Choose between host-only control for organized viewing or
-                  free-for-all mode for collaborative watching
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-              <CardHeader>
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-                  <Shield className="h-6 w-6 text-green-600" />
-                </div>
-                <CardTitle>Privacy First</CardTitle>
-                <CardDescription>
-                  Your data stays private. No account required, no personal
-                  information stored, and no ads ever
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-              <CardHeader>
-                <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mb-4">
-                  <Zap className="h-6 w-6 text-yellow-600" />
-                </div>
-                <CardTitle>Peer-to-Peer Technology</CardTitle>
-                <CardDescription>
-                  Direct browser-to-browser communication using WebRTC for
-                  minimal latency and optimized performance
+                  Direct browser-to-browser WebRTC ensures everyone watches the
+                  same thing, at exactly the same time.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -292,20 +265,46 @@ export default async function WatchTogetherLanding() {
                 <CardTitle>Universal Compatibility</CardTitle>
                 <CardDescription>
                   Works with nearly all video sites including Netflix, YouTube,
-                  Disney+, Hulu, Crunchyroll, and more
+                  Disney+, Hulu, Crunchyroll, and more.
                 </CardDescription>
               </CardHeader>
             </Card>
 
             <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
               <CardHeader>
-                <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
-                  <Download className="h-6 w-6 text-indigo-600" />
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
+                  <Users className="h-6 w-6 text-blue-600" />
                 </div>
-                <CardTitle>Easy Setup</CardTitle>
+                <CardTitle>Persistent Rooms</CardTitle>
                 <CardDescription>
-                  Install in seconds, share a link, and start watching together
-                  immediately with automatic host following
+                  No need to resend links ever. Participants automatically
+                  follow the host to new videos.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
+              <CardHeader>
+                <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mb-4">
+                  <Settings2 className="h-6 w-6 text-yellow-600" />
+                </div>
+                <CardTitle>Powerful Controls</CardTitle>
+                <CardDescription>
+                  Let only the host control playback, or open it to
+                  everyone—your choice.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
+              <CardHeader>
+                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
+                  <Shield className="h-6 w-6 text-green-600" />
+                </div>
+                <CardTitle>Privacy First</CardTitle>
+                <CardDescription>
+                  Your data stays private. No account required, no personal
+                  information stored, and no ads ever.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -357,8 +356,8 @@ export default async function WatchTogetherLanding() {
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-600">
                   Watch Together uses WebRTC peer-to-peer technology to create
-                  synchronized viewing sessions with sub-second latency. When
-                  one person plays, pauses, or seeks, the action is instantly
+                  synchronized viewing sessions with minimal latency. When one
+                  person plays, pauses, or seeks, the action is instantly
                   synchronized across all participants. Simply install the
                   extension, visit a supported video site, and share the
                   generated link with with friends.
@@ -422,12 +421,12 @@ export default async function WatchTogetherLanding() {
                   How do control modes work?
                 </AccordionTrigger>
                 <AccordionContent className="text-gray-600">
-                  Watch Together offers Host-only mode (only the room creator
-                  controls playback) and Free-for-all mode (anyone can control).
-                  Hosts can toggle between modes anytime. Additionally,
-                  participants can enable &quot;Auto-follow host&quot; to
-                  automatically follow and sync with the host when they switch
-                  videos.
+                  Watch Together offers &quot;Host-only&quot; mode (only the
+                  room creator controls playback) and &quot;Free-for-all&quot;
+                  mode (anyone can control). Hosts can toggle between modes
+                  anytime. Additionally, participants can enable
+                  &quot;Auto-follow host&quot; to automatically follow and sync
+                  with the host when they switch videos.
                 </AccordionContent>
               </AccordionItem>
 

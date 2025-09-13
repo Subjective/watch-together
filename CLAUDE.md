@@ -1,160 +1,53 @@
-# **Watch Together: AI Development Constitution**
+# Repository Guidelines
 
-## **1. Mission Statement**
+## Project Structure & Module Organization
 
-Your primary goal is to develop **Watch Together**, a robust, multi-site video synchronization browser extension. Build according to the official Design Document. Success is measured by synchronization reliability, flexible control modes, and code maintainability.
+- Monorepo managed by pnpm + Turborepo.
+- Apps: `apps/backend` (Cloudflare Worker), `apps/extension` (browser extension, Vite), `apps/website` (Next.js).
+- Packages: shared libs and configs under `packages/` (`adapters`, `types`, `eslint-config`, `typescript-config`, `vitest-config`, `logo`, `test-utils`).
+- Tests: integration/e2e under `tests/`; unit tests live with sources (`__tests__/` or `*.test.ts`).
 
-## **2. Architectural Principles**
+## Build, Test, and Development Commands
 
-Adhere to the three core architectural pillars:
+- `pnpm dev` — run all app dev tasks (watch mode via Turborepo).
+- `pnpm build` — build all packages/apps.
+- `pnpm lint` / `pnpm typecheck` — ESLint and TypeScript across workspace.
+- `pnpm test` — run all tests; `pnpm test:unit`, `pnpm test:integration`, `pnpm test:e2e` for subsets.
+- Targeted filters: `pnpm extension:dev`, `pnpm extension:build`, `pnpm backend:build`, `pnpm backend:deploy`.
+- Coverage report: `pnpm test:coverage` (merges and opens NYC report in `coverage/report`).
 
-1. **AI-Governed Monorepo:** Use pnpm + Turborepo structure with shared packages
-2. **Serverless Signaling Backbone:** Cloudflare Worker with Durable Objects
-3. **Peer-to-Peer Data Fabric:** WebRTC Data Channels for high-frequency sync
+## Coding Style & Naming Conventions
 
-## **3. Technology Stack**
+- Language: TypeScript (Node 20.x). Package manager: pnpm 9.x.
+- Formatting: Prettier (2‑space indent) via Husky + lint‑staged. Run `pnpm format` / `pnpm format:check`.
+- Linting: shared config `@repo/eslint-config`; fix with `pnpm lint`.
+- Naming: `camelCase` for vars/functions, `PascalCase` for React components/types, `UPPER_SNAKE_CASE` for constants. File names kebab- or lowerCamel; tests as `*.test.ts` or under `__tests__/`.
 
-**Required Technologies:**
+## Testing Guidelines
 
-- **Package Manager:** pnpm
-- **Build System:** Turborepo
-- **Language:** TypeScript (strict mode)
-- **UI Framework:** React 19 (with hooks and TypeScript)
-- **Backend:** Cloudflare Workers with Durable Objects
-- **P2P Communication:** WebRTC Data Channels
-- **Testing Framework:** Vitest (primary) + Playwright (E2E)
+- Unit/integration: Vitest; browser env via JSDOM where needed.
+- E2E: Playwright in `tests/` (`pnpm test:headed` / `pnpm test:debug` helpful locally).
+- Prefer colocated unit tests; use `tests/` for cross-project integration.
+- Aim for meaningful coverage; verify with `pnpm test:coverage`.
 
-## **4. Immutable Coding Conventions**
+## Commit & Pull Request Guidelines
 
-**Non-negotiable rules:**
+- Use Conventional Commits: `feat(scope): ...`, `fix(scope): ...`, `chore: ...`, `refactor(scope): ...`.
+- PRs: concise description, linked issues, testing notes; include screenshots/GIFs for UI changes (website/extension). Update docs in `docs/` when architecture or behavior changes.
 
-- **Type Safety:** Strict TypeScript, use shared @repo/types, avoid `any`
-- **Modularity:** Decompose complex problems, follow package structure
-- **File Naming:**
-  - React components: PascalCase (RoomManager.tsx)
-  - TypeScript files: camelCase (syncLogic.ts)
-  - Test files: _.test.ts (Vitest unit/integration), _.spec.ts (Playwright E2E)
-- **Module Format:** **All runtime code must be authored as ECMAScript modules** (ESM).
-  - Use `import` / `export` syntax exclusively; **no CommonJS** `require`, `module.exports`, or `__dirname`.
-  - Ensure every build target that needs it (Chrome MV3 service worker, Cloudflare Worker) is emitted as an ES module (`format: "es"` in Vite/Rollup).
-- **Exports:** Named exports only, no default exports
-- **Documentation:** JSDoc comments for all public APIs
-- **Error Handling:** Try/catch for all async operations, graceful error logging
-- **TDD Workflow:** Write tests first, implement to make them pass
+## Security & Configuration Tips
 
-## **5. React Specific Guidelines**
+- Do not commit secrets. Backend uses Cloudflare Wrangler (`apps/backend/wrangler.toml`); extension uses `.env.*` in `apps/extension/`. Website deploys via Vercel.
+- Run `pnpm install` once with Node 20.x; use `mise`/Corepack if configured.
 
-- **Hooks:** Use useState, useEffect, useMemo, useCallback for state and effects
-- **Component Structure:** Props interface, hooks, handlers, then JSX return
-- **Event Handling:** Use onClick={handler} syntax with proper TypeScript types
-- **Styling:** CSS modules or styled-components with Tailwind for utilities
-- **Performance:** Use React.memo, useMemo, useCallback to prevent unnecessary re-renders
+## IMPORTANT
 
-## **6. Testing Requirements**
-
-**Testing Framework Hierarchy:**
-
-- **Primary:** Vitest for unit and integration tests
-- **Secondary:** Playwright for comprehensive E2E user journeys
-- **Configuration:** Shared `@repo/vitest-config` package for consistency
-
-**Test Categories:**
-
-- **Unit Tests (Vitest):** Individual functions, components, adapters
-- **Integration Tests (Vitest):** Cross-package communication, WebRTC signaling, video sync
-- **E2E Tests (Playwright):** Complete user journeys across browser instances
-
-**Testing Environments:**
-
-- **Node.js:** Backend logic, utilities, shared packages
-- **jsdom:** React components, DOM interactions, browser APIs
-- **Cloudflare Workers:** Durable Objects, Worker scripts with `@cloudflare/vitest-pool-workers`
-
-**Mock Strategy:**
-
-- **Chrome Extension APIs:** Complete mock implementations in test-utils
-- **WebRTC APIs:** Mock RTCPeerConnection with state management
-- **Video Player APIs:** Mock adapters for controlled testing scenarios
-- **Browser APIs:** jsdom environment with custom global mocks
-
-**TDD Workflow:**
-
-- **Red:** Write failing test with clear expectations
-- **Green:** Implement minimal code to pass test
-- **Refactor:** Improve code while maintaining test coverage
-- **Watch Mode:** Use `pnpm run test:watch` for immediate feedback
-
-**Coverage Requirements:**
-
-- **Minimum Thresholds:** 80% lines, 80% functions, 70% branches
-- **Reporting:** HTML, JSON, and text coverage reports
-- **Exclusions:** Test files, mocks, node_modules, dist folders
-
-**Shared Infrastructure:**
-
-- **Configuration:** Use `@repo/vitest-config` for consistent setup
-- **Utilities:** Leverage test-utils for mocks and helpers
-- **Fixtures:** Standardized test data and setup patterns
-
-## **7. Interaction Protocol**
-
-- **Clarity:** Ask for clarification on ambiguous or conflicting requirements
-- **Updates:** Request CLAUDE.md updates when receiving new rules or corrections
-- **Verification:** Use automated hooks for immediate feedback on code changes
-
-## **8. External Knowledge via MCP Servers**
-
-- Always use enabled MCP servers (e.g., Context 7 at `https://context7.mcp`) to pull the latest API docs and reference code before working with third-party systems such as Cloudflare Workers, React 19, Chrome MV3, or WebRTC.
-- Include links or reference tags from MCP in your code comments when relevant for maintainability.
-- If documentation is missing or ambiguous, ask for clarification before proceeding.
-
-## **9. Testing Workflow**
-
-**Development Commands:**
-
-```bash
-# TDD development with watch mode
-pnpm run test:watch
-
-# Run all tests
-pnpm run test
-
-# Specific test categories
-pnpm run test:unit          # Unit tests only (apps/packages)
-pnpm run test:integration   # Integration tests only (tests/)
-pnpm run test:e2e           # E2E tests with Playwright
-
-# Coverage and analysis
-pnpm run test:coverage      # Generate merged coverage reports
-pnpm run test:ui            # Interactive Vitest UI
-
-# Package-specific testing
-pnpm run test --filter=@repo/adapters
-pnpm run test --filter=extension
-pnpm run test --filter=backend
-
-# Development workflow
-pnpm run test:projects:watch # Watch mode across all packages
-```
-
-**TDD Development Cycle:**
-
-1. **Red Phase:** Write failing test that defines expected behavior
-2. **Green Phase:** Implement minimal code to make test pass
-3. **Refactor Phase:** Improve code while maintaining test coverage
-4. **Commit:** Save working implementation with descriptive message
-
-**Testing Infrastructure Usage:**
-
-- **Shared Config:** Always extend from `@repo/vitest-config` configurations
-- **Mock Utilities:** Use established mocks from `test-utils/` directory
-- **Environment Selection:** Node.js (backend), jsdom (browser), workers (Cloudflare)
-- **Integration Tests:** Place cross-package tests in `tests/integration/`
-
-**Quality Gates:**
-
-- All tests must pass before commits
-- Maintain minimum 80% code coverage (lines, functions), 70% branches
-- Coverage thresholds enforced in @repo/vitest-config
-- Use TypeScript strict mode throughout
-- Follow established mocking patterns for external APIs
+- Try to keep things in one function unless composable or reusable
+- DO NOT do unnecessary destructuring of variables
+- DO NOT use `else` statements unless necessary
+- DO NOT use `try`/`catch` if it can be avoided
+- AVOID `try`/`catch` where possible
+- AVOID `else` statements
+- AVOID using `any` type
+- AVOID `let` statements
+- PREFER single word variable names where possible

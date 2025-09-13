@@ -1,5 +1,6 @@
 {
   "$schema": "https://turborepo.com/schema.json",
+  "globalEnv": ["ENABLE_EXPERIMENTAL_COREPACK"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -48,6 +49,11 @@
       "dependsOn": ["^build"],
       "inputs": ["src/**", "scripts/**"],
       "outputs": ["dist/**"]
+    },
+    "@repo/website#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": [".next/**"]
     }
   }
 }

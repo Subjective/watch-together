@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Single page app</title>
+    <link rel="stylesheet" href="site.css" />
+  </head>
+  <body>
+    <div id="label"></div>
+    <div id="mount"></div>
+    <div id="readout"></div>
+    <div id="caption"></div>
+    <script src="site.js"></script>
+    <script>
+      /** Replace the player element, like frameworks do on re-render. */
+      function remount() {
+        const video = document.createElement("video");
+        video.id = "player";
+        video.controls = true;
+        video.src = "media/a.webm";
+        document.getElementById("mount").replaceChildren(video);
+      }
+      remount();
+    </script>
+  </body>
+</html>

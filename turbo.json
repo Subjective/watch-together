@@ -50,6 +50,11 @@
       "inputs": ["src/**", "scripts/**"],
       "outputs": ["dist/**"]
     },
+    "extension#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": [".output/**"]
+    },
     "@repo/website#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],

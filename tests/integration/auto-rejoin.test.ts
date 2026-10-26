@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 let wsMock: any;
 
-vi.mock("../../apps/extension/src/background/websocket", () => {
+vi.mock("../../apps/legacy-extension/src/background/websocket", () => {
   const listeners = new Map<string, ((data: any) => void)[]>();
 
   const mockWebSocket = {
@@ -35,7 +35,7 @@ vi.mock("../../apps/extension/src/background/websocket", () => {
   };
 });
 
-vi.mock("../../apps/extension/src/background/storage", () => {
+vi.mock("../../apps/legacy-extension/src/background/storage", () => {
   const state = {
     isConnected: false,
     currentRoom: null,
@@ -59,7 +59,7 @@ vi.mock("../../apps/extension/src/background/storage", () => {
   };
 });
 
-vi.mock("../../apps/extension/src/background/webrtcBridge", () => {
+vi.mock("../../apps/legacy-extension/src/background/webrtcBridge", () => {
   const webrtcMock = {
     initialize: vi.fn().mockResolvedValue(undefined),
     closeAllConnections: vi.fn(),
@@ -80,7 +80,7 @@ vi.mock("../../apps/extension/src/background/webrtcBridge", () => {
   };
 });
 
-import { RoomManager } from "../../apps/extension/src/background/roomManager";
+import { RoomManager } from "../../apps/legacy-extension/src/background/roomManager";
 
 // Mock global fetch for TURN server requests
 global.fetch = vi.fn().mockResolvedValue({
@@ -143,13 +143,13 @@ describe("Auto rejoin on WebSocket reconnection", () => {
 
     // Get the mocked WebSocket instance
     const { WebSocketManager } = await vi.importMock(
-      "../../apps/extension/src/background/websocket",
+      "../../apps/legacy-extension/src/background/websocket",
     );
     wsMock = new (WebSocketManager as any)();
 
     // Get the mocked WebRTC instance
     const { WebRTCManager } = await vi.importMock(
-      "../../apps/extension/src/background/webrtcBridge",
+      "../../apps/legacy-extension/src/background/webrtcBridge",
     );
     webrtcMock = new (WebRTCManager as any)();
 

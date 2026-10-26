@@ -85,32 +85,31 @@ async function initializeOffscreenDocument(): Promise<void> {
     console.log("Offscreen document already initialized");
     return;
   }
-  
+
   try {
     // Check if offscreen document already exists
     const existingContexts = await chrome.runtime.getContexts({
       contextTypes: ["OFFSCREEN_DOCUMENT" as chrome.runtime.ContextType],
     });
-    
+
     if (existingContexts.length > 0) {
       offscreenDocumentReady = true;
       console.log("Offscreen document already exists");
       return;
     }
-    
+
     // Create offscreen document
     await chrome.offscreen.createDocument({
       url: "offscreen.html",
       reasons: ["USER_MEDIA" as chrome.offscreen.Reason],
       justification: "WebRTC is not available in service workers",
     });
-    
+
     offscreenDocumentReady = true;
     console.log("Offscreen document created successfully at startup");
-    
+
     // Give it a moment to fully initialize
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
+    await new Promise((resolve) => setTimeout(resolve, 100));
   } catch (error) {
     console.error("Failed to create offscreen document at startup:", error);
     // Don't throw - we'll try again when needed
@@ -135,7 +134,7 @@ async function initializeServiceWorker(): Promise<void> {
 
     // Initialize adapter handler
     initializeAdapterHandler();
-    
+
     // Initialize offscreen document proactively for WebRTC support
     // This ensures it's ready before any room operations
     await initializeOffscreenDocument();

@@ -1,10 +1,15 @@
-import { defineConfig } from "vitest/config";
-import { workersConfig } from "@repo/vitest-config";
+import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
 
-export default defineConfig({
-  ...workersConfig,
+export default defineWorkersConfig({
   test: {
-    ...workersConfig.test,
-    // Package-specific overrides if needed
+    poolOptions: {
+      workers: {
+        // Isolated storage can't track hibernatable WebSockets, so each test
+        // uses its own room id instead
+        isolatedStorage: false,
+        singleWorker: true,
+        wrangler: { configPath: "./wrangler.toml" },
+      },
+    },
   },
 });

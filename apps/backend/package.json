@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "build": "tsc",
+    "build": "tsc --noEmit",
     "lint": "eslint \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -14,14 +14,13 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@repo/types": "workspace:*"
+    "@repo/protocol": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.5.0",
     "@cloudflare/workers-types": "^4.20241205.0",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
-    "@repo/vitest-config": "workspace:*",
     "eslint": "^8.57.0",
     "typescript": "^5.5.4",
     "vitest": "^2.0.0",

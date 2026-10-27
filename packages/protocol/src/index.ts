@@ -23,6 +23,8 @@ export interface Playback {
   rate: number;
   /** Server time in ms when `position` was true. */
   at: number;
+  /** Length of the video in seconds, when the reporter knows it. */
+  duration: number | null;
 }
 
 export interface Room {
@@ -44,6 +46,7 @@ export type Intent =
       playing: boolean;
       position: number;
       rate: number;
+      duration?: number | null;
     }
   | { type: "mode"; mode: Mode }
   | { type: "rename"; target: "room" | "self"; name: string };
@@ -135,6 +138,10 @@ export function parse(raw: string): ClientMessage | null {
         playing: message.playing,
         position: message.position,
         rate: message.rate,
+        duration:
+          number(message.duration) && message.duration > 0
+            ? message.duration
+            : null,
       };
     }
     case "mode":

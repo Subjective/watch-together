@@ -16,6 +16,26 @@ describe("parse", () => {
     ).toMatchObject({ url: null });
   });
 
+  it("keeps a positive duration and drops anything else", () => {
+    const base = {
+      type: "playback",
+      url: null,
+      playing: true,
+      position: 1,
+      rate: 1,
+    };
+    expect(parse(JSON.stringify({ ...base, duration: 90.5 }))).toMatchObject({
+      duration: 90.5,
+    });
+    expect(parse(JSON.stringify(base))).toMatchObject({ duration: null });
+    expect(parse(JSON.stringify({ ...base, duration: -1 }))).toMatchObject({
+      duration: null,
+    });
+    expect(parse(JSON.stringify({ ...base, duration: "1" }))).toMatchObject({
+      duration: null,
+    });
+  });
+
   it("rejects malformed, oversized and out-of-range input", () => {
     expect(parse("{nope")).toBeNull();
     expect(parse("null")).toBeNull();

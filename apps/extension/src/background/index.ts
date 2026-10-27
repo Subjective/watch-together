@@ -11,6 +11,7 @@ import {
   type Reply,
   type View,
 } from "../lib/messages";
+import { recent, remember, settings } from "../lib/settings";
 import { Link } from "./link";
 
 export const BACKEND =
@@ -25,8 +26,11 @@ interface Session {
   you?: string;
   /** The synced tab: the only tab playback commands ever touch. */
   tab?: number;
-  /** Report the synced tab's video once welcomed (we created the room). */
+  /** We created the room: report the synced tab's video and apply the
+   * default control mode once welcomed. */
   announce?: boolean;
+  /** Room name to create the room with. */
+  label?: string;
 }
 
 interface Frame {
@@ -56,6 +60,8 @@ export function start() {
     room: null as Room | null,
     samples: [] as number[],
     view: IDLE,
+    /** Last room name and host written to the recent list. */
+    remembered: "",
   };
 
   const ready = browser.storage.session.get("session").then((stored) => {
@@ -71,13 +77,18 @@ export function start() {
     const tab = state.session?.tab;
     const info =
       tab === undefined ? null : await browser.tabs.get(tab).catch(() => null);
+    const matches =
+      key(info?.url) !== null &&
+      key(info?.url) === key(state.room?.playback.url);
     state.view = {
       ...state.view,
       ...patch,
       room: state.room,
       you: state.session?.you ?? null,
       offset: offset(state.samples),
-      synced: info?.id ? { tab: info.id, title: info.title ?? "" } : null,
+      synced: info?.id
+        ? { tab: info.id, title: info.title ?? "", matches }
+        : null,
     };
     await browser.storage.session.set({ view: state.view });
   }
@@ -123,7 +134,12 @@ export function start() {
     state.link?.close();
     const link = new Link(`${BACKEND}/rooms/${session.room}`, {
       open: () =>
-        link.send({ type: "join", name: session.name, resume: session.resume }),
+        link.send({
+          type: "join",
+          name: session.name,
+          resume: session.resume,
+          room: session.label,
+        }),
       message: (message) => {
         if (message.type === "error") {
           if (message.code === "forbidden") push(state.session?.tab);
@@ -140,6 +156,7 @@ export function start() {
           save();
           announce();
         }
+        record();
         push(session.tab);
         render({ status: "connected", error: null });
       },
@@ -150,14 +167,37 @@ export function start() {
     render({ status: "connecting", error: null });
   }
 
-  /** After creating a room, ask the synced tab's video for its state. */
-  function announce() {
+  /**
+   * After creating a room, apply the default control mode and ask the
+   * synced tab's video for its state.
+   */
+  async function announce() {
     const session = state.session!;
-    if (!session.announce || session.tab === undefined) return;
+    if (!session.announce) return;
     session.announce = false;
     save();
-    const frame = player(session.tab);
+    const preferred = (await settings()).mode;
+    if (preferred !== state.room?.mode)
+      state.link?.send({ type: "mode", mode: preferred });
+    const frame = session.tab === undefined ? null : player(session.tab);
     if (frame) send(frame, { type: "status" });
+  }
+
+  /** Keep the room at the top of the recent list with its current name. */
+  async function record() {
+    const room = state.room!;
+    const host = room.members.find((member) => member.id === room.host);
+    const label = `${room.id}:${room.name}:${host?.name}`;
+    if (label === state.remembered) return;
+    state.remembered = label;
+    const list = remember(await recent(), {
+      id: room.id,
+      name: room.name,
+      host: host?.name ?? "",
+      at: Date.now(),
+      resume: state.session?.resume,
+    });
+    await browser.storage.local.set({ recent: list });
   }
 
   /** The active tab of the last focused normal window. */
@@ -221,6 +261,7 @@ export function start() {
       playing: message.playing,
       position: message.position,
       rate: message.rate,
+      duration: message.duration,
     });
   }
 
@@ -231,11 +272,14 @@ export function start() {
       if (!ROOM_ID.test(room)) return { ok: false, error: "Invalid room code" };
       if (state.session) leave();
       const tab = await foreground();
+      const preferences = await settings();
       state.session = {
         room,
-        name: action.name,
+        name: preferences.name,
+        resume: action.kind === "join" ? action.resume : undefined,
         tab: tab?.id !== undefined && player(tab.id) ? tab.id : undefined,
         announce: action.kind === "create",
+        label: action.kind === "create" ? preferences.room : undefined,
       };
       await save();
       connect();
@@ -249,11 +293,45 @@ export function start() {
     if (action.kind === "mode") {
       return relay({ type: "mode", mode: action.mode });
     }
+    if (action.kind === "rename") {
+      const reply = relay({
+        type: "rename",
+        target: action.target,
+        name: action.name,
+      });
+      if (reply.ok && action.target === "self") {
+        state.session.name = action.name;
+        save();
+      }
+      return reply;
+    }
+    if (action.kind === "follow") return follow();
     const tab = await foreground();
     const frame = tab?.id === undefined ? null : player(tab.id);
     if (!frame) return { ok: false, error: "No video in this tab" };
     await adopt(frame.tab);
     if (state.room?.host === state.session.you) send(frame, { type: "status" });
+    return { ok: true };
+  }
+
+  /** Open the room's video in the synced tab, or in a new synced tab. */
+  async function follow(): Promise<Reply> {
+    const url = state.room?.playback.url;
+    if (!url) return { ok: false, error: "The host isn't playing anything" };
+    const tab = state.session?.tab;
+    const info =
+      tab === undefined ? null : await browser.tabs.get(tab).catch(() => null);
+    if (info?.id !== undefined) {
+      const same = key(info.url) === key(url);
+      await browser.tabs.update(
+        info.id,
+        same ? { active: true } : { url, active: true },
+      );
+      await browser.windows.update(info.windowId, { focused: true });
+      return { ok: true };
+    }
+    const created = await browser.tabs.create({ url });
+    await adopt(created.id);
     return { ok: true };
   }
 
@@ -270,6 +348,7 @@ export function start() {
     state.session = null;
     state.room = null;
     state.samples = [];
+    state.remembered = "";
     push(tab);
     save();
     state.view = IDLE;
@@ -317,6 +396,13 @@ export function start() {
     if (state.session?.tab !== tab) return;
     state.session.tab = undefined;
     save();
+    render();
+  });
+
+  browser.tabs.onUpdated.addListener(async (tab, change) => {
+    await ready;
+    if (tab !== state.session?.tab || !(change.url || change.title)) return;
+    if (change.url) push(tab);
     render();
   });
 

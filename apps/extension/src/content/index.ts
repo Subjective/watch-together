@@ -147,6 +147,7 @@ export function start() {
       rate: video.playbackRate,
       audible: !video.muted && video.volume > 0,
       bound: state.playback !== null,
+      duration: Number.isFinite(video.duration) ? video.duration : null,
     });
   }
 

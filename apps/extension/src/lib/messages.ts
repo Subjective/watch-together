@@ -12,6 +12,7 @@ export type FrameMessage =
       rate: number;
       audible: boolean;
       bound: boolean;
+      duration: number | null;
     }
   | { type: "blocked"; blocked: boolean };
 
@@ -23,11 +24,14 @@ export type Command =
 
 /** Popup → background, through `runtime.sendMessage`. */
 export type Action =
-  | { kind: "create"; name: string }
-  | { kind: "join"; room: string; name: string }
+  | { kind: "create" }
+  | { kind: "join"; room: string; resume?: string }
   | { kind: "leave" }
   | { kind: "mode"; mode: Mode }
-  | { kind: "sync" };
+  | { kind: "rename"; target: "room" | "self"; name: string }
+  | { kind: "sync" }
+  /** Go to the host's video in the synced tab, or a new one. */
+  | { kind: "follow" };
 
 export interface Reply {
   ok: boolean;
@@ -43,7 +47,8 @@ export interface View {
   you: string | null;
   /** Server time minus local time. */
   offset: number;
-  synced: { tab: number; title: string } | null;
+  /** `matches` is whether the tab shows the room's video. */
+  synced: { tab: number; title: string; matches: boolean } | null;
   blocked: boolean;
   error: string | null;
 }

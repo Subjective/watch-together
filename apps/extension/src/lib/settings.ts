@@ -1,22 +1,21 @@
 import type { Mode } from "@repo/protocol";
 import { browser } from "wxt/browser";
 
-/** Preferences in `storage.local` under `settings`. */
+/**
+ * Preferences in `storage.local` under `settings`. There's no settings page:
+ * each one is the last choice made in the popup.
+ */
 export interface Settings {
   name: string;
-  room: string;
-  /** Applied only when you create a room. */
+  /** Control mode for rooms you create. */
   mode: Mode;
   follow: boolean;
-  join: boolean;
 }
 
 export const DEFAULTS: Settings = {
   name: "Guest",
-  room: "My Room",
   mode: "host",
   follow: true,
-  join: true,
 };
 
 /** A room you were in, newest first in `storage.local` under `recent`. */

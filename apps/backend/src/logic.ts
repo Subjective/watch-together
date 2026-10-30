@@ -46,6 +46,7 @@ export function create(id: string, name: string, now: number): State {
         rate: 1,
         at: now,
         duration: null,
+        image: null,
       },
       seq: 0,
     },
@@ -176,6 +177,7 @@ export function apply(
         rate: intent.rate,
         at: now,
         duration: intent.duration ?? null,
+        image: intent.image ?? null,
       };
       break;
     }

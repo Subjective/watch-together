@@ -16,6 +16,7 @@
       const name = params.get("v") ?? "a";
       const video = document.getElementById("player");
       video.src = `media/${name}.webm`;
+      if (!params.has("bare")) video.poster = `media/${name}.jpg`;
       video.muted = params.has("muted");
       video.autoplay = params.has("autoplay");
       document.title = `Video ${name.toUpperCase()}`;

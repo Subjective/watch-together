@@ -110,7 +110,7 @@ export class User {
     return this.panel;
   }
 
-  /** Save preferences the way the Settings screen does. */
+  /** Save preferences the way the popup does. */
   async settings(values: Record<string, unknown>) {
     const worker = await this.worker();
     await worker.evaluate(async (patch) => {
@@ -124,7 +124,10 @@ export class User {
     await this.settings({ name: this.name });
     const popup = await this.popup();
     await popup.getByTestId("create").click();
-    await expect(popup.getByTestId("status")).toHaveText("Connected");
+    await expect(popup.getByTestId("status")).toHaveAttribute(
+      "data-status",
+      "connected",
+    );
     return (await this.view()).room!.id;
   }
 
@@ -133,7 +136,10 @@ export class User {
     const popup = await this.popup();
     await popup.getByTestId("code").fill(code);
     await popup.getByTestId("join").click();
-    await expect(popup.getByTestId("status")).toHaveText("Connected");
+    await expect(popup.getByTestId("status")).toHaveAttribute(
+      "data-status",
+      "connected",
+    );
   }
 
   async view(): Promise<View> {

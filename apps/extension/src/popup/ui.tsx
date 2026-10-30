@@ -1,51 +1,63 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { ArrowLeft } from "lucide-react";
 
-export function Switch(props: {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  label: string;
-  disabled?: boolean;
+const COLORS = [
+  "bg-slate-700",
+  "bg-sky-500",
+  "bg-emerald-500",
+  "bg-amber-500",
+  "bg-rose-500",
+  "bg-teal-600",
+  "bg-orange-500",
+  "bg-cyan-600",
+  "bg-lime-600",
+  "bg-pink-500",
+];
+
+/** A colored initial; the color sticks to the name. */
+export function Avatar(props: {
+  name: string;
+  dim?: boolean;
+  className?: string;
 }) {
+  const hash = [...props.name].reduce(
+    (sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0,
+    0,
+  );
   return (
-    <button
-      role="switch"
-      aria-checked={props.checked}
-      aria-label={props.label}
-      disabled={props.disabled}
-      onClick={() => props.onChange(!props.checked)}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-        props.checked ? "bg-slate-900" : "bg-slate-200"
-      }`}
+    <span
+      aria-hidden
+      className={`flex shrink-0 items-center justify-center rounded-full font-semibold text-white ${COLORS[hash % COLORS.length]} ${props.dim ? "opacity-40" : ""} ${props.className ?? "h-8 w-8 text-sm"}`}
     >
-      <span
-        className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-          props.checked ? "translate-x-5" : ""
-        }`}
-      />
-    </button>
+      {props.name.charAt(0).toUpperCase()}
+    </span>
   );
 }
 
-export function Header(props: {
-  title: string;
-  onBack: () => void;
-  back: string;
-  children?: ReactNode;
+/** Square icon button: white with a border, or filled with `tone`. */
+export function Icon(props: {
+  label: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  tone?: string;
+  pressed?: boolean;
+  testid?: string;
+  children: ReactNode;
 }) {
   return (
-    <header className="flex items-center gap-3 border-b border-slate-200 px-4 py-3">
-      <button
-        aria-label={props.back}
-        title={props.back}
-        onClick={props.onBack}
-        className="rounded-lg p-1 hover:bg-slate-100"
-      >
-        <ArrowLeft className="h-5 w-5" />
-      </button>
-      <h1 className="flex-1 text-lg font-semibold">{props.title}</h1>
+    <button
+      aria-label={props.label}
+      title={props.label}
+      aria-pressed={props.pressed}
+      data-testid={props.testid}
+      disabled={props.disabled}
+      onClick={props.onClick}
+      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg shadow-sm transition-colors disabled:cursor-default ${
+        props.tone ??
+        "border border-slate-200 bg-white enabled:hover:bg-slate-50"
+      }`}
+    >
       {props.children}
-    </header>
+    </button>
   );
 }
 

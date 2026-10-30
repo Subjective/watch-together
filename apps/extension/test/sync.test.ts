@@ -10,6 +10,7 @@ const playback: Playback = {
   rate: 1,
   at: 1_000_000,
   duration: 60,
+  image: null,
 };
 
 const media: Media = { paused: false, time: 10, rate: 1, duration: 60 };

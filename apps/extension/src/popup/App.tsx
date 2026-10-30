@@ -8,7 +8,6 @@ import {
 } from "../lib/settings";
 import { Home } from "./Home";
 import { Room } from "./Room";
-import { Settings } from "./Settings";
 import { Toast } from "./ui";
 
 /**
@@ -20,7 +19,6 @@ export function App() {
   const [view, setView] = useState<View>(IDLE);
   const [settings, setSettings] = useState<Values>(DEFAULTS);
   const [recent, setRecent] = useState<Recent[]>([]);
-  const [screen, setScreen] = useState<"main" | "settings">("main");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [, setTick] = useState(0);
@@ -77,28 +75,22 @@ export function App() {
   const clear = useCallback(() => setError(null), []);
 
   return (
-    <div className="h-[600px]">
-      {screen === "settings" ? (
-        <Settings
-          settings={settings}
-          onChange={save}
-          onBack={() => setScreen("main")}
-        />
-      ) : view.room ? (
+    <div>
+      {view.room ? (
         <Room
           view={view}
           settings={settings}
           run={run}
-          onFollowSetting={(follow) => save({ ...settings, follow })}
-          onSettings={() => setScreen("settings")}
+          onFollow={(follow) => save({ ...settings, follow })}
         />
       ) : (
         <Home
+          name={settings.name}
           recent={recent}
           busy={busy}
+          onName={(name) => save({ ...settings, name })}
           onCreate={() => run({ kind: "create" })}
           onJoin={(room, resume) => run({ kind: "join", room, resume })}
-          onSettings={() => setScreen("settings")}
         />
       )}
       <Toast error={error} onDone={clear} />

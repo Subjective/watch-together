@@ -13,6 +13,7 @@ export type FrameMessage =
       audible: boolean;
       bound: boolean;
       duration: number | null;
+      image: string | null;
     }
   | { type: "blocked"; blocked: boolean };
 
@@ -29,8 +30,9 @@ export type Action =
   | { kind: "leave" }
   | { kind: "mode"; mode: Mode }
   | { kind: "rename"; target: "room" | "self"; name: string }
-  | { kind: "sync" }
-  /** Go to the host's video in the synced tab, or a new one. */
+  /** Play or pause the room from where it is now. */
+  | { kind: "play"; playing: boolean }
+  /** Go to the room's video in the synced tab, or a new one. */
   | { kind: "follow" };
 
 export interface Reply {

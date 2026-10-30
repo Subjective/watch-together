@@ -1,5 +1,10 @@
 import { browser, type Browser } from "wxt/browser";
-import { ROOM_ID, type ClientMessage, type Room } from "@repo/protocol";
+import {
+  ROOM_ID,
+  position,
+  type ClientMessage,
+  type Room,
+} from "@repo/protocol";
 import { offset, sample } from "../lib/clock";
 import { key } from "../lib/key";
 import { route } from "../lib/route";
@@ -11,7 +16,7 @@ import {
   type Reply,
   type View,
 } from "../lib/messages";
-import { recent, remember, settings } from "../lib/settings";
+import { recent, remember, settings, type Settings } from "../lib/settings";
 import { Link } from "./link";
 
 export const BACKEND =
@@ -262,6 +267,7 @@ export function start() {
       position: message.position,
       rate: message.rate,
       duration: message.duration,
+      image: host ? message.image : room.playback.image,
     });
   }
 
@@ -279,7 +285,8 @@ export function start() {
         resume: action.kind === "join" ? action.resume : undefined,
         tab: tab?.id !== undefined && player(tab.id) ? tab.id : undefined,
         announce: action.kind === "create",
-        label: action.kind === "create" ? preferences.room : undefined,
+        label:
+          action.kind === "create" ? `${preferences.name}'s room` : undefined,
       };
       await save();
       connect();
@@ -291,7 +298,9 @@ export function start() {
       return { ok: true };
     }
     if (action.kind === "mode") {
-      return relay({ type: "mode", mode: action.mode });
+      const reply = relay({ type: "mode", mode: action.mode });
+      if (reply.ok) keep({ mode: action.mode });
+      return reply;
     }
     if (action.kind === "rename") {
       const reply = relay({
@@ -302,16 +311,33 @@ export function start() {
       if (reply.ok && action.target === "self") {
         state.session.name = action.name;
         save();
+        keep({ name: action.name });
       }
       return reply;
     }
-    if (action.kind === "follow") return follow();
-    const tab = await foreground();
-    const frame = tab?.id === undefined ? null : player(tab.id);
-    if (!frame) return { ok: false, error: "No video in this tab" };
-    await adopt(frame.tab);
-    if (state.room?.host === state.session.you) send(frame, { type: "status" });
-    return { ok: true };
+    if (action.kind === "play") {
+      const playback = state.room?.playback;
+      if (!playback?.url) return { ok: false, error: "Nothing is playing" };
+      const now = position(playback, Date.now() + offset(state.samples));
+      return relay({
+        type: "playback",
+        url: playback.url,
+        title: playback.title,
+        playing: action.playing,
+        position: playback.duration ? Math.min(now, playback.duration) : now,
+        rate: playback.rate,
+        duration: playback.duration,
+        image: playback.image,
+      });
+    }
+    return follow();
+  }
+
+  /** Remember a choice made in the popup as the next default. */
+  async function keep(patch: Partial<Settings>) {
+    await browser.storage.local.set({
+      settings: { ...(await settings()), ...patch },
+    });
   }
 
   /** Open the room's video in the synced tab, or in a new synced tab. */

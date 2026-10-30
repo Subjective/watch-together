@@ -1,23 +1,28 @@
 import { useState } from "react";
 import {
+  ArrowUpRight,
   Check,
-  Copy,
+  ChevronDown,
+  ChevronUp,
   Crown,
-  ExternalLink,
   Eye,
+  EyeOff,
+  Link,
   Lock,
-  MoreHorizontal,
+  LogOut,
   Pause,
   Play,
   Unlock,
-  Users,
-  Wifi,
   WifiOff,
 } from "lucide-react";
-import { LIMITS, position } from "@repo/protocol";
+import { LIMITS, position, type Member } from "@repo/protocol";
 import type { Action, View } from "../lib/messages";
+import { preview } from "../lib/preview";
 import type { Settings } from "../lib/settings";
-import { Editable, Header, Switch } from "./ui";
+import { Avatar, Editable, Icon } from "./ui";
+
+/** Faces shown before the rest collapse into +N. */
+const FACES = 6;
 
 function clock(seconds: number) {
   const whole = Math.max(0, Math.floor(seconds));
@@ -41,25 +46,35 @@ export function Room(props: {
   view: View;
   settings: Settings;
   run: (action: Action) => void;
-  onFollowSetting: (follow: boolean) => void;
-  onSettings: () => void;
+  onFollow: (follow: boolean) => void;
 }) {
-  const [menu, setMenu] = useState(false);
+  const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [broken, setBroken] = useState<string | null>(null);
   const view = props.view;
   const room = view.room!;
   const playback = room.playback;
   const host = room.host === view.you;
-  const leader = room.members.find((member) => member.id === room.host);
+  const control = host || room.mode === "everyone";
   const online = view.status === "connected";
   const now = position(playback, Date.now() + view.offset);
-  const progress =
-    playback.duration && playback.duration > 0
-      ? Math.min(100, (now / playback.duration) * 100)
-      : 0;
+  const progress = playback.duration
+    ? Math.min(100, (now / playback.duration) * 100)
+    : 0;
   const link = share(view);
-  const behind =
-    !host && playback.url !== null && view.synced?.matches !== true;
+  const image = preview(playback);
+  const thumbnail = image !== null && image !== broken;
+  const away = playback.url !== null && view.synced?.matches !== true;
+  // You, then the host, then everyone else in join order
+  const members = [...room.members].sort(
+    (a, b) =>
+      Number(b.id === view.you) - Number(a.id === view.you) ||
+      Number(b.id === room.host) - Number(a.id === room.host) ||
+      a.joined - b.joined,
+  );
+  const faces = [...members].sort(
+    (a, b) => Number(b.id === room.host) - Number(a.id === room.host),
+  );
 
   async function copy() {
     await navigator.clipboard.writeText(link);
@@ -67,288 +82,286 @@ export function Room(props: {
     setTimeout(() => setCopied(false), 1500);
   }
 
-  return (
-    <div className="flex h-full flex-col">
-      <Header
-        title="Watch Together"
-        back="Leave room"
-        onBack={() => props.run({ kind: "leave" })}
-      >
-        <div className="relative">
-          <button
-            aria-label="Menu"
-            title="Menu"
-            onClick={() => setMenu(!menu)}
-            className="rounded-lg p-1 hover:bg-slate-100"
-          >
-            <MoreHorizontal className="h-5 w-5" />
-          </button>
-          {menu && (
-            <div className="absolute right-0 z-10 mt-1 w-36 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
-              <button
-                onClick={props.onSettings}
-                className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-100"
-              >
-                Settings
-              </button>
-            </div>
-          )}
-        </div>
-      </Header>
+  const toggle = (
+    <button
+      data-testid="toggle"
+      aria-label={playback.playing ? "Pause" : "Play"}
+      title={
+        view.blocked
+          ? "Click the video to catch up"
+          : control
+            ? playback.playing
+              ? "Pause for everyone"
+              : "Play for everyone"
+            : "Only the host can control"
+      }
+      disabled={!control || !online}
+      onClick={() => props.run({ kind: "play", playing: !playback.playing })}
+      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full shadow-sm transition-transform enabled:hover:scale-105 ${
+        thumbnail ? "bg-white/90 text-slate-900" : "bg-green-500 text-white"
+      } ${view.blocked ? "ring-2 ring-amber-400" : ""}`}
+    >
+      {playback.playing ? (
+        <Pause className="h-4 w-4 fill-current" />
+      ) : (
+        <Play className="ml-0.5 h-4 w-4 fill-current" />
+      )}
+    </button>
+  );
 
-      <main className="flex-1 space-y-4 overflow-y-auto p-4">
-        <section
-          className={`rounded-2xl border-2 p-4 ${
-            online
-              ? "border-green-200 bg-green-50/80"
-              : "border-amber-200 bg-amber-50/80"
-          }`}
-        >
-          <div className="flex items-start gap-3">
-            {online ? (
-              <Wifi className="mt-1 h-4 w-4 shrink-0 text-green-600" />
-            ) : (
-              <WifiOff className="mt-1 h-4 w-4 shrink-0 text-amber-600" />
-            )}
-            <div className="min-w-0 flex-1">
-              <Editable
-                value={room.name}
-                max={LIMITS.roomName}
-                label="Rename room"
-                editable={host}
-                onSave={(name) =>
-                  props.run({ kind: "rename", target: "room", name })
-                }
-                className="block w-full text-lg font-semibold"
+  return (
+    <main className="p-4">
+      <section
+        data-testid="status"
+        data-status={view.status}
+        className={`overflow-hidden rounded-2xl border-2 ${online ? "border-green-200" : "border-amber-200"}`}
+      >
+        <div className={`p-3 ${online ? "bg-green-50" : "bg-amber-50"}`}>
+          <div className="flex items-center gap-2 px-1">
+            {!online && (
+              <WifiOff
+                aria-label="Reconnecting"
+                className="h-4 w-4 shrink-0 text-amber-600"
               />
-              <p
-                data-testid="status"
-                className={`text-sm ${online ? "text-green-600" : "text-amber-700"}`}
-              >
-                {online
-                  ? "Connected"
-                  : view.status === "connecting"
-                    ? "Connecting…"
-                    : "Reconnecting…"}
-              </p>
-            </div>
-            <button
-              data-testid="copy"
-              aria-label={
-                link === room.id ? "Copy room code" : "Copy share link"
+            )}
+            <Editable
+              value={room.name}
+              max={LIMITS.roomName}
+              label="Rename room"
+              editable={host}
+              onSave={(name) =>
+                props.run({ kind: "rename", target: "room", name })
               }
-              title={
-                link === room.id
-                  ? `Copy room code (${room.id})`
-                  : "Copy share link"
-              }
+              className="flex-1 text-lg font-semibold"
+            />
+            <Icon
+              label={link === room.id ? "Copy room code" : "Copy invite link"}
+              testid="copy"
               onClick={copy}
-              className="rounded-xl border border-slate-200 bg-white p-2 hover:bg-slate-50"
             >
               {copied ? (
                 <Check className="h-4 w-4 text-green-600" />
               ) : (
-                <Copy className="h-4 w-4" />
+                <Link className="h-4 w-4" />
               )}
-            </button>
-            {!host && (
-              <button
-                data-testid="follow"
-                aria-label="Go to host's video"
-                title="Go to host's video"
-                disabled={!playback.url}
-                onClick={() => props.run({ kind: "follow" })}
-                className="rounded-xl border border-slate-200 bg-white p-2 hover:bg-slate-50 disabled:opacity-50"
-              >
-                <ExternalLink className="h-4 w-4" />
-              </button>
-            )}
-            <button
-              data-testid="leave"
+            </Icon>
+            <Icon
+              label="Leave room"
+              testid="leave"
               onClick={() => props.run({ kind: "leave" })}
-              className="rounded-xl bg-red-500 px-3 py-2 text-sm font-medium text-white hover:bg-red-600"
+              tone="bg-red-500 hover:bg-red-600"
             >
-              Leave
-            </button>
+              <LogOut className="h-4 w-4 text-white" />
+            </Icon>
           </div>
 
-          <p
-            data-testid="title"
-            className="mt-3 truncate text-sm text-slate-600"
-            title={playback.title ?? undefined}
-          >
-            {playback.url
-              ? (playback.title ?? playback.url)
-              : "Nothing playing yet"}
-          </p>
-          <div className="mt-2 flex items-center gap-3">
-            {playback.playing ? (
-              <Pause
-                aria-label="Playing"
-                className="h-5 w-5 shrink-0 fill-current"
-              />
-            ) : (
-              <Play
-                aria-label="Paused"
-                className="h-5 w-5 shrink-0 fill-current"
-              />
-            )}
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white">
-              <div
-                className="h-full rounded-full bg-slate-900"
-                style={{ width: `${progress}%` }}
-              />
+          {playback.url ? (
+            <div className="mt-3 flex items-center gap-3 rounded-xl bg-white p-2 shadow-sm">
+              {thumbnail ? (
+                <span className="relative flex h-[52px] w-[92px] shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-200">
+                  <img
+                    src={image}
+                    alt=""
+                    onError={() => setBroken(image)}
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                  <span className="absolute inset-0 bg-black/20" />
+                  <span className="relative">{toggle}</span>
+                </span>
+              ) : (
+                <span className="pl-1">{toggle}</span>
+              )}
+              <div className="min-w-0 flex-1 pr-1">
+                <button
+                  data-testid="title"
+                  title={host ? "Go to the video" : "Go to the host's video"}
+                  onClick={() => props.run({ kind: "follow" })}
+                  className="flex w-full min-w-0 items-center gap-1 text-left text-sm font-semibold hover:underline"
+                >
+                  <span className="truncate">
+                    {playback.title ?? playback.url}
+                  </span>
+                  {away && (
+                    <ArrowUpRight
+                      data-testid="away"
+                      className="h-4 w-4 shrink-0 text-green-600"
+                    />
+                  )}
+                </button>
+                <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-200">
+                  <div
+                    className="h-full rounded-full bg-green-600"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                <div
+                  data-testid="time"
+                  className="mt-1 flex justify-between text-[11px] text-slate-400 tabular-nums"
+                >
+                  <span>{clock(now)}</span>
+                  {playback.duration && <span>{clock(playback.duration)}</span>}
+                </div>
+              </div>
             </div>
-            <span
-              data-testid="time"
-              className="font-mono text-sm font-semibold"
+          ) : (
+            <p
+              data-testid="title"
+              className="mt-2 flex items-center gap-2 px-1 text-sm text-green-800/70"
             >
-              {clock(now)}
-              {playback.duration ? ` / ${clock(playback.duration)}` : ""}
-            </span>
-          </div>
+              <Play className="h-3.5 w-3.5" />
+              Play a video in any tab
+            </p>
+          )}
+        </div>
 
-          <div className="mt-3 flex items-center gap-2 border-t border-green-200/70 pt-3 text-sm">
-            <span
-              data-testid="sync-status"
-              className="min-w-0 flex-1 truncate text-slate-600"
-            >
-              {view.blocked
-                ? "Press play to catch up"
-                : view.synced?.matches
-                  ? `Synced · ${view.synced.title}`
-                  : "This tab isn't synced"}
-            </span>
-            <button
-              data-testid="sync"
-              onClick={() => props.run({ kind: "sync" })}
-              className="shrink-0 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium hover:bg-slate-50"
-            >
-              Sync this tab
-            </button>
-          </div>
-        </section>
-
-        {!host && !props.settings.follow && behind && (
-          <div
-            data-testid="banner"
-            className="flex items-center gap-3 rounded-2xl border-2 border-yellow-200 bg-yellow-50 p-3"
+        <div
+          className={`flex items-center gap-2 border-t-2 bg-white p-3 pt-4 ${online ? "border-green-200" : "border-amber-200"}`}
+        >
+          <button
+            data-testid="faces"
+            aria-label={`${room.members.length} watching`}
+            title={members.map((member) => member.name).join(", ")}
+            onClick={() => setOpen(!open)}
+            className="flex flex-1 -space-x-2 pl-1"
           >
-            <Eye className="h-4 w-4 shrink-0 text-yellow-700" />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-yellow-800">
-                Host switched video
-              </p>
-              <p className="truncate text-xs text-yellow-700">
-                Click to follow {leader?.name ?? "the host"}
-              </p>
-            </div>
-            <button
-              onClick={() => props.run({ kind: "follow" })}
-              className="rounded-xl border-2 border-yellow-300 bg-yellow-100 px-3 py-1.5 text-sm font-medium text-yellow-800 hover:bg-yellow-200"
-            >
-              Follow
-            </button>
-          </div>
-        )}
-
-        <section className="rounded-2xl border-2 border-slate-200 bg-slate-50 p-4">
-          <h2 className="mb-3 flex items-center gap-2 font-semibold">
-            <Users className="h-5 w-5 text-slate-500" />
-            Participants ({room.members.length})
-          </h2>
-          <ul data-testid="members" className="space-y-2">
-            {room.members.map((member) => (
-              <li
-                key={member.id}
-                className="flex items-center gap-2 rounded-xl border border-slate-100 bg-white px-3 py-2.5"
-              >
-                <span
-                  className={`h-2 w-2 shrink-0 rounded-full ${member.online ? "bg-green-500" : "bg-slate-400"}`}
-                />
-                <Editable
-                  value={member.name}
-                  max={LIMITS.userName}
-                  label="Edit your name"
-                  editable={member.id === view.you}
-                  onSave={(name) =>
-                    props.run({ kind: "rename", target: "self", name })
-                  }
-                  className="flex-1"
+            {faces.slice(0, FACES).map((member) => (
+              <span key={member.id} className="relative">
+                <Avatar
+                  name={member.name}
+                  dim={!member.online}
+                  className="h-8 w-8 text-sm ring-2 ring-white"
                 />
                 {member.id === room.host && (
-                  <span className="flex items-center gap-1 rounded-full border border-yellow-200 bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
-                    <Crown className="h-3 w-3" /> Host
-                  </span>
+                  <Crown className="absolute -top-2.5 left-1/2 h-3.5 w-3.5 -translate-x-1/2 text-amber-500" />
                 )}
-                {member.id === view.you && (
-                  <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-                    You
-                  </span>
-                )}
-              </li>
+              </span>
             ))}
-          </ul>
-
-          <div className="mt-4 flex items-center gap-3 border-t border-slate-200 pt-4">
-            {room.mode === "host" ? (
-              <Lock className="h-4 w-4 shrink-0 text-orange-500" />
-            ) : (
-              <Unlock className="h-4 w-4 shrink-0 text-green-600" />
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">
-                {room.mode === "host"
-                  ? "Only host can control"
-                  : "Everyone can control"}
-              </p>
-              <p className="truncate text-xs text-slate-500">
-                {room.mode === "host"
-                  ? `Only ${leader?.name ?? "the host"} can play/pause`
-                  : "Anyone can play, pause and seek"}
-              </p>
-            </div>
-            {host ? (
-              <Switch
-                label="Only host can control"
-                checked={room.mode === "host"}
-                onChange={(only) =>
-                  props.run({ kind: "mode", mode: only ? "host" : "everyone" })
-                }
-              />
-            ) : (
-              <span
-                data-testid="mode"
-                className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium"
-              >
-                {room.mode === "host" ? "Host only" : "Everyone"}
+            {faces.length > FACES && (
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600 ring-2 ring-white">
+                +{faces.length - FACES}
               </span>
             )}
-          </div>
-
-          {!host && (
-            <div className="mt-4 flex items-center gap-3">
-              <Eye className="h-4 w-4 shrink-0 text-slate-500" />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">Auto-follow host</p>
-                <p
-                  data-testid="following"
-                  className="truncate text-xs text-slate-500"
-                >
-                  {props.settings.follow
-                    ? `Following ${leader?.name ?? "the host"}`
-                    : "Follow manually when the host switches videos"}
-                </p>
-              </div>
-              <Switch
-                label="Auto-follow host"
-                checked={props.settings.follow}
-                onChange={props.onFollowSetting}
-              />
-            </div>
+          </button>
+          {host ? (
+            <Icon
+              label={
+                room.mode === "host"
+                  ? "Only you can control playback"
+                  : "Everyone can control playback"
+              }
+              testid="mode"
+              pressed={room.mode === "host"}
+              onClick={() =>
+                props.run({
+                  kind: "mode",
+                  mode: room.mode === "host" ? "everyone" : "host",
+                })
+              }
+            >
+              {room.mode === "host" ? (
+                <Lock className="h-4 w-4 text-amber-500" />
+              ) : (
+                <Unlock className="h-4 w-4 text-slate-400" />
+              )}
+            </Icon>
+          ) : (
+            <span
+              data-testid="mode"
+              data-mode={room.mode}
+              title={
+                room.mode === "host"
+                  ? "Only the host can control playback"
+                  : "Everyone can control playback"
+              }
+              className="flex h-8 w-8 items-center justify-center"
+            >
+              {room.mode === "host" ? (
+                <Lock className="h-4 w-4 text-amber-500/50" />
+              ) : (
+                <Unlock className="h-4 w-4 text-slate-300" />
+              )}
+            </span>
           )}
-        </section>
-      </main>
-    </div>
+          {!host && (
+            <Icon
+              label={
+                props.settings.follow
+                  ? "Following the host to new videos"
+                  : "Not following the host"
+              }
+              testid="auto-follow"
+              pressed={props.settings.follow}
+              onClick={() => props.onFollow(!props.settings.follow)}
+            >
+              {props.settings.follow ? (
+                <Eye className="h-4 w-4" />
+              ) : (
+                <EyeOff className="h-4 w-4 text-slate-400" />
+              )}
+            </Icon>
+          )}
+          <Icon
+            label={open ? "Hide people" : "Show people"}
+            testid="expand"
+            onClick={() => setOpen(!open)}
+          >
+            {open ? (
+              <ChevronUp className="h-4 w-4 text-slate-500" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-slate-500" />
+            )}
+          </Icon>
+        </div>
+
+        {open && (
+          <ul
+            data-testid="members"
+            className="max-h-[232px] overflow-y-auto border-t border-slate-100 bg-slate-50 p-2"
+          >
+            {members.map((member) => (
+              <Person
+                key={member.id}
+                member={member}
+                you={member.id === view.you}
+                host={member.id === room.host}
+                run={props.run}
+              />
+            ))}
+          </ul>
+        )}
+      </section>
+    </main>
+  );
+}
+
+function Person(props: {
+  member: Member;
+  you: boolean;
+  host: boolean;
+  run: (action: Action) => void;
+}) {
+  const member = props.member;
+  return (
+    <li
+      className={`flex items-center gap-3 rounded-xl px-2 py-2 ${props.you ? "bg-white" : ""}`}
+    >
+      <span className="relative">
+        <Avatar name={member.name} dim={!member.online} />
+        <span
+          className={`absolute -right-0.5 -bottom-0.5 h-3 w-3 rounded-full border-2 border-white ${member.online ? "bg-green-500" : "bg-slate-300"}`}
+        />
+      </span>
+      <Editable
+        value={member.name}
+        max={LIMITS.userName}
+        label="Edit your name"
+        editable={props.you}
+        onSave={(name) => props.run({ kind: "rename", target: "self", name })}
+        className={`flex-1 text-sm ${props.you ? "font-semibold" : ""} ${member.online ? "" : "text-slate-400"}`}
+      />
+      {props.host && (
+        <Crown aria-label="Host" className="h-4 w-4 text-amber-500" />
+      )}
+    </li>
   );
 }

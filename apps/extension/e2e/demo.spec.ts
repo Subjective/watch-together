@@ -61,9 +61,7 @@ test("demo: two browsers stay in sync", async ({ users, servers }) => {
   await say(
     "Alice lets everyone control playback; Bob seeks to 0:30 and plays",
   );
-  await (await alice.popup())
-    .getByRole("switch", { name: "Only host can control" })
-    .click();
+  await (await alice.popup()).getByTestId("mode").click();
   await alice.page.bringToFront();
   await expect.poll(async () => (await bob.view()).room?.mode).toBe("everyone");
   await bob.rate(1);
@@ -119,54 +117,64 @@ test("demo: the popup", async ({ users }) => {
   await bob.open("frame.html");
   const host = await alice.popup();
   const guest = await bob.popup();
-  await say("Home: join by code, recent rooms, create");
+  await say("Home: your name, join by code, create");
   await pause();
 
-  await say("Settings: default name, room name and control mode");
-  await host.getByRole("button", { name: "Settings" }).click();
-  await pause(800);
+  await say("Alice sets her name right on Home");
+  await host.getByRole("button", { name: "Edit your name" }).click();
+  await host.getByRole("textbox", { name: "Edit your name" }).fill("");
   await host
-    .getByTestId("default-name")
+    .getByRole("textbox", { name: "Edit your name" })
     .pressSequentially("Alice", { delay: 60 });
-  await host.getByTestId("default-name").fill("Alice");
-  await host.getByTestId("default-room").fill("");
-  await host
-    .getByTestId("default-room")
-    .pressSequentially("Movie night", { delay: 60 });
-  await host.getByTestId("default-mode-host").check();
-  await pause(800);
-  await host.mouse.wheel(0, 500);
-  await pause(1200);
-  await host.getByRole("button", { name: "Back" }).click();
+  await host.keyboard.press("Enter");
   await bob.settings({ name: "Bob", follow: false });
+  await pause(800);
 
   await say("Alice creates a room; Bob joins with the code");
   await host.getByTestId("create").click();
-  await expect(host.getByTestId("status")).toHaveText("Connected");
+  await expect(host.getByTestId("status")).toHaveAttribute(
+    "data-status",
+    "connected",
+  );
   const code = (await alice.view()).room!.id;
   await pause(800);
   await guest.getByTestId("code").pressSequentially(code, { delay: 80 });
   await guest.getByTestId("join").click();
-  await expect(guest.getByTestId("status")).toHaveText("Connected");
+  await expect(guest.getByTestId("status")).toHaveAttribute(
+    "data-status",
+    "connected",
+  );
   await pause();
 
-  await say("Alice plays: now playing shows title, time and progress");
+  await say("Alice plays: thumbnail, title and timeline");
   await alice.page.bringToFront();
   await alice.seek(40);
   await alice.play();
   await pause(2500);
 
-  await say("Bob's tab shows something else, so he sees the Follow banner");
-  await pause(2500);
-  await say("Bob follows: his tab goes to the host's video and syncs");
-  await guest.getByRole("button", { name: "Follow" }).click();
+  await say(
+    "Bob isn't on the video yet (↗); tapping the title takes him there",
+  );
+  await pause(2000);
+  await guest.getByTestId("title").click();
   await expect.poll(() => bob.page.url()).toContain("watch.html?v=a");
   await bob.ready();
   await bob.label("Bob");
   await synced([alice, bob], { paused: false });
-  await pause(2500);
+  await pause(2000);
 
-  await say("Alice renames the room inline; Bob renames himself");
+  await say("Alice pauses and plays everyone from the popup");
+  await host.getByRole("button", { name: "Pause", exact: true }).click();
+  await synced([alice, bob], { paused: true });
+  await pause(1500);
+  await host.getByRole("button", { name: "Play", exact: true }).click();
+  await synced([alice, bob], { paused: false });
+  await pause(1500);
+
+  await say("The people row expands; Alice renames the room, Bob himself");
+  await host.getByTestId("expand").click();
+  await guest.getByTestId("expand").click();
+  await pause(800);
   await host.getByRole("button", { name: "Rename room" }).click();
   await host.getByRole("textbox", { name: "Rename room" }).fill("");
   await host
@@ -182,8 +190,8 @@ test("demo: the popup", async ({ users }) => {
   await guest.keyboard.press("Enter");
   await pause();
 
-  await say("Alice lets everyone control playback");
-  await host.getByRole("switch", { name: "Only host can control" }).click();
+  await say("Alice unlocks control for everyone");
+  await host.getByTestId("mode").click();
   await pause(2500);
 
   await say("Bob leaves; the room is in his recent rooms");
@@ -191,7 +199,10 @@ test("demo: the popup", async ({ users }) => {
   await pause(2500);
   await say("Rejoin puts him back in");
   await guest.getByTestId("rejoin").click();
-  await expect(guest.getByTestId("status")).toHaveText("Connected");
+  await expect(guest.getByTestId("status")).toHaveAttribute(
+    "data-status",
+    "connected",
+  );
   await synced([alice, bob], { paused: false });
   await pause(3000);
 

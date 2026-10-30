@@ -25,6 +25,8 @@ export interface Playback {
   at: number;
   /** Length of the video in seconds, when the reporter knows it. */
   duration: number | null;
+  /** Preview image of the video: its poster or the page's share image. */
+  image: string | null;
 }
 
 export interface Room {
@@ -47,6 +49,7 @@ export type Intent =
       position: number;
       rate: number;
       duration?: number | null;
+      image?: string | null;
     }
   | { type: "mode"; mode: Mode }
   | { type: "rename"; target: "room" | "self"; name: string };
@@ -97,6 +100,13 @@ function number(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+/** An absolute http(s) URL, or null. */
+function link(value: unknown): string | null {
+  const url = text(value, LIMITS.url);
+  if (!url || !URL.canParse(url)) return null;
+  return /^https?:$/.test(new URL(url).protocol) ? url : null;
+}
+
 function decode(raw: string): unknown {
   // JSON.parse has no non-throwing variant
   try {
@@ -142,6 +152,7 @@ export function parse(raw: string): ClientMessage | null {
           number(message.duration) && message.duration > 0
             ? message.duration
             : null,
+        image: link(message.image),
       };
     }
     case "mode":

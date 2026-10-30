@@ -48,7 +48,7 @@ test("everyone mode: any member can play, pause, seek and change rate", async ({
   const [alice, bob] = await users("Alice", "Bob");
   await room([alice, bob]);
   const popup = await alice.popup();
-  await popup.getByRole("switch", { name: "Only host can control" }).click();
+  await popup.getByTestId("mode").click();
   await expect.poll(async () => (await bob.view()).room?.mode).toBe("everyone");
 
   await bob.play();

@@ -1,48 +1,59 @@
 import { expect, synced, test } from "./fixtures";
 
-test("settings shape new rooms: names and default control mode", async ({
+test("your name and last control mode carry over to new rooms", async ({
   users,
 }) => {
   const [alice] = await users("Alice");
   await alice.open("watch.html?v=a");
   const popup = await alice.popup();
-  await popup.getByRole("button", { name: "Settings" }).click();
-  await popup.getByTestId("default-name").fill("Alice");
-  await popup.getByTestId("default-room").fill("Movie night");
-  await popup.getByTestId("default-mode-everyone").check();
-  await popup.getByRole("button", { name: "Back" }).click();
+  await popup.getByRole("button", { name: "Edit your name" }).click();
+  await popup.getByRole("textbox", { name: "Edit your name" }).fill("Alice");
+  await popup.keyboard.press("Enter");
   await popup.reload();
-  await popup.getByRole("button", { name: "Settings" }).click();
-  await expect(popup.getByTestId("default-room")).toHaveValue("Movie night");
-  await popup.getByRole("button", { name: "Back" }).click();
+  await expect(
+    popup.getByRole("button", { name: "Edit your name" }),
+  ).toHaveText("Alice");
 
   await popup.getByTestId("create").click();
-  await expect(popup.getByTestId("status")).toHaveText("Connected");
+  await expect(popup.getByTestId("status")).toHaveAttribute(
+    "data-status",
+    "connected",
+  );
+  let room = (await alice.view()).room!;
+  expect(room.name).toBe("Alice's room");
+  expect(room.members[0].name).toBe("Alice");
+  expect(room.mode).toBe("host");
+
+  await popup.getByTestId("mode").click();
   await expect
     .poll(async () => (await alice.view()).room?.mode)
     .toBe("everyone");
-  const room = (await alice.view()).room!;
-  expect(room.name).toBe("Movie night");
-  expect(room.members[0].name).toBe("Alice");
-  await expect(popup.getByText("Movie night")).toBeVisible();
-  await expect(popup.getByText("Everyone can control")).toBeVisible();
+  await popup.getByTestId("leave").click();
+  await popup.getByTestId("create").click();
+  await expect
+    .poll(async () => (await alice.view()).room?.mode)
+    .toBe("everyone");
+  room = (await alice.view()).room!;
+  await expect(popup.getByText(room.name)).toBeVisible();
 });
 
-test("recent rooms show the last two with Rejoin", async ({ users }) => {
+test("recent rooms show the last two with rejoin", async ({ users }) => {
   const [alice, bob] = await users("Alice", "Bob");
   await alice.open("watch.html?v=a");
   await bob.open("watch.html?v=a");
   const first = await alice.create();
   const popup = await bob.popup();
-  await expect(popup.getByText("No recent rooms")).toBeVisible();
+  await expect(popup.getByTestId("recent")).toHaveCount(0);
   await bob.join(first);
-  await popup.getByRole("button", { name: "Leave room" }).click();
+  await popup.getByTestId("leave").click();
   await expect(popup.getByTestId("recent")).toHaveCount(1);
-  await expect(popup.getByTestId("recent")).toContainText("My Room");
-  await expect(popup.getByTestId("recent")).toContainText("by Alice");
+  await expect(popup.getByTestId("recent")).toContainText("Alice's room");
 
   await popup.getByTestId("rejoin").click();
-  await expect(popup.getByTestId("status")).toHaveText("Connected");
+  await expect(popup.getByTestId("status")).toHaveAttribute(
+    "data-status",
+    "connected",
+  );
   expect((await bob.view()).room!.id).toBe(first);
   await alice.play();
   await synced([alice, bob], { paused: false });
@@ -67,13 +78,21 @@ test("the host renames the room and members rename themselves", async ({
     0,
   );
 
+  await guest.getByTestId("expand").click();
   await guest.getByRole("button", { name: "Edit your name" }).click();
   await guest.getByRole("textbox", { name: "Edit your name" }).fill("Bobby");
   await guest.keyboard.press("Enter");
+  await host.getByTestId("expand").click();
   await expect(host.getByTestId("members")).toContainText("Bobby");
+  await expect(host.getByTestId("faces")).toHaveAttribute(
+    "title",
+    "Alice, Bobby",
+  );
 });
 
-test("now playing, share link and the mode badge", async ({ users }) => {
+test("now playing, thumbnail, invite link and the mode lock", async ({
+  users,
+}) => {
   const [alice, bob] = await users("Alice", "Bob");
   await alice.open("watch.html?v=a");
   await bob.open("watch.html?v=a");
@@ -85,11 +104,13 @@ test("now playing, share link and the mode badge", async ({ users }) => {
 
   const guest = await bob.popup();
   await expect(guest.getByTestId("title")).toHaveText("Video A");
-  await expect(guest.getByLabel("Playing")).toBeVisible();
+  await expect(
+    guest.getByRole("button", { name: "Pause", exact: true }),
+  ).toBeDisabled();
   await expect(guest.getByTestId("time")).toContainText("1:0");
-  await expect(guest.getByTestId("time")).toContainText("/ 2:00");
-  await expect(guest.getByTestId("mode")).toHaveText("Host only");
-  await expect(guest.getByTestId("sync-status")).toHaveText("Synced · Video A");
+  await expect(guest.getByTestId("time")).toContainText("2:00");
+  await expect(guest.locator("img[src$='media/a.jpg']")).toBeVisible();
+  await expect(guest.getByTestId("mode")).toHaveAttribute("data-mode", "host");
 
   const host = await alice.popup();
   // Capture what the button copies
@@ -98,13 +119,35 @@ test("now playing, share link and the mode badge", async ({ users }) => {
       document.body.dataset.copied = text;
     };
   });
-  await host.getByRole("button", { name: "Copy share link" }).click();
+  await host.getByRole("button", { name: "Copy invite link" }).click();
   const copied = await host.evaluate(() => document.body.dataset.copied!);
   expect(new URL(copied).searchParams.get("wt_room")).toBe(code);
   expect(copied).toContain("watch.html?v=a");
 });
 
-test("go to host's video opens it in a synced tab", async ({ users }) => {
+test("play and pause the room from the popup", async ({ users }) => {
+  const [alice, bob] = await users("Alice", "Bob");
+  await alice.open("watch.html?v=a&bare");
+  await bob.open("watch.html?v=a&bare");
+  await bob.join(await alice.create());
+  await alice.seek(20);
+  await synced([alice, bob], { paused: true, time: 20 });
+
+  const host = await alice.popup();
+  // Without a thumbnail the button stands on its own
+  await expect(host.locator("img")).toHaveCount(0);
+  await host.getByRole("button", { name: "Play", exact: true }).click();
+  await synced([alice, bob], { paused: false });
+  await host.getByRole("button", { name: "Pause", exact: true }).click();
+  await synced([alice, bob], { paused: true });
+
+  await host.getByTestId("mode").click();
+  const guest = await bob.popup();
+  await guest.getByRole("button", { name: "Play", exact: true }).click();
+  await synced([alice, bob], { paused: false });
+});
+
+test("the title takes a follower to the host's video", async ({ users }) => {
   const [alice, bob] = await users("Alice", "Bob");
   await alice.open("watch.html?v=a");
   await bob.open("frame.html");
@@ -114,18 +157,19 @@ test("go to host's video opens it in a synced tab", async ({ users }) => {
   await alice.play();
 
   const guest = await bob.popup();
-  await expect(guest.getByTestId("banner")).toBeVisible();
-  await expect(guest.getByTestId("sync-status")).toHaveText(
-    "This tab isn't synced",
+  await expect(guest.getByTestId("away")).toBeVisible();
+  await expect(guest.getByTestId("auto-follow")).toHaveAttribute(
+    "aria-pressed",
+    "false",
   );
-  await guest.getByRole("button", { name: "Follow" }).click();
+  await guest.getByTestId("title").click();
   await expect.poll(() => bob.page.url()).toContain("watch.html?v=a");
   await bob.ready();
   await synced([alice, bob], { paused: false });
-  await expect(guest.getByTestId("banner")).toHaveCount(0);
+  await expect(guest.getByTestId("away")).toHaveCount(0);
 });
 
-test("the back arrow leaves the room", async ({ users }) => {
+test("the leave button leaves the room", async ({ users }) => {
   const [alice, bob] = await users("Alice", "Bob");
   await alice.open("watch.html?v=a");
   await bob.open("watch.html?v=a");

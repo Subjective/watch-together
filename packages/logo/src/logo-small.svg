@@ -1,0 +1,5 @@
+<svg viewBox="0 0 16 16" width="16" height="16" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+  <rect width="16" height="16" rx="3.6" fill="#111214" shape-rendering="geometricPrecision" />
+  <path d="M4 3L12.5 7H4Z" fill="#FFFFFF" shape-rendering="geometricPrecision" />
+  <path d="M4 8H12.5L4 12Z" fill="#0A84FF" shape-rendering="geometricPrecision" />
+</svg>

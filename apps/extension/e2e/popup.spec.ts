@@ -125,6 +125,27 @@ test("now playing, thumbnail, invite link and the mode lock", async ({
   expect(copied).toContain("watch.html?v=a");
 });
 
+test("the share button copies the room code until a video plays", async ({
+  users,
+}) => {
+  const [alice] = await users("Alice");
+  const code = await alice.create();
+  const host = await alice.popup();
+  await host.evaluate(() => {
+    navigator.clipboard.writeText = async (text: string) => {
+      document.body.dataset.copied = text;
+    };
+  });
+  await host.getByRole("button", { name: "Copy room code" }).click();
+  expect(await host.evaluate(() => document.body.dataset.copied)).toBe(code);
+
+  await alice.open("watch.html?v=a");
+  await alice.play();
+  await expect(
+    host.getByRole("button", { name: "Copy invite link" }),
+  ).toBeVisible();
+});
+
 test("play and pause the room from the popup", async ({ users }) => {
   const [alice, bob] = await users("Alice", "Bob");
   await alice.open("watch.html?v=a&bare");

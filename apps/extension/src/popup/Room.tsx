@@ -4,6 +4,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Copy,
   Crown,
   Eye,
   EyeOff,
@@ -141,6 +142,8 @@ export function Room(props: {
             >
               {copied ? (
                 <Check className="h-4 w-4 text-green-600" />
+              ) : link === room.id ? (
+                <Copy className="h-4 w-4" />
               ) : (
                 <Link className="h-4 w-4" />
               )}

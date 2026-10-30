@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { RoomManager } from "../../apps/extension/src/background/roomManager";
-import type { AdapterEventDetail } from "../../apps/extension/src/background/adapterHandler";
+import { RoomManager } from "../../apps/legacy-extension/src/background/roomManager";
+import type { AdapterEventDetail } from "../../apps/legacy-extension/src/background/adapterHandler";
 import {
   adapterEventTarget,
   sendAdapterCommand,
-} from "../../apps/extension/src/background/adapterHandler";
+} from "../../apps/legacy-extension/src/background/adapterHandler";
 import type { ControlMode } from "@repo/types";
 import { defaultWebRTCConfig } from "@repo/types";
 
@@ -60,7 +60,7 @@ const mockChrome = {
 global.chrome = mockChrome;
 
 // Mock modules
-vi.mock("../../apps/extension/src/background/adapterHandler", () => ({
+vi.mock("../../apps/legacy-extension/src/background/adapterHandler", () => ({
   adapterEventTarget: new EventTarget(),
   sendAdapterCommand: vi.fn().mockResolvedValue(undefined),
   getActiveAdapters: vi.fn().mockReturnValue([
@@ -79,7 +79,7 @@ vi.mock("../../apps/extension/src/background/adapterHandler", () => ({
   initializeAdapterHandler: vi.fn(),
 }));
 
-vi.mock("../../apps/extension/src/background/websocket", () => ({
+vi.mock("../../apps/legacy-extension/src/background/websocket", () => ({
   WebSocketManager: vi.fn().mockImplementation(() => ({
     connect: vi.fn().mockResolvedValue(undefined),
     disconnect: vi.fn(),

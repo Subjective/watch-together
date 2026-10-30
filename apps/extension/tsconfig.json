@@ -1,18 +1,12 @@
 {
-  "extends": "@repo/typescript-config/extension.json",
+  "extends": "./.wxt/tsconfig.json",
   "compilerOptions": {
-    "outDir": "dist",
-    "rootDir": "src",
-    "types": [
-      "chrome",
-      "vitest/globals",
-      "@testing-library/jest-dom"
-    ],
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
-    }
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+    "noEmit": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src", "test", "e2e", "wxt.config.ts", ".wxt/wxt.d.ts"]
 }

@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { RoomManager } from "../../apps/extension/src/background/roomManager";
-import { WebRTCManager } from "../../apps/extension/src/background/webrtcBridge";
+import { RoomManager } from "../../apps/legacy-extension/src/background/roomManager";
+import { WebRTCManager } from "../../apps/legacy-extension/src/background/webrtcBridge";
 import type { ControlMode } from "@repo/types";
 import { defaultWebRTCConfig } from "@repo/types";
 

@@ -27,11 +27,11 @@ export class WebSocketManager {
   private pongTimeoutId: number | null = null;
   private readonly PONG_TIMEOUT = 10000; // 10 seconds
   private eventListeners: Map<string, ((data: any) => void)[]> = new Map();
-  
+
   // Message queue for offline buffering
   private messageQueue: SignalingMessage[] = [];
   private readonly MAX_QUEUE_SIZE = 50;
-  
+
   // Connection state tracking
   private isIntentionalDisconnect = false;
   private lastConnectedAt: number | null = null;
@@ -89,14 +89,13 @@ export class WebSocketManager {
       this.startHeartbeat();
 
       console.log("WebSocket connected successfully");
-      
+
       // Flush any queued messages after successful connection
       await this.flushMessageQueue();
-      
     } catch (error) {
       console.error("WebSocket connection failed:", error);
       this.setConnectionStatus("ERROR");
-      
+
       if (!this.isIntentionalDisconnect) {
         this.scheduleReconnection();
       }
@@ -121,7 +120,7 @@ export class WebSocketManager {
     // Reset retry count to prevent future reconnection attempts
     this.retryCount = 0;
     this.reconnectAttempts = 0;
-    
+
     // Clear message queue on intentional disconnect
     this.messageQueue = [];
 
@@ -148,12 +147,12 @@ export class WebSocketManager {
       console.log("WebSocket message sent:", message.type);
     } catch (error) {
       console.error("Failed to send WebSocket message:", error);
-      
+
       // Try to queue the message for retry
       if (this.shouldQueueMessage(message)) {
         this.queueMessage(message);
       }
-      
+
       throw error;
     }
   }
@@ -165,11 +164,15 @@ export class WebSocketManager {
     // Remove oldest messages if queue is full
     while (this.messageQueue.length >= this.MAX_QUEUE_SIZE) {
       const removed = this.messageQueue.shift();
-      console.warn(`Message queue full, dropping oldest message: ${removed?.type}`);
+      console.warn(
+        `Message queue full, dropping oldest message: ${removed?.type}`,
+      );
     }
-    
+
     this.messageQueue.push(message);
-    console.log(`Queued message ${message.type}, queue size: ${this.messageQueue.length}`);
+    console.log(
+      `Queued message ${message.type}, queue size: ${this.messageQueue.length}`,
+    );
   }
 
   /**
@@ -178,18 +181,18 @@ export class WebSocketManager {
   private shouldQueueMessage(message: SignalingMessage): boolean {
     // Don't queue time-sensitive messages like PING/PONG
     const nonQueueableTypes = ["PING", "PONG"];
-    
+
     // Don't queue room creation/join messages as they need immediate response
     const criticalTypes = ["CREATE_ROOM", "JOIN_ROOM"];
-    
+
     if (nonQueueableTypes.includes(message.type)) {
       return false;
     }
-    
+
     if (criticalTypes.includes(message.type)) {
       return false;
     }
-    
+
     // Queue other messages like ICE candidates, offers, answers, etc.
     return true;
   }
@@ -201,16 +204,16 @@ export class WebSocketManager {
     if (this.messageQueue.length === 0) {
       return;
     }
-    
+
     console.log(`Flushing ${this.messageQueue.length} queued messages`);
-    
+
     const messages = [...this.messageQueue];
     this.messageQueue = [];
-    
+
     for (const message of messages) {
       try {
         // Add a small delay between messages to avoid overwhelming the server
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise((resolve) => setTimeout(resolve, 50));
         await this.send(message);
       } catch (error) {
         console.error(`Failed to send queued message ${message.type}:`, error);
@@ -338,18 +341,20 @@ export class WebSocketManager {
       console.log("Skipping reconnection - disconnect was intentional");
       return;
     }
-    
+
     if (this.retryCount >= this.config.maxRetries) {
       console.error("Max reconnection attempts reached");
       this.setConnectionStatus("ERROR");
-      
+
       // Emit event for higher-level handling
       const listeners = this.eventListeners.get("MAX_RETRIES_REACHED");
       if (listeners) {
-        listeners.forEach((callback) => callback({ 
-          attempts: this.retryCount,
-          lastConnectedAt: this.lastConnectedAt 
-        }));
+        listeners.forEach((callback) =>
+          callback({
+            attempts: this.retryCount,
+            lastConnectedAt: this.lastConnectedAt,
+          }),
+        );
       }
       return;
     }

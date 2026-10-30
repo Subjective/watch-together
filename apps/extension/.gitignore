@@ -1,0 +1,5 @@
+.output
+.wxt
+e2e/site/media
+test-results
+playwright-report

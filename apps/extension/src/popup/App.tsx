@@ -1,400 +1,224 @@
+import { useEffect, useState } from "react";
+import { browser } from "wxt/browser";
+import { position } from "@repo/protocol";
+import { IDLE, type Action, type Reply, type View } from "../lib/messages";
+
+function act(action: Action): Promise<Reply> {
+  return browser.runtime.sendMessage({ type: "action", action });
+}
+
+function clock(seconds: number) {
+  const whole = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+}
+
+const STATUS: Record<View["status"], string> = {
+  idle: "Not connected",
+  connecting: "Connecting…",
+  connected: "Connected",
+  reconnecting: "Reconnecting…",
+};
+
 /**
- * Main App component for Watch Together popup
+ * Temporary popup for milestone 2: create, join and leave a room, and see
+ * what the room is doing. It only renders the view and sends actions.
  */
-import React, { useState, useEffect, useCallback } from "react";
-import type {
-  ExtensionState,
-  ExtensionMessage,
-  CreateRoomRequest,
-  JoinRoomRequest,
-  LeaveRoomRequest,
-  ToggleControlModeRequest,
-  SetFollowModeRequest,
-  FollowHostRequest,
-  RenameUserRequest,
-  RenameRoomRequest,
-} from "@repo/types";
-import { HomePage } from "./HomePage";
-import { RoomPage } from "./RoomPage";
-import { SettingsPage } from "./SettingsPage";
-import { Toaster } from "@/components/ui/toaster";
-import { useConditionalToast } from "@/hooks/use-conditional-toast";
-import { StorageManager } from "../background/storage";
-import type { RoomHistoryEntry } from "../background/storage";
+export function App() {
+  const [view, setView] = useState<View>(IDLE);
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [, setTick] = useState(0);
 
-export const App: React.FC = () => {
-  const [extensionState, setExtensionState] = useState<ExtensionState>({
-    isConnected: false,
-    currentRoom: null,
-    connectionStatus: "DISCONNECTED",
-    currentUser: null,
-    followMode: "AUTO_FOLLOW",
-    hasFollowNotification: false,
-    followNotificationUrl: null,
-  });
-  const [isLoading, setIsLoading] = useState(false);
-  const [recentRooms, setRecentRooms] = useState<RoomHistoryEntry[]>([]);
-  const [pendingRoomCreation, setPendingRoomCreation] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const conditionalToast = useConditionalToast();
-
-  // Service Worker communication
-  const sendMessage = useCallback(async (message: ExtensionMessage) => {
-    try {
-      const response = await chrome.runtime.sendMessage(message);
-
-      // Check if the response indicates an error
-      if (response && response.success === false) {
-        throw new Error(response.error || "Operation failed");
-      }
-
-      return response;
-    } catch (error) {
-      console.error("Failed to send message to Service Worker:", error);
-      throw error;
-    }
-  }, []);
-
-  // Load initial state from chrome storage
   useEffect(() => {
-    const loadInitialState = async () => {
-      try {
-        const result = await chrome.storage.local.get("extensionState");
-        const storedState = result.extensionState as ExtensionState | undefined;
-        if (storedState) {
-          setExtensionState(storedState);
-        }
-
-        // Load recent rooms
-        const rooms = await StorageManager.getRoomHistory();
-        setRecentRooms(rooms);
-      } catch (error) {
-        console.error("Failed to load initial state:", error);
-      }
+    browser.storage.session
+      .get("view")
+      .then((stored) => setView((stored.view as View) ?? IDLE));
+    browser.storage.local
+      .get("name")
+      .then((stored) => setName((stored.name as string) ?? "Guest"));
+    const listener = (changes: Record<string, { newValue?: unknown }>) => {
+      if ("view" in changes) setView((changes.view.newValue as View) ?? IDLE);
     };
-
-    loadInitialState();
-  }, []);
-
-  // Keep extension state in sync with storage updates
-  useEffect(() => {
-    const handleStorageChange = async (
-      changes: { [key: string]: chrome.storage.StorageChange },
-      areaName: string,
-    ) => {
-      if (areaName === "local") {
-        if (changes.extensionState) {
-          const newState = changes.extensionState.newValue as ExtensionState;
-          setExtensionState(newState);
-        }
-        if (changes.roomHistory) {
-          const rooms = await StorageManager.getRoomHistory();
-          setRecentRooms(rooms);
-        }
-      }
-    };
-
-    chrome.storage.onChanged.addListener(handleStorageChange);
+    browser.storage.session.onChanged.addListener(listener);
+    const timer = setInterval(() => setTick((tick) => tick + 1), 500);
     return () => {
-      chrome.storage.onChanged.removeListener(handleStorageChange);
+      browser.storage.session.onChanged.removeListener(listener);
+      clearInterval(timer);
     };
   }, []);
 
-  // Listen for state updates from Service Worker
-  useEffect(() => {
-    const handleMessage = (
-      message: ExtensionMessage,
-      _sender: chrome.runtime.MessageSender,
-      _sendResponse: (response?: any) => void,
-    ) => {
-      if (message.type === "STATE_UPDATE") {
-        setExtensionState(message.state);
-      }
-    };
+  async function run(action: Action) {
+    const reply = await act(action);
+    setError(reply.ok ? null : (reply.error ?? "Something went wrong"));
+  }
 
-    chrome.runtime.onMessage.addListener(handleMessage);
-    return () => {
-      chrome.runtime.onMessage.removeListener(handleMessage);
-    };
-  }, []);
+  function rename(value: string) {
+    setName(value);
+    browser.storage.local.set({ name: value });
+  }
 
-  // Auto-copy room ID when room is created
-  const handleRoomCreated = useCallback(
-    async (roomId: string) => {
-      try {
-        // Load user preferences to check enhanced URL setting
-        const preferences = await StorageManager.getUserPreferences();
+  const room = view.room;
+  const shown = error ?? view.error;
 
-        // Check if current tab has an adapter for enhanced link
-        const tabs = await chrome.tabs.query({
-          active: true,
-          currentWindow: true,
-        });
-        const currentTabId = tabs[0]?.id;
-        let hasAdapter = false;
-        if (currentTabId) {
-          try {
-            // Get all frames in the tab
-            const frames = await chrome.webNavigation.getAllFrames({
-              tabId: currentTabId,
-            });
-
-            if (frames && frames.length > 0) {
-              // Check each frame for adapter
-              const frameChecks = await Promise.allSettled(
-                frames.map((frame) =>
-                  chrome.tabs.sendMessage(
-                    currentTabId,
-                    {
-                      type: "CHECK_ADAPTER_STATUS",
-                      timestamp: Date.now(),
-                    },
-                    { frameId: frame.frameId },
-                  ),
-                ),
-              );
-
-              // If any frame has an adapter, set hasAdapter to true
-              hasAdapter = frameChecks.some(
-                (result) =>
-                  result.status === "fulfilled" && result.value?.hasAdapter,
-              );
+  if (!room) {
+    return (
+      <main className="flex flex-col gap-4 p-4">
+        <header>
+          <h1 className="text-2xl font-bold">Watch Together</h1>
+          <p className="text-sm text-zinc-500">
+            Synchronized video watching with friends
+          </p>
+        </header>
+        <label className="flex flex-col gap-1 text-sm font-medium">
+          Your name
+          <input
+            data-testid="name"
+            className="rounded-xl border border-zinc-200 px-3 py-2"
+            value={name}
+            onChange={(event) => rename(event.target.value)}
+          />
+        </label>
+        <button
+          data-testid="create"
+          className="rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700"
+          onClick={() => run({ kind: "create", name: name.trim() || "Guest" })}
+        >
+          Create room
+        </button>
+        <div className="flex gap-2 rounded-2xl border-2 border-green-200 bg-green-50/80 p-3">
+          <input
+            data-testid="code"
+            className="min-w-0 flex-1 bg-transparent font-semibold text-green-800 outline-none placeholder:text-green-600/70"
+            placeholder="Enter room code to join..."
+            value={code}
+            onChange={(event) => setCode(event.target.value)}
+          />
+          <button
+            data-testid="join"
+            className="rounded-xl bg-green-600 px-3 py-1 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+            disabled={!code.trim()}
+            onClick={() =>
+              run({ kind: "join", room: code, name: name.trim() || "Guest" })
             }
-          } catch {
-            // No adapter available on current tab, hasAdapter remains false
-            hasAdapter = false;
-          }
-        }
+          >
+            Join
+          </button>
+        </div>
+        {shown && <p className="text-sm text-red-600">{shown}</p>}
+      </main>
+    );
+  }
 
-        let textToCopy = roomId;
-        let description = "Room code copied to clipboard";
-
-        if (preferences.preferEnhancedUrl && hasAdapter) {
-          // Get current tab URL and create enhanced share link
-          try {
-            const tabs = await chrome.tabs.query({
-              active: true,
-              currentWindow: true,
-            });
-            const currentTabUrl = tabs[0]?.url;
-
-            if (currentTabUrl) {
-              const url = new URL(currentTabUrl);
-              url.searchParams.set("wt_room", roomId);
-              textToCopy = url.toString();
-              description = "Share link copied to clipboard";
-            }
-          } catch {
-            // Fallback to room code if URL creation fails
-          }
-        }
-
-        await navigator.clipboard.writeText(textToCopy);
-        await conditionalToast({
-          title: "Room created!",
-          description: description,
-        });
-      } catch (error) {
-        console.error("Failed to copy room link:", error);
-        await conditionalToast({
-          title: "Room created!",
-          description: `Room code: ${roomId}`,
-        });
-      }
-    },
-    [conditionalToast],
-  );
-
-  // Auto-copy room ID when room is created
-  useEffect(() => {
-    if (pendingRoomCreation && extensionState.currentRoom) {
-      handleRoomCreated(extensionState.currentRoom.id);
-      setPendingRoomCreation(false);
-    }
-  }, [extensionState.currentRoom, pendingRoomCreation, handleRoomCreated]);
-
-  // Navigation handlers
-  const handleCreateRoom = useCallback(
-    async (roomName: string, userName: string) => {
-      setIsLoading(true);
-      setPendingRoomCreation(true);
-      try {
-        const message: CreateRoomRequest = {
-          type: "CREATE_ROOM",
-          roomName,
-          userName,
-          timestamp: Date.now(),
-        };
-        await sendMessage(message);
-      } catch (error) {
-        console.error("Failed to create room:", error);
-        setPendingRoomCreation(false);
-        await conditionalToast({
-          title: "Failed to create room",
-          description: "Please try again",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [sendMessage, conditionalToast],
-  );
-
-  const handleJoinRoom = useCallback(
-    async (
-      roomId: string,
-      userName: string,
-      allowRecreation: boolean = false,
-    ) => {
-      setIsLoading(true);
-      try {
-        const message: JoinRoomRequest = {
-          type: "JOIN_ROOM",
-          roomId,
-          userName,
-          allowRecreation,
-          timestamp: Date.now(),
-        };
-        await sendMessage(message);
-      } catch (error) {
-        console.error("Failed to join room:", error);
-        await conditionalToast({
-          title: "Failed to join room",
-          description: "Please check the room code and try again",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [sendMessage, conditionalToast],
-  );
-
-  const handleLeaveRoom = useCallback(async () => {
-    try {
-      const message: LeaveRoomRequest = {
-        type: "LEAVE_ROOM",
-        timestamp: Date.now(),
-      };
-      await sendMessage(message);
-    } catch (error) {
-      console.error("Failed to leave room:", error);
-      await conditionalToast({
-        title: "Failed to leave room",
-        description: "Please try again",
-        variant: "destructive",
-      });
-    }
-  }, [sendMessage, conditionalToast]);
-
-  const handleToggleControlMode = useCallback(async () => {
-    try {
-      const message: ToggleControlModeRequest = {
-        type: "TOGGLE_CONTROL_MODE",
-        timestamp: Date.now(),
-      };
-      await sendMessage(message);
-    } catch (error) {
-      console.error("Failed to toggle control mode:", error);
-    }
-  }, [sendMessage]);
-
-  const handleToggleFollowMode = useCallback(async () => {
-    try {
-      const newMode =
-        extensionState.followMode === "AUTO_FOLLOW"
-          ? "MANUAL_FOLLOW"
-          : "AUTO_FOLLOW";
-      const message: SetFollowModeRequest = {
-        type: "SET_FOLLOW_MODE",
-        mode: newMode,
-        timestamp: Date.now(),
-      };
-      await sendMessage(message);
-    } catch (error) {
-      console.error("Failed to toggle follow mode:", error);
-    }
-  }, [sendMessage, extensionState.followMode]);
-
-  const handleFollowHost = useCallback(async () => {
-    try {
-      const message: FollowHostRequest = {
-        type: "FOLLOW_HOST",
-        timestamp: Date.now(),
-      };
-      await sendMessage(message);
-    } catch (error) {
-      console.error("Failed to follow host:", error);
-    }
-  }, [sendMessage]);
-
-  const handleRenameUser = useCallback(
-    async (newUserName: string): Promise<void> => {
-      const message: RenameUserRequest = {
-        type: "RENAME_USER",
-        newUserName,
-        timestamp: Date.now(),
-      };
-      await sendMessage(message);
-    },
-    [sendMessage],
-  );
-
-  const handleRenameRoom = useCallback(
-    async (newRoomName: string): Promise<void> => {
-      const message: RenameRoomRequest = {
-        type: "RENAME_ROOM",
-        newRoomName,
-        timestamp: Date.now(),
-      };
-      await sendMessage(message);
-    },
-    [sendMessage],
-  );
-
-  const handleNavigateToHome = useCallback(async () => {
-    if (showSettings) {
-      setShowSettings(false);
-    } else {
-      await handleLeaveRoom();
-    }
-  }, [handleLeaveRoom, showSettings]);
-
-  const handleNavigateToSettings = useCallback(() => {
-    setShowSettings(true);
-  }, []);
+  const host = room.host === view.you;
+  const playback = room.playback;
+  const now = position(playback, Date.now() + view.offset);
 
   return (
-    <>
-      {showSettings ? (
-        <SettingsPage onNavigateToHome={handleNavigateToHome} />
-      ) : !extensionState.currentRoom || !extensionState.currentUser ? (
-        <HomePage
-          onCreateRoom={handleCreateRoom}
-          onJoinRoom={handleJoinRoom}
-          onNavigateToSettings={handleNavigateToSettings}
-          isLoading={isLoading}
-          recentRooms={recentRooms}
-        />
-      ) : (
-        <RoomPage
-          room={extensionState.currentRoom}
-          currentUser={extensionState.currentUser}
-          connectionStatus={extensionState.connectionStatus}
-          followMode={extensionState.followMode}
-          hasFollowNotification={extensionState.hasFollowNotification}
-          onNavigateToHome={handleNavigateToHome}
-          onNavigateToSettings={handleNavigateToSettings}
-          onLeaveRoom={handleLeaveRoom}
-          onToggleControlMode={handleToggleControlMode}
-          onToggleFollowMode={handleToggleFollowMode}
-          onFollowHost={handleFollowHost}
-          onRenameUser={handleRenameUser}
-          onRenameRoom={handleRenameRoom}
-        />
-      )}
-      <Toaster />
-    </>
+    <main className="flex flex-col gap-4 p-4">
+      <header className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h1 data-testid="room-name" className="truncate text-xl font-bold">
+            {room.name}
+          </h1>
+          <button
+            data-testid="room-code"
+            className="font-mono text-sm text-zinc-500 hover:text-zinc-800"
+            onClick={() => navigator.clipboard.writeText(room.id)}
+            title="Copy room code"
+          >
+            {room.id}
+          </button>
+        </div>
+        <span
+          data-testid="status"
+          className={`rounded-full px-2 py-1 text-xs font-medium ${
+            view.status === "connected"
+              ? "bg-green-100 text-green-700"
+              : "bg-amber-100 text-amber-700"
+          }`}
+        >
+          {STATUS[view.status]}
+        </span>
+      </header>
+
+      <section className="rounded-2xl border border-zinc-200 p-3">
+        <p className="text-xs font-medium uppercase text-zinc-500">
+          Now playing
+        </p>
+        <p data-testid="title" className="truncate font-semibold">
+          {playback.title ?? playback.url ?? "Nothing yet"}
+        </p>
+        <p className="text-sm text-zinc-500">
+          {playback.playing ? "Playing" : "Paused"} · {clock(now)}
+          {playback.rate === 1 ? "" : ` · ${playback.rate}x`}
+        </p>
+        {view.blocked && (
+          <p className="text-sm text-amber-700">Press play to catch up</p>
+        )}
+        <p className="mt-2 text-xs text-zinc-500">
+          {view.synced ? `Synced tab: ${view.synced.title}` : "No synced tab"}
+        </p>
+        <button
+          data-testid="sync"
+          className="mt-2 rounded-xl border border-zinc-200 px-3 py-1 text-sm hover:bg-zinc-50"
+          onClick={() => run({ kind: "sync" })}
+        >
+          Sync this tab
+        </button>
+      </section>
+
+      <section>
+        <p className="mb-2 text-xs font-medium uppercase text-zinc-500">
+          Members
+        </p>
+        <ul data-testid="members" className="flex flex-col gap-1">
+          {room.members.map((member) => (
+            <li key={member.id} className="flex items-center gap-2 text-sm">
+              <span
+                className={`h-2 w-2 rounded-full ${member.online ? "bg-green-500" : "bg-zinc-300"}`}
+              />
+              <span>{member.name}</span>
+              {member.id === room.host && <span title="Host">👑</span>}
+              {member.id === view.you && (
+                <span className="text-zinc-400">(you)</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="flex items-center justify-between text-sm">
+        <span>Control</span>
+        {host ? (
+          <div className="flex rounded-xl bg-zinc-100 p-1">
+            {(["host", "everyone"] as const).map((mode) => (
+              <button
+                key={mode}
+                data-testid={`mode-${mode}`}
+                className={`rounded-lg px-3 py-1 ${room.mode === mode ? "bg-white shadow-sm" : "text-zinc-500"}`}
+                onClick={() => run({ kind: "mode", mode })}
+              >
+                {mode === "host" ? "Host only" : "Everyone"}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span className="rounded-full bg-zinc-100 px-2 py-1 text-xs">
+            {room.mode === "host" ? "Host only" : "Everyone"}
+          </span>
+        )}
+      </section>
+
+      {shown && <p className="text-sm text-red-600">{shown}</p>}
+
+      <button
+        data-testid="leave"
+        className="rounded-2xl border border-red-200 px-4 py-2 font-semibold text-red-600 hover:bg-red-50"
+        onClick={() => run({ kind: "leave" })}
+      >
+        Leave room
+      </button>
+    </main>
   );
-};
+}

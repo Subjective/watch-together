@@ -34,7 +34,7 @@ export class WebRTCManager {
   private controlMode: ControlMode = "HOST_ONLY";
   private eventListeners: Map<string, ((data: unknown) => void)[]> = new Map();
   private offscreenDocumentCreated: boolean = false;
-  
+
   // ICE candidate queue for handling candidates that arrive before connection is ready
   private iceCandidateQueue: Map<string, RTCIceCandidateInit[]> = new Map();
   private maxQueueSize = 50; // Maximum candidates per peer
@@ -194,10 +194,10 @@ export class WebRTCManager {
       targetUserId,
       offer,
     })) as WebRTCCreateAnswerResponse;
-    
+
     // Flush any queued ICE candidates after creating answer
     await this.flushIceCandidateQueue(targetUserId);
-    
+
     return result.answer;
   }
 
@@ -209,7 +209,7 @@ export class WebRTCManager {
       targetUserId,
       answer,
     });
-    
+
     // Flush any queued ICE candidates after handling answer
     await this.flushIceCandidateQueue(targetUserId);
   }
@@ -223,15 +223,20 @@ export class WebRTCManager {
         targetUserId,
         candidate,
       });
-      
+
       // If successful, clear any queued candidates for this peer
       if (this.iceCandidateQueue.has(targetUserId)) {
-        console.log(`[WebRTCManager] Clearing ${this.iceCandidateQueue.get(targetUserId)?.length} queued candidates for ${targetUserId} after successful add`);
+        console.log(
+          `[WebRTCManager] Clearing ${this.iceCandidateQueue.get(targetUserId)?.length} queued candidates for ${targetUserId} after successful add`,
+        );
         this.iceCandidateQueue.delete(targetUserId);
       }
     } catch (error) {
       // Queue the candidate if we can't add it immediately
-      console.warn(`[WebRTCManager] Failed to add ICE candidate for ${targetUserId}, queuing:`, error);
+      console.warn(
+        `[WebRTCManager] Failed to add ICE candidate for ${targetUserId}, queuing:`,
+        error,
+      );
       this.queueIceCandidate(targetUserId, candidate);
       throw error;
     }
@@ -240,21 +245,28 @@ export class WebRTCManager {
   /**
    * Queue an ICE candidate for later processing
    */
-  private queueIceCandidate(targetUserId: string, candidate: RTCIceCandidateInit): void {
+  private queueIceCandidate(
+    targetUserId: string,
+    candidate: RTCIceCandidateInit,
+  ): void {
     if (!this.iceCandidateQueue.has(targetUserId)) {
       this.iceCandidateQueue.set(targetUserId, []);
     }
-    
+
     const queue = this.iceCandidateQueue.get(targetUserId)!;
-    
+
     // Limit queue size to prevent memory issues
     if (queue.length >= this.maxQueueSize) {
-      console.warn(`[WebRTCManager] ICE candidate queue full for ${targetUserId}, dropping oldest`);
+      console.warn(
+        `[WebRTCManager] ICE candidate queue full for ${targetUserId}, dropping oldest`,
+      );
       queue.shift();
     }
-    
+
     queue.push(candidate);
-    console.log(`[WebRTCManager] Queued ICE candidate for ${targetUserId}, queue size: ${queue.length}`);
+    console.log(
+      `[WebRTCManager] Queued ICE candidate for ${targetUserId}, queue size: ${queue.length}`,
+    );
   }
 
   /**
@@ -262,27 +274,32 @@ export class WebRTCManager {
    */
   async flushIceCandidateQueue(targetUserId: string): Promise<void> {
     const candidates = this.iceCandidateQueue.get(targetUserId);
-    
+
     if (!candidates || candidates.length === 0) {
       return;
     }
-    
-    console.log(`[WebRTCManager] Flushing ${candidates.length} queued ICE candidates for ${targetUserId}`);
-    
+
+    console.log(
+      `[WebRTCManager] Flushing ${candidates.length} queued ICE candidates for ${targetUserId}`,
+    );
+
     // Clear the queue first to avoid re-queuing on failure
     this.iceCandidateQueue.delete(targetUserId);
-    
+
     for (const candidate of candidates) {
       try {
         await this.sendToOffscreen("WEBRTC_ADD_ICE_CANDIDATE", {
           targetUserId,
           candidate,
         });
-        
+
         // Add small delay to avoid overwhelming the connection
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise((resolve) => setTimeout(resolve, 50));
       } catch (error) {
-        console.error(`[WebRTCManager] Failed to flush ICE candidate for ${targetUserId}:`, error);
+        console.error(
+          `[WebRTCManager] Failed to flush ICE candidate for ${targetUserId}:`,
+          error,
+        );
         // Re-queue the remaining candidates on failure
         this.queueIceCandidate(targetUserId, candidate);
       }
@@ -294,13 +311,15 @@ export class WebRTCManager {
    */
   async flushAllIceCandidateQueues(): Promise<void> {
     const peerIds = Array.from(this.iceCandidateQueue.keys());
-    
+
     if (peerIds.length === 0) {
       return;
     }
-    
-    console.log(`[WebRTCManager] Flushing ICE candidates for ${peerIds.length} peers`);
-    
+
+    console.log(
+      `[WebRTCManager] Flushing ICE candidates for ${peerIds.length} peers`,
+    );
+
     for (const peerId of peerIds) {
       await this.flushIceCandidateQueue(peerId);
     }
@@ -422,10 +441,12 @@ export class WebRTCManager {
   closePeerConnection(userId: string): void {
     // Clear any queued candidates for this peer
     if (this.iceCandidateQueue.has(userId)) {
-      console.log(`[WebRTCManager] Clearing ${this.iceCandidateQueue.get(userId)?.length} queued candidates for closed peer ${userId}`);
+      console.log(
+        `[WebRTCManager] Clearing ${this.iceCandidateQueue.get(userId)?.length} queued candidates for closed peer ${userId}`,
+      );
       this.iceCandidateQueue.delete(userId);
     }
-    
+
     // Only try to close connections if offscreen document already exists
     if (this.offscreenDocumentCreated) {
       this.sendToOffscreen("WEBRTC_CLOSE_PEER", { userId }).catch((error) => {
@@ -438,10 +459,12 @@ export class WebRTCManager {
     // Clear all queued candidates
     const queuedPeers = this.iceCandidateQueue.size;
     if (queuedPeers > 0) {
-      console.log(`[WebRTCManager] Clearing ICE candidate queues for ${queuedPeers} peers`);
+      console.log(
+        `[WebRTCManager] Clearing ICE candidate queues for ${queuedPeers} peers`,
+      );
       this.iceCandidateQueue.clear();
     }
-    
+
     // Only try to close connections if offscreen document already exists
     if (this.offscreenDocumentCreated) {
       this.sendToOffscreen("WEBRTC_CLOSE_ALL").catch((error) => {
@@ -528,13 +551,15 @@ export class WebRTCManager {
    */
   async restartPeerConnection(userId: string): Promise<void> {
     console.log(`[WebRTCManager] Restarting peer connection for ${userId}`);
-    
+
     // Clear any queued candidates for this peer before restart
     if (this.iceCandidateQueue.has(userId)) {
-      console.log(`[WebRTCManager] Clearing ${this.iceCandidateQueue.get(userId)?.length} queued candidates before restart`);
+      console.log(
+        `[WebRTCManager] Clearing ${this.iceCandidateQueue.get(userId)?.length} queued candidates before restart`,
+      );
       this.iceCandidateQueue.delete(userId);
     }
-    
+
     if (this.offscreenDocumentCreated) {
       await this.sendToOffscreen("WEBRTC_RESTART_PEER_CONNECTION", { userId });
       console.log(`Initiated restart of peer connection for ${userId}`);
@@ -546,17 +571,20 @@ export class WebRTCManager {
    */
   async performIceRestart(targetUserId: string): Promise<void> {
     console.log(`[WebRTCManager] Performing ICE restart for ${targetUserId}`);
-    
+
     try {
       // Clear queued candidates
       this.iceCandidateQueue.delete(targetUserId);
-      
+
       // Request ICE restart from offscreen document
       await this.sendToOffscreen("WEBRTC_ICE_RESTART", { targetUserId });
-      
+
       console.log(`[WebRTCManager] ICE restart initiated for ${targetUserId}`);
     } catch (error) {
-      console.error(`[WebRTCManager] ICE restart failed for ${targetUserId}:`, error);
+      console.error(
+        `[WebRTCManager] ICE restart failed for ${targetUserId}:`,
+        error,
+      );
       throw error;
     }
   }

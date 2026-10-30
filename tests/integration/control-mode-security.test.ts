@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { RoomManager } from "../../apps/extension/src/background/roomManager";
-import type { AdapterEventDetail } from "../../apps/extension/src/background/adapterHandler";
+import { RoomManager } from "../../apps/legacy-extension/src/background/roomManager";
+import type { AdapterEventDetail } from "../../apps/legacy-extension/src/background/adapterHandler";
 import type { ControlMode } from "@repo/types";
 import { defaultWebRTCConfig } from "@repo/types";
 

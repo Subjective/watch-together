@@ -1,0 +1,40 @@
+body {
+  margin: 0;
+  background: #0f0f12;
+  color: #f4f4f5;
+  font-family: system-ui, sans-serif;
+  padding: 12px;
+}
+#label {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  min-height: 28px;
+}
+video {
+  display: block;
+  width: 640px;
+  height: 360px;
+  background: black;
+}
+#decoy {
+  width: 96px;
+  height: 54px;
+  margin-bottom: 8px;
+}
+iframe {
+  border: 0;
+  display: block;
+}
+#readout {
+  font:
+    600 22px ui-monospace,
+    monospace;
+  margin-top: 10px;
+}
+#caption {
+  margin-top: 8px;
+  font-size: 18px;
+  color: #a5f3fc;
+  min-height: 24px;
+}

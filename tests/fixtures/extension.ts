@@ -9,7 +9,7 @@ export const test = base.extend<{
   context: async ({}, use) => {
     const pathToExtension = path.resolve(
       __dirname,
-      "../../apps/extension/dist",
+      "../../apps/legacy-extension/dist",
     );
     const context = await chromium.launchPersistentContext("", {
       headless: false,

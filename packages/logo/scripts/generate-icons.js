@@ -1,46 +1,42 @@
 import sharp from "sharp";
-import { readFileSync, mkdirSync, existsSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const sizes = [16, 32, 48, 128];
 
-async function generateIcons() {
-  try {
-    const svgPath = join(__dirname, "../src/logo.svg");
-    const svgBuffer = readFileSync(svgPath);
+// Grey is the toolbar state when the current tab is not synced
+const GREY = {
+  "#111214": "#9AA0A6",
+  "#FFFFFF": "#FFFFFF",
+  "#0A84FF": "#DADCE0",
+};
 
-    // Ensure output directory exists within the package
-    const iconsDir = join(__dirname, "../dist/assets/icons");
-    if (!existsSync(iconsDir)) {
-      mkdirSync(iconsDir, { recursive: true });
-    }
+const large = readFileSync(join(__dirname, "../src/logo.svg"), "utf-8");
+// Pixel-aligned version of the mark for 16px and 32px
+const small = readFileSync(join(__dirname, "../src/logo-small.svg"), "utf-8");
 
-    // Generate PNG icons for Chrome extension
-    for (const size of sizes) {
-      const outputPath = join(iconsDir, `icon-${size}.png`);
-      await sharp(svgBuffer).resize(size, size).png().toFile(outputPath);
-      console.log(`Generated ${outputPath}`);
-    }
+const iconsDir = join(__dirname, "../dist/assets/icons");
+mkdirSync(iconsDir, { recursive: true });
 
-    // Also generate a 32x32 favicon
-    const faviconPath = join(iconsDir, "favicon.png");
-    await sharp(svgBuffer).resize(32, 32).png().toFile(faviconPath);
-    console.log(`Generated ${faviconPath}`);
+const render = (size, grey) => {
+  const svg = size <= 32 ? small : large;
+  const width = size <= 32 ? 16 : 256;
+  const source = grey
+    ? svg.replace(/#[0-9A-F]{6}/g, (hex) => GREY[hex] ?? hex)
+    : svg;
+  return sharp(Buffer.from(source), { density: (72 * size) / width })
+    .resize(size, size)
+    .png();
+};
 
-    // Copy logo.svg to dist/assets for reference
-    const svgDistPath = join(__dirname, "../dist/assets/logo.svg");
-    const svgContent = readFileSync(svgPath, "utf-8");
-    const { writeFileSync } = await import("fs");
-    writeFileSync(svgDistPath, svgContent);
-    console.log(`Copied ${svgDistPath}`);
-
-    console.log("All icons generated successfully within package!");
-  } catch (error) {
-    console.error("Error generating icons:", error);
-    process.exit(1);
-  }
+for (const size of sizes) {
+  await render(size, false).toFile(join(iconsDir, `icon-${size}.png`));
+  await render(size, true).toFile(join(iconsDir, `icon-grey-${size}.png`));
+  console.log(`Generated icon-${size}.png and icon-grey-${size}.png`);
 }
 
-generateIcons();
+await render(32, false).toFile(join(iconsDir, "favicon.png"));
+writeFileSync(join(__dirname, "../dist/assets/logo.svg"), large);
+console.log("All icons generated successfully within package!");

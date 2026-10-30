@@ -1,9 +1,12 @@
 {
   "extends": "@repo/typescript-config/worker.json",
   "compilerOptions": {
-    "outDir": "dist",
-    "rootDir": "src"
+    "noEmit": true,
+    "types": [
+      "@cloudflare/workers-types/2023-07-01",
+      "@cloudflare/vitest-pool-workers"
+    ]
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*", "test/**/*"],
+  "exclude": ["node_modules"]
 }

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ArrowRight, Plus, RotateCcw, User } from "lucide-react";
 import { LIMITS } from "@repo/protocol";
 import { DEFAULTS, type Recent } from "../lib/settings";
-import { Avatar, Editable, Icon } from "./ui";
+import { Avatar, Editable, Icon, Typing } from "./ui";
 
 function ago(at: number) {
   const minutes = Math.floor((Date.now() - at) / 60_000);
@@ -48,7 +48,13 @@ export function Home(props: {
         </div>
       </header>
 
-      <label className="flex cursor-text items-center gap-2 rounded-2xl border-2 border-green-200 bg-green-50 p-2 pl-4 focus-within:border-green-300">
+      <label className="group shimmer relative flex cursor-text items-center gap-2 rounded-2xl border-2 border-green-200 bg-green-50 p-2 pl-4 transition-colors focus-within:border-green-300 hover:border-green-300 hover:bg-green-100/80">
+        {!code && (
+          <Typing
+            text="Enter room code…"
+            className="pointer-events-none absolute text-sm text-green-700/70 group-focus-within:hidden"
+          />
+        )}
         <input
           data-testid="code"
           value={code}
@@ -56,7 +62,7 @@ export function Home(props: {
           onChange={(event) => setCode(event.target.value)}
           onKeyDown={(event) => event.key === "Enter" && join()}
           placeholder="Room code"
-          className="min-w-0 flex-1 bg-transparent text-sm text-green-900 outline-none placeholder:text-green-700/60"
+          className="min-w-0 flex-1 bg-transparent text-sm text-green-900 outline-none placeholder:text-transparent focus:placeholder:text-green-700/60"
         />
         <Icon
           label="Join room"

@@ -106,6 +106,32 @@ export function Editable(props: {
   );
 }
 
+/** Types `text` out and erases it again, behind a blinking caret. */
+export function Typing(props: { text: string; className?: string }) {
+  const [step, setStep] = useState(0);
+  const length = props.text.length;
+  const at = step % (length * 2 + 2);
+  const count = at <= length ? at : length * 2 + 1 - at;
+  useEffect(() => {
+    const delay =
+      at === length
+        ? 2500
+        : at === length * 2 + 1
+          ? 500
+          : at < length
+            ? 120
+            : 30;
+    const timer = setTimeout(() => setStep(step + 1), delay);
+    return () => clearTimeout(timer);
+  }, [step, at, length]);
+  return (
+    <span aria-hidden className={props.className}>
+      {props.text.slice(0, count)}
+      <span className="animate-pulse">|</span>
+    </span>
+  );
+}
+
 /** Errors are the only toasts. */
 export function Toast(props: { error: string | null; onDone: () => void }) {
   const done = props.onDone;

@@ -11,3 +11,24 @@ body {
   background: white;
   color: #18181b;
 }
+
+/* A light sweep across the join card while the pointer is over it */
+.shimmer:hover {
+  background-image: linear-gradient(
+    90deg,
+    transparent 20%,
+    rgb(255 255 255 / 0.6) 50%,
+    transparent 80%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% center;
+  }
+  to {
+    background-position: -200% center;
+  }
+}

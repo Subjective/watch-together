@@ -5,7 +5,8 @@ import { PROXY_PORT } from "./servers";
 
 const MEDIA = resolve(import.meta.dirname, "site/media");
 
-/** Test videos: an ffmpeg pattern with a tone, so playback is audible. */
+/** Test videos: an ffmpeg pattern with a tone, so playback is audible, and
+ * a poster frame. */
 const VIDEOS = [
   { name: "a", pattern: "testsrc2", tone: 440 },
   { name: "b", pattern: "smptehdbars", tone: 660 },
@@ -15,6 +16,13 @@ export default function setup() {
   mkdirSync(MEDIA, { recursive: true });
   for (const video of VIDEOS) {
     const file = resolve(MEDIA, `${video.name}.webm`);
+    const poster = resolve(MEDIA, `${video.name}.jpg`);
+    if (!existsSync(poster))
+      execFileSync("ffmpeg", [
+        ...["-loglevel", "error", "-y", "-f", "lavfi"],
+        ...["-i", `${video.pattern}=size=640x360:duration=1`],
+        ...["-frames:v", "1", poster],
+      ]);
     if (existsSync(file)) continue;
     execFileSync("ffmpeg", [
       ...["-loglevel", "error", "-y"],

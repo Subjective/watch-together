@@ -142,6 +142,29 @@ describe("permissions", () => {
   });
 });
 
+describe("duration", () => {
+  it("is unknown in a new room and stored from playback intents", () => {
+    const { state, members } = room("Ana");
+    expect(state.room.playback.duration).toBeNull();
+    const result = apply(state, members[0], { ...play, duration: 600 }, 50);
+    expect((result as State).room.playback.duration).toBe(600);
+    const cleared = apply(result as State, members[0], play, 60);
+    expect((cleared as State).room.playback.duration).toBeNull();
+  });
+});
+
+describe("image", () => {
+  it("is unknown in a new room and stored from playback intents", () => {
+    const { state, members } = room("Ana");
+    expect(state.room.playback.image).toBeNull();
+    const image = "https://example.com/poster.jpg";
+    const result = apply(state, members[0], { ...play, image }, 50);
+    expect((result as State).room.playback.image).toBe(image);
+    const cleared = apply(result as State, members[0], play, 60);
+    expect((cleared as State).room.playback.image).toBeNull();
+  });
+});
+
 describe("leaving and grace", () => {
   it("moves the host role immediately on leave", () => {
     const { state, members } = room("Ana", "Ben", "Cy");
@@ -177,6 +200,8 @@ describe("position", () => {
       position: 10,
       rate: 2,
       at: 1000,
+      duration: null,
+      image: null,
     };
     expect(position(playback, 3000)).toBe(14);
     expect(position({ ...playback, playing: false }, 3000)).toBe(10);

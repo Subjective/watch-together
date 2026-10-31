@@ -61,7 +61,7 @@ test("demo: two browsers stay in sync", async ({ users, servers }) => {
   await say(
     "Alice lets everyone control playback; Bob seeks to 0:30 and plays",
   );
-  await (await alice.popup()).getByTestId("mode-everyone").click();
+  await (await alice.popup()).getByTestId("mode").click();
   await alice.page.bringToFront();
   await expect.poll(async () => (await bob.view()).room?.mode).toBe("everyone");
   await bob.rate(1);
@@ -102,5 +102,127 @@ test("demo: two browsers stay in sync", async ({ users, servers }) => {
     ...["-loglevel", "error", "-y", "-i", paths[0], "-i", paths[1]],
     ...["-filter_complex", "[0:v][1:v]hstack=inputs=2[v]", "-map", "[v]"],
     ...["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "26", output],
+  ]);
+});
+
+test("demo: the popup", async ({ users }) => {
+  test.setTimeout(240_000);
+  const [alice, bob] = await users("Alice", "Bob");
+  const pause = (ms = 1800) => alice.page.waitForTimeout(ms);
+  const say = async (text: string) => {
+    await Promise.all([alice.caption(text), bob.caption(text)]);
+  };
+
+  await alice.open("watch.html?v=a");
+  await bob.open("frame.html");
+  const host = await alice.popup();
+  const guest = await bob.popup();
+  await say("Home: your name, join by code, create");
+  await pause();
+
+  await say("Alice sets her name right on Home");
+  await host.getByRole("button", { name: "Edit your name" }).click();
+  await host.getByRole("textbox", { name: "Edit your name" }).fill("");
+  await host
+    .getByRole("textbox", { name: "Edit your name" })
+    .pressSequentially("Alice", { delay: 60 });
+  await host.keyboard.press("Enter");
+  await bob.settings({ name: "Bob", follow: false });
+  await pause(800);
+
+  await say("Alice creates a room; Bob joins with the code");
+  await host.getByTestId("create").click();
+  await expect(host.getByTestId("status")).toHaveAttribute(
+    "data-status",
+    "connected",
+  );
+  const code = (await alice.view()).room!.id;
+  await pause(800);
+  await guest.getByTestId("code").pressSequentially(code, { delay: 80 });
+  await guest.getByTestId("join").click();
+  await expect(guest.getByTestId("status")).toHaveAttribute(
+    "data-status",
+    "connected",
+  );
+  await pause();
+
+  await say("Alice plays: thumbnail, title and timeline");
+  await alice.page.bringToFront();
+  await alice.seek(40);
+  await alice.play();
+  await pause(2500);
+
+  await say(
+    "Bob isn't on the video yet (↗); tapping the title takes him there",
+  );
+  await pause(2000);
+  await guest.getByTestId("title").click();
+  await expect.poll(() => bob.page.url()).toContain("watch.html?v=a");
+  await bob.ready();
+  await bob.label("Bob");
+  await synced([alice, bob], { paused: false });
+  await pause(2000);
+
+  await say("Alice pauses and plays everyone from the popup");
+  await host.getByRole("button", { name: "Pause", exact: true }).click();
+  await synced([alice, bob], { paused: true });
+  await pause(1500);
+  await host.getByRole("button", { name: "Play", exact: true }).click();
+  await synced([alice, bob], { paused: false });
+  await pause(1500);
+
+  await say("The people row expands; Alice renames the room, Bob himself");
+  await host.getByTestId("expand").click();
+  await guest.getByTestId("expand").click();
+  await pause(800);
+  await host.getByRole("button", { name: "Rename room" }).click();
+  await host.getByRole("textbox", { name: "Rename room" }).fill("");
+  await host
+    .getByRole("textbox", { name: "Rename room" })
+    .pressSequentially("Friday films", { delay: 60 });
+  await host.keyboard.press("Enter");
+  await pause(800);
+  await guest.getByRole("button", { name: "Edit your name" }).click();
+  await guest.getByRole("textbox", { name: "Edit your name" }).fill("");
+  await guest
+    .getByRole("textbox", { name: "Edit your name" })
+    .pressSequentially("Bobby", { delay: 60 });
+  await guest.keyboard.press("Enter");
+  await pause();
+
+  await say("Alice unlocks control for everyone");
+  await host.getByTestId("mode").click();
+  await pause(2500);
+
+  await say("Bob leaves; the room is in his recent rooms");
+  await guest.getByRole("button", { name: "Leave room" }).click();
+  await pause(2500);
+  await say("Rejoin puts him back in");
+  await guest.getByTestId("rejoin").click();
+  await expect(guest.getByTestId("status")).toHaveAttribute(
+    "data-status",
+    "connected",
+  );
+  await synced([alice, bob], { paused: false });
+  await pause(3000);
+
+  const paths = await Promise.all(
+    [host, alice.page, guest, bob.page].map((page) => page.video()!.path()),
+  );
+  await Promise.all([alice.context.close(), bob.context.close()]);
+  const output = process.env.RECORD!;
+  mkdirSync(dirname(output), { recursive: true });
+  // The popups are recorded in a 680x600 frame; keep their 400x600 corner
+  execFileSync("ffmpeg", [
+    ...["-loglevel", "error", "-y"],
+    ...paths.flatMap((path) => ["-i", path]),
+    ...[
+      "-filter_complex",
+      "[0:v]crop=400:600:0:0[a];[2:v]crop=400:600:0:0[b];" +
+        "[a][1:v]hstack=inputs=2[top];[b][3:v]hstack=inputs=2[bottom];" +
+        "[top][bottom]vstack=inputs=2[v]",
+    ],
+    ...["-map", "[v]", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "26"],
+    output,
   ]);
 });

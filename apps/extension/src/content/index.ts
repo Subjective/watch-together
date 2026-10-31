@@ -20,6 +20,17 @@ function largest(): { video: HTMLVideoElement | null; area: number } {
   );
 }
 
+/** The video's poster, or the page's share image in the top frame. */
+function image(video: HTMLVideoElement): string | null {
+  if (video.poster) return video.poster;
+  if (window !== top) return null;
+  const meta = document.querySelector<HTMLMetaElement>(
+    'meta[property="og:image"], meta[name="twitter:image"]',
+  );
+  if (!meta?.content || !URL.canParse(meta.content, location.href)) return null;
+  return new URL(meta.content, location.href).toString();
+}
+
 function holds(node: Node): boolean {
   return (
     node instanceof HTMLVideoElement ||
@@ -147,6 +158,8 @@ export function start() {
       rate: video.playbackRate,
       audible: !video.muted && video.volume > 0,
       bound: state.playback !== null,
+      duration: Number.isFinite(video.duration) ? video.duration : null,
+      image: image(video),
     });
   }
 

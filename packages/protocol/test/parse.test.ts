@@ -16,6 +16,45 @@ describe("parse", () => {
     ).toMatchObject({ url: null });
   });
 
+  it("keeps a positive duration and drops anything else", () => {
+    const base = {
+      type: "playback",
+      url: null,
+      playing: true,
+      position: 1,
+      rate: 1,
+    };
+    expect(parse(JSON.stringify({ ...base, duration: 90.5 }))).toMatchObject({
+      duration: 90.5,
+    });
+    expect(parse(JSON.stringify(base))).toMatchObject({ duration: null });
+    expect(parse(JSON.stringify({ ...base, duration: -1 }))).toMatchObject({
+      duration: null,
+    });
+    expect(parse(JSON.stringify({ ...base, duration: "1" }))).toMatchObject({
+      duration: null,
+    });
+  });
+
+  it("keeps an http(s) preview image and drops anything else", () => {
+    const base = {
+      type: "playback",
+      url: null,
+      playing: true,
+      position: 1,
+      rate: 1,
+    };
+    const image = "https://example.com/poster.jpg";
+    expect(parse(JSON.stringify({ ...base, image }))).toMatchObject({ image });
+    expect(parse(JSON.stringify(base))).toMatchObject({ image: null });
+    expect(
+      parse(JSON.stringify({ ...base, image: "javascript:alert(1)" })),
+    ).toMatchObject({ image: null });
+    expect(
+      parse(JSON.stringify({ ...base, image: "poster.jpg" })),
+    ).toMatchObject({ image: null });
+  });
+
   it("rejects malformed, oversized and out-of-range input", () => {
     expect(parse("{nope")).toBeNull();
     expect(parse("null")).toBeNull();

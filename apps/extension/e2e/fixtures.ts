@@ -105,24 +105,41 @@ export class User {
       chrome.windows.create({ url, type: "popup", width: 380, height: 640 });
     }, `chrome-extension://${id}/popup.html`);
     this.panel = await opened;
+    await this.panel.setViewportSize({ width: 400, height: 600 });
     await this.panel.waitForLoadState();
     return this.panel;
   }
 
+  /** Save preferences the way the popup does. */
+  async settings(values: Record<string, unknown>) {
+    const worker = await this.worker();
+    await worker.evaluate(async (patch) => {
+      const stored = await chrome.storage.local.get("settings");
+      const settings = { ...(stored.settings as object), ...patch };
+      await chrome.storage.local.set({ settings });
+    }, values);
+  }
+
   async create(): Promise<string> {
+    await this.settings({ name: this.name });
     const popup = await this.popup();
-    await popup.getByTestId("name").fill(this.name);
     await popup.getByTestId("create").click();
-    await expect(popup.getByTestId("status")).toHaveText("Connected");
-    return (await popup.getByTestId("room-code").textContent())!;
+    await expect(popup.getByTestId("status")).toHaveAttribute(
+      "data-status",
+      "connected",
+    );
+    return (await this.view()).room!.id;
   }
 
   async join(code: string) {
+    await this.settings({ name: this.name });
     const popup = await this.popup();
-    await popup.getByTestId("name").fill(this.name);
     await popup.getByTestId("code").fill(code);
     await popup.getByTestId("join").click();
-    await expect(popup.getByTestId("status")).toHaveText("Connected");
+    await expect(popup.getByTestId("status")).toHaveAttribute(
+      "data-status",
+      "connected",
+    );
   }
 
   async view(): Promise<View> {
@@ -258,11 +275,11 @@ export const test = base.extend<
             {
               channel: "chromium",
               headless: !process.env.HEADED,
-              viewport: { width: 680, height: 520 },
+              viewport: { width: 680, height: 600 },
               recordVideo: process.env.RECORD
                 ? {
                     dir: info.outputPath("videos", name),
-                    size: { width: 680, height: 520 },
+                    size: { width: 680, height: 600 },
                   }
                 : undefined,
               args: [

@@ -25,8 +25,16 @@
     },
     "test:e2e": {
       "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$"],
-      "outputs": ["test-results/**", "playwright-report/**"]
+      "cache": false,
+      "passThroughEnv": [
+        "PLAYWRIGHT_*",
+        "SKIP_BUILD",
+        "HEADED",
+        "SCREEN",
+        "RECORD",
+        "DISPLAY",
+        "DEBUG_SW"
+      ]
     },
     "deploy": {
       "dependsOn": ["build"],

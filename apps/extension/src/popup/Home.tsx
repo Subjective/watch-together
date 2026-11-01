@@ -107,9 +107,9 @@ export function Home(props: {
         data-testid="create"
         disabled={props.busy}
         onClick={props.onCreate}
-        className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#111214] font-semibold text-white hover:bg-black disabled:opacity-60"
+        className="group flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#111214] font-semibold text-white shadow-sm transition duration-150 ease-out enabled:hover:-translate-y-0.5 enabled:hover:bg-black enabled:hover:shadow-lg enabled:active:translate-y-0 enabled:active:scale-[0.97] enabled:active:shadow-sm disabled:opacity-60"
       >
-        <Plus className="h-4 w-4" />
+        <Plus className="h-4 w-4 transition-transform duration-200 group-enabled:group-hover:rotate-90" />
         Create room
       </button>
     </main>

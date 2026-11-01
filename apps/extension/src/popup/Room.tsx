@@ -3,7 +3,6 @@ import {
   ArrowUpRight,
   Check,
   ChevronDown,
-  ChevronUp,
   Copy,
   Crown,
   Eye,
@@ -90,31 +89,33 @@ export function Room(props: {
       }
       disabled={!control || !online}
       onClick={() => props.run({ kind: "play", playing: !playback.playing })}
-      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full shadow-sm transition-transform enabled:hover:scale-105 ${
+      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full shadow-sm transition duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-green-300 enabled:hover:scale-105 enabled:active:scale-90 ${
         thumbnail ? "bg-white/90 text-slate-900" : "bg-green-500 text-white"
       } ${view.blocked ? "ring-2 ring-amber-400" : ""}`}
     >
       {playback.playing ? (
-        <Pause className="h-4 w-4 fill-current" />
+        <Pause className="pop h-4 w-4 fill-current" />
       ) : (
-        <Play className="ml-0.5 h-4 w-4 fill-current" />
+        <Play className="pop ml-0.5 h-4 w-4 fill-current" />
       )}
     </button>
   );
 
   return (
-    <main className="p-4">
+    <main className="enter p-4">
       <section
         data-testid="status"
         data-status={view.status}
-        className={`overflow-hidden rounded-2xl border-2 ${online ? "border-green-200" : "border-amber-200"}`}
+        className={`overflow-hidden rounded-2xl border-2 transition-colors duration-300 ${online ? "border-green-200" : "border-amber-200"}`}
       >
-        <div className={`p-3 ${online ? "bg-green-50" : "bg-amber-50"}`}>
+        <div
+          className={`p-3 transition-colors duration-300 ${online ? "bg-green-50" : "bg-amber-50"}`}
+        >
           <div className="flex items-center gap-2 px-1">
             {!online && (
               <WifiOff
                 aria-label="Reconnecting"
-                className="h-4 w-4 shrink-0 text-amber-600"
+                className="pop h-4 w-4 shrink-0 text-amber-600"
               />
             )}
             <Editable
@@ -133,11 +134,11 @@ export function Room(props: {
               onClick={copy}
             >
               {copied ? (
-                <Check className="h-4 w-4 text-green-600" />
+                <Check className="pop h-4 w-4 text-green-600" />
               ) : link === room.id ? (
-                <Copy className="h-4 w-4" />
+                <Copy className="pop h-4 w-4" />
               ) : (
-                <Link className="h-4 w-4" />
+                <Link className="pop h-4 w-4" />
               )}
             </Icon>
             <Icon
@@ -179,13 +180,13 @@ export function Room(props: {
                   {away && (
                     <ArrowUpRight
                       data-testid="away"
-                      className="h-4 w-4 shrink-0 text-green-600"
+                      className="pop h-4 w-4 shrink-0 text-green-600"
                     />
                   )}
                 </button>
                 <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-200">
                   <div
-                    className="h-full rounded-full bg-green-600"
+                    className="h-full rounded-full bg-green-600 transition-[width] duration-500 ease-linear"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
@@ -210,7 +211,7 @@ export function Room(props: {
         </div>
 
         <div
-          className={`flex items-center gap-2 border-t-2 bg-white p-3 pt-4 ${online ? "border-green-200" : "border-amber-200"}`}
+          className={`flex items-center gap-2 border-t-2 bg-white p-3 pt-4 transition-colors duration-300 ${online ? "border-green-200" : "border-amber-200"}`}
         >
           <button
             data-testid="faces"
@@ -254,9 +255,9 @@ export function Room(props: {
               }
             >
               {room.mode === "host" ? (
-                <Lock className="h-4 w-4 text-amber-500" />
+                <Lock className="pop h-4 w-4 text-amber-500" />
               ) : (
-                <Unlock className="h-4 w-4 text-slate-400" />
+                <Unlock className="pop h-4 w-4 text-slate-400" />
               )}
             </Icon>
           ) : (
@@ -289,9 +290,9 @@ export function Room(props: {
               onClick={() => props.onFollow(!props.settings.follow)}
             >
               {props.settings.follow ? (
-                <Eye className="h-4 w-4" />
+                <Eye className="pop h-4 w-4" />
               ) : (
-                <EyeOff className="h-4 w-4 text-slate-400" />
+                <EyeOff className="pop h-4 w-4 text-slate-400" />
               )}
             </Icon>
           )}
@@ -300,30 +301,34 @@ export function Room(props: {
             testid="expand"
             onClick={() => setOpen(!open)}
           >
-            {open ? (
-              <ChevronUp className="h-4 w-4 text-slate-500" />
-            ) : (
-              <ChevronDown className="h-4 w-4 text-slate-500" />
-            )}
+            <ChevronDown
+              className={`h-4 w-4 text-slate-500 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+            />
           </Icon>
         </div>
 
-        {open && (
-          <ul
-            data-testid="members"
-            className="max-h-[232px] overflow-y-auto border-t border-slate-100 bg-slate-50 p-2"
-          >
-            {members.map((member) => (
-              <Person
-                key={member.id}
-                member={member}
-                you={member.id === view.you}
-                host={member.id === room.host}
-                run={props.run}
-              />
-            ))}
-          </ul>
-        )}
+        <div
+          inert={!open}
+          className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <ul
+              data-testid="members"
+              aria-hidden={!open}
+              className="max-h-[232px] overflow-y-auto border-t border-slate-100 bg-slate-50 p-2"
+            >
+              {members.map((member) => (
+                <Person
+                  key={member.id}
+                  member={member}
+                  you={member.id === view.you}
+                  host={member.id === room.host}
+                  run={props.run}
+                />
+              ))}
+            </ul>
+          </div>
+        </div>
       </section>
     </main>
   );

@@ -51,7 +51,7 @@ export function Icon(props: {
       data-testid={props.testid}
       disabled={props.disabled}
       onClick={props.onClick}
-      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg shadow-sm transition-colors disabled:cursor-default ${
+      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg shadow-sm transition duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-green-300 enabled:active:scale-90 disabled:cursor-default ${
         props.tone ??
         "border border-slate-200 bg-white enabled:hover:bg-slate-50"
       }`}
@@ -101,33 +101,66 @@ export function Editable(props: {
         if (event.key === "Enter") commit();
         if (event.key === "Escape") setDraft(null);
       }}
-      className={`min-w-0 rounded-md border border-slate-300 bg-white px-1 outline-none focus:ring-2 focus:ring-blue-200 ${props.className ?? ""}`}
+      className={`min-w-0 rounded-md border border-slate-300 bg-white px-1 outline-none focus:ring-2 focus:ring-green-200 ${props.className ?? ""}`}
     />
   );
 }
 
-/** Types `text` out and erases it again, behind a blinking caret. */
-export function Typing(props: { text: string; className?: string }) {
-  const [step, setStep] = useState(0);
+/** Before each character, in ms: unhurried and a little uneven, like a person. */
+const CADENCE = [70, 95, 60, 85, 110, 75];
+
+/**
+ * Types `text` out character by character, holds it under a blinking caret,
+ * fades it and starts over. While `still`, it shows the whole text like a
+ * placeholder.
+ */
+export function Typing(props: {
+  text: string;
+  still?: boolean;
+  className?: string;
+}) {
   const length = props.text.length;
-  const at = step % (length * 2 + 2);
-  const count = at <= length ? at : length * 2 + 1 - at;
+  const [count, setCount] = useState(0);
+  const [fading, setFading] = useState(false);
+  const calm =
+    props.still || matchMedia("(prefers-reduced-motion: reduce)").matches;
   useEffect(() => {
-    const delay =
-      at === length
-        ? 2500
-        : at === length * 2 + 1
+    if (calm) {
+      setFading(false);
+      setCount(length);
+      return;
+    }
+    const space = props.text[count - 1] === " " ? 80 : 0;
+    const delay = fading
+      ? 450
+      : count === length
+        ? 2800
+        : count === 0
           ? 500
-          : at < length
-            ? 120
-            : 30;
-    const timer = setTimeout(() => setStep(step + 1), delay);
+          : CADENCE[count % CADENCE.length] + space;
+    const timer = setTimeout(() => {
+      if (fading) {
+        setFading(false);
+        setCount(0);
+        return;
+      }
+      if (count === length) return setFading(true);
+      setCount(count + 1);
+    }, delay);
     return () => clearTimeout(timer);
-  }, [step, at, length]);
+  }, [calm, count, fading, length, props.text]);
+  const typing = !calm && count > 0 && count < length;
   return (
-    <span aria-hidden className={props.className}>
-      {props.text.slice(0, count)}
-      <span className="animate-pulse">|</span>
+    <span
+      aria-hidden
+      className={`whitespace-pre transition-opacity duration-[450ms] ease-out ${fading ? "opacity-0" : ""} ${props.className ?? ""}`}
+    >
+      {[...props.text.slice(0, calm ? length : count)].map((char, index) => (
+        <span key={index} className={calm ? "" : "type"}>
+          {char}
+        </span>
+      ))}
+      {!props.still && <span className={`caret ${typing ? "" : "blink"}`} />}
     </span>
   );
 }
@@ -144,7 +177,7 @@ export function Toast(props: { error: string | null; onDone: () => void }) {
   return (
     <div
       role="alert"
-      className="fixed inset-x-4 bottom-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 shadow-lg"
+      className="enter fixed inset-x-4 bottom-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 shadow-lg"
     >
       {props.error}
     </div>

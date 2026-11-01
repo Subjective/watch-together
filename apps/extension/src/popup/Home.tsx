@@ -21,11 +21,12 @@ export function Home(props: {
   onJoin: (room: string, resume?: string) => void;
 }) {
   const [code, setCode] = useState("");
+  const [focus, setFocus] = useState(false);
   const join = () => code.trim() && props.onJoin(code.trim());
   const guest = props.name === DEFAULTS.name;
 
   return (
-    <main className="space-y-3 p-4">
+    <main className="enter space-y-3 p-4">
       <header className="flex items-center gap-2 px-1 pb-1">
         <img src="/icons/icon-128.png" alt="" className="h-7 w-7" />
         <h1 className="flex-1 text-lg font-bold">Watch Together</h1>
@@ -48,11 +49,12 @@ export function Home(props: {
         </div>
       </header>
 
-      <label className="group shimmer relative flex cursor-text items-center gap-2 rounded-2xl border-2 border-green-200 bg-green-50 p-2 pl-4 transition-colors focus-within:border-green-300 hover:border-green-300 hover:bg-green-100/80">
+      <label className="group shimmer relative flex cursor-text items-center gap-2 rounded-2xl border-2 border-green-200 bg-green-50 p-2 pl-4 transition-colors duration-200 focus-within:border-green-400 hover:border-green-300 hover:bg-green-100/80">
         {!code && (
           <Typing
             text="Enter room code…"
-            className="pointer-events-none absolute text-sm text-green-700/70 group-focus-within:hidden"
+            still={focus}
+            className="pointer-events-none absolute text-sm text-green-700/70"
           />
         )}
         <input
@@ -61,8 +63,10 @@ export function Home(props: {
           disabled={props.busy}
           onChange={(event) => setCode(event.target.value)}
           onKeyDown={(event) => event.key === "Enter" && join()}
-          placeholder="Room code"
-          className="min-w-0 flex-1 bg-transparent text-sm text-green-900 outline-none placeholder:text-transparent focus:placeholder:text-green-700/60"
+          onFocus={() => setFocus(true)}
+          onBlur={() => setFocus(false)}
+          aria-label="Room code"
+          className="min-w-0 flex-1 bg-transparent text-sm text-green-900 caret-green-700 outline-none"
         />
         <Icon
           label="Join room"
@@ -71,7 +75,9 @@ export function Home(props: {
           disabled={!code.trim() || props.busy}
           tone="bg-green-500 enabled:hover:bg-green-600 disabled:opacity-50"
         >
-          <ArrowRight className="h-4 w-4 text-white" />
+          <ArrowRight
+            className={`h-4 w-4 text-white transition-transform duration-200 ${code.trim() ? "translate-x-0.5" : ""}`}
+          />
         </Icon>
       </label>
 
@@ -81,7 +87,7 @@ export function Home(props: {
             <li
               key={room.id}
               data-testid="recent"
-              className="flex items-center gap-3 rounded-xl px-2 py-2"
+              className="flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-white"
             >
               <span title={room.host}>
                 <Avatar name={room.host || "?"} />
@@ -107,7 +113,7 @@ export function Home(props: {
         data-testid="create"
         disabled={props.busy}
         onClick={props.onCreate}
-        className="group flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#111214] font-semibold text-white shadow-sm transition duration-150 ease-out enabled:hover:-translate-y-0.5 enabled:hover:bg-black enabled:hover:shadow-lg enabled:active:translate-y-0 enabled:active:scale-[0.97] enabled:active:shadow-sm disabled:opacity-60"
+        className="group flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#111214] font-semibold text-white shadow-sm transition duration-150 ease-out enabled:hover:-translate-y-0.5 enabled:hover:bg-black enabled:hover:shadow-lg enabled:active:translate-y-0 enabled:active:scale-[0.97] enabled:active:shadow-sm disabled:opacity-60 outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-2"
       >
         <Plus className="h-4 w-4 transition-transform duration-200 group-enabled:group-hover:rotate-90" />
         Create room

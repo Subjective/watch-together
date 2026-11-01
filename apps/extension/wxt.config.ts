@@ -12,7 +12,7 @@ export default defineConfig({
   manifest: {
     name: "Watch Together",
     description: "Watch videos together, in sync, on any site",
-    permissions: ["storage", "tabs", "webNavigation"],
+    permissions: ["storage", "tabs", "webNavigation", "scripting"],
     host_permissions: ["<all_urls>"],
     icons: {
       16: "icons/icon-16.png",
@@ -20,14 +20,25 @@ export default defineConfig({
       48: "icons/icon-48.png",
       128: "icons/icon-128.png",
     },
+    // Grey until you're in a room; the synced tab gets the color icon
+    action: {
+      default_icon: {
+        16: "icons/icon-grey-16.png",
+        32: "icons/icon-grey-32.png",
+        48: "icons/icon-grey-48.png",
+        128: "icons/icon-grey-128.png",
+      },
+    },
   },
   hooks: {
     "build:publicAssets": (_wxt, assets) => {
-      for (const size of [16, 32, 48, 128]) {
-        assets.push({
-          absoluteSrc: resolve(icons, `icon-${size}.png`),
-          relativeDest: `icons/icon-${size}.png`,
-        });
+      for (const name of ["icon", "icon-grey"]) {
+        for (const size of [16, 32, 48, 128]) {
+          assets.push({
+            absoluteSrc: resolve(icons, `${name}-${size}.png`),
+            relativeDest: `icons/${name}-${size}.png`,
+          });
+        }
       }
     },
   },

@@ -1,4 +1,5 @@
 import type { Mode, Playback, Room } from "@repo/protocol";
+import type { Overlay } from "./overlay";
 import type { Kind } from "./sync";
 
 /** Content script → background, over the frame's port. */
@@ -15,13 +16,17 @@ export type FrameMessage =
       duration: number | null;
       image: string | null;
     }
-  | { type: "blocked"; blocked: boolean };
+  | { type: "blocked"; blocked: boolean }
+  /** A button on the overlay was pressed. */
+  | { type: "offer"; offer: "sync" | "follow" };
 
 /** Background → content script. A null playback releases the video. */
 export type Command =
   | { type: "state"; playback: Playback | null; offset: number }
   | { type: "status" }
-  | { type: "rescan" };
+  | { type: "rescan" }
+  /** The pill on this frame's player, or null to remove it. */
+  | { type: "overlay"; overlay: Overlay | null };
 
 /** Popup → background, through `runtime.sendMessage`. */
 export type Action =

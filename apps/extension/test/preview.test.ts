@@ -14,6 +14,7 @@ const playback = (
   at: 0,
   duration: null,
   image,
+  by: null,
 });
 
 describe("preview", () => {

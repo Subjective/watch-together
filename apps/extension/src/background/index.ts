@@ -7,6 +7,7 @@ import {
 } from "@repo/protocol";
 import { offset, sample } from "../lib/clock";
 import { key } from "../lib/key";
+import { NOTE_MS, note, overlay } from "../lib/overlay";
 import { route } from "../lib/route";
 import {
   IDLE,
@@ -36,6 +37,8 @@ interface Session {
   announce?: boolean;
   /** Room name to create the room with. */
   label?: string;
+  /** Key of the last room video auto-follow acted on. */
+  followed?: string | null;
 }
 
 interface Frame {
@@ -43,6 +46,20 @@ interface Frame {
   tab: number;
   frame: number;
   area: number;
+  /** The overlay last sent, to skip repeats. */
+  pill: string;
+}
+
+/** Toolbar icons: color on your synced tab, grey everywhere else. */
+const COLOR = icons("icon");
+const GREY = icons("icon-grey");
+
+const BADGE = { ok: "#22c55e", warn: "#f59e0b", error: "#ef4444" };
+
+function icons(name: string) {
+  return Object.fromEntries(
+    [16, 32, 48, 128].map((size) => [size, `/icons/${name}-${size}.png`]),
+  );
 }
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
@@ -67,6 +84,8 @@ export function start() {
     view: IDLE,
     /** Last room name and host written to the recent list. */
     remembered: "",
+    /** The latest note about the room, shown on the overlay for a moment. */
+    note: { text: "", id: 0, at: 0 },
   };
 
   const ready = browser.storage.session.get("session").then((stored) => {
@@ -96,6 +115,82 @@ export function start() {
         : null,
     };
     await browser.storage.session.set({ view: state.view });
+    paint();
+    badge();
+  }
+
+  /** Send every tab's player its overlay, and clear it everywhere else. */
+  async function paint() {
+    const session = state.session;
+    const room = state.room;
+    const fresh = Date.now() - state.note.at < NOTE_MS;
+    for (const tab of new Set([...frames.values()].map((frame) => frame.tab))) {
+      const target = player(tab);
+      const info =
+        target && room && session?.you
+          ? await browser.tabs.get(tab).catch(() => null)
+          : null;
+      const pill =
+        info && room && session?.you
+          ? overlay({
+              room,
+              you: session.you,
+              status: state.view.status,
+              blocked: state.view.blocked,
+              synced: tab === session.tab,
+              url: info.url,
+              note: fresh ? state.note.text : null,
+              id: state.note.id,
+            })
+          : null;
+      for (const frame of frames.values()) {
+        if (frame.tab !== tab) continue;
+        const value = frame === target ? pill : null;
+        const text = JSON.stringify(value);
+        if (frame.pill === text) continue;
+        frame.pill = text;
+        send(frame, { type: "overlay", overlay: value });
+      }
+    }
+  }
+
+  /** Member count on the toolbar, and the color icon on the synced tab. */
+  async function badge() {
+    const view = state.view;
+    const action = browser.action;
+    const color = view.error
+      ? BADGE.error
+      : view.status === "connected"
+        ? BADGE.ok
+        : BADGE.warn;
+    const count = view.room ? String(view.room.members.length) : "";
+    await action.setBadgeText({ text: count });
+    await action.setBadgeBackgroundColor({ color });
+    const tab = view.room ? state.session?.tab : undefined;
+    if (tab === undefined) return;
+    await action.setIcon({ tabId: tab, path: COLOR }).catch(() => null);
+    await action
+      .setBadgeText({ tabId: tab, text: view.blocked ? "!" : count })
+      .catch(() => null);
+    await action
+      .setBadgeBackgroundColor({
+        tabId: tab,
+        color: view.blocked ? BADGE.warn : color,
+      })
+      .catch(() => null);
+  }
+
+  /** Give a tab back the plain toolbar icon and the shared badge. */
+  async function plain(tab: number | undefined) {
+    if (tab === undefined) return;
+    const action = browser.action;
+    await action.setIcon({ tabId: tab, path: GREY }).catch(() => null);
+    const text = await action.getBadgeText({});
+    const color = await action.getBadgeBackgroundColor({});
+    await action.setBadgeText({ tabId: tab, text }).catch(() => null);
+    await action
+      .setBadgeBackgroundColor({ tabId: tab, color })
+      .catch(() => null);
   }
 
   function send(frame: Frame, command: Command) {
@@ -153,7 +248,16 @@ export function start() {
         }
         if (state.room && message.room.seq < state.room.seq) return;
         state.samples = sample(state.samples, message.now - Date.now());
+        const before = state.room;
         state.room = message.room;
+        const said =
+          before && session.you
+            ? note(before, message.room, session.you)
+            : null;
+        if (said) {
+          state.note = { text: said, id: state.note.id + 1, at: Date.now() };
+          setTimeout(paint, NOTE_MS);
+        }
         if (message.type === "welcome") {
           link.settled();
           session.resume = message.resume;
@@ -162,6 +266,7 @@ export function start() {
           announce();
         }
         record();
+        chase();
         push(session.tab);
         render({ status: "connected", error: null });
       },
@@ -186,6 +291,31 @@ export function start() {
       state.link?.send({ type: "mode", mode: preferred });
     const frame = session.tab === undefined ? null : player(session.tab);
     if (frame) send(frame, { type: "status" });
+  }
+
+  /**
+   * Auto-follow: when the room moves to another video, take a follower's
+   * synced tab there, or open one tab for it and keep reusing that one.
+   */
+  async function chase() {
+    const session = state.session!;
+    const url = state.room?.playback.url;
+    if (!url || state.room?.host === session.you) return;
+    const target = key(url);
+    if (target === session.followed) return;
+    session.followed = target;
+    save();
+    if (!(await settings()).follow) return;
+    const info =
+      session.tab === undefined
+        ? null
+        : await browser.tabs.get(session.tab).catch(() => null);
+    if (info?.id !== undefined) {
+      if (key(info.url) !== target) await browser.tabs.update(info.id, { url });
+      return;
+    }
+    const created = await browser.tabs.create({ url });
+    await adopt(created.id);
   }
 
   /** Keep the room at the top of the recent list with its current name. */
@@ -224,7 +354,10 @@ export function start() {
     const previous = session.tab;
     session.tab = tab;
     await save();
-    if (previous !== tab) push(previous);
+    if (previous !== tab) {
+      push(previous);
+      plain(previous);
+    }
     push(tab);
     render();
   }
@@ -276,20 +409,13 @@ export function start() {
     if (action.kind === "create" || action.kind === "join") {
       const room = action.kind === "join" ? action.room.trim() : code();
       if (!ROOM_ID.test(room)) return { ok: false, error: "Invalid room code" };
-      if (state.session) leave();
       const tab = await foreground();
-      const preferences = await settings();
-      state.session = {
+      await enter(
         room,
-        name: preferences.name,
-        resume: action.kind === "join" ? action.resume : undefined,
-        tab: tab?.id !== undefined && player(tab.id) ? tab.id : undefined,
-        announce: action.kind === "create",
-        label:
-          action.kind === "create" ? `${preferences.name}'s room` : undefined,
-      };
-      await save();
-      connect();
+        tab?.id !== undefined && player(tab.id) ? tab.id : undefined,
+        action.kind === "create",
+        action.kind === "join" ? action.resume : undefined,
+      );
       return { ok: true };
     }
     if (!state.session) return { ok: false, error: "Not in a room" };
@@ -331,6 +457,27 @@ export function start() {
       });
     }
     return follow();
+  }
+
+  /** Start a session in a room, with `tab` as the synced tab. */
+  async function enter(
+    room: string,
+    tab: number | undefined,
+    create: boolean,
+    resume?: string,
+  ) {
+    if (state.session) leave();
+    const preferences = await settings();
+    state.session = {
+      room,
+      name: preferences.name,
+      resume,
+      tab,
+      announce: create,
+      label: create ? `${preferences.name}'s room` : undefined,
+    };
+    await save();
+    connect();
   }
 
   /** Remember a choice made in the popup as the next default. */
@@ -375,10 +522,13 @@ export function start() {
     state.room = null;
     state.samples = [];
     state.remembered = "";
+    state.note = { text: "", id: state.note.id, at: 0 };
     push(tab);
     save();
     state.view = IDLE;
     browser.storage.session.set({ view: IDLE });
+    paint();
+    badge().then(() => plain(tab));
   }
 
   browser.runtime.onConnect.addListener((port) => {
@@ -389,6 +539,7 @@ export function start() {
       tab,
       frame: port.sender?.frameId ?? 0,
       area: 0,
+      pill: "null",
     };
     const id = `${tab}:${frame.frame}`;
     frames.set(id, frame);
@@ -397,7 +548,13 @@ export function start() {
       if (message.type === "video") {
         frame.area = message.area;
         if (tab === state.session?.tab) push(tab);
+        paint();
         return;
+      }
+      if (message.type === "offer") {
+        if (!state.session) return;
+        if (message.offer === "follow") return follow();
+        return adopt(tab);
       }
       if (message.type === "blocked") {
         if (tab === state.session?.tab) render({ blocked: message.blocked });
@@ -427,9 +584,30 @@ export function start() {
 
   browser.tabs.onUpdated.addListener(async (tab, change) => {
     await ready;
+    if (change.url) paint();
     if (tab !== state.session?.tab || !(change.url || change.title)) return;
     if (change.url) push(tab);
     render();
+  });
+
+  // Share links: the host's video URL with `wt_room` joins that room
+  browser.webNavigation.onDOMContentLoaded.addListener(async (details) => {
+    if (details.frameId !== 0 || !URL.canParse(details.url)) return;
+    const url = new URL(details.url);
+    const room = url.searchParams.get("wt_room");
+    if (!room || !ROOM_ID.test(room)) return;
+    url.searchParams.delete("wt_room");
+    browser.scripting
+      .executeScript({
+        target: { tabId: details.tabId },
+        func: (clean: string) => history.replaceState(history.state, "", clean),
+        args: [url.toString()],
+      })
+      .catch(() => null);
+    await ready;
+    if (state.session?.room === room) return adopt(details.tabId);
+    const resume = (await recent()).find((entry) => entry.id === room)?.resume;
+    await enter(room, details.tabId, false, resume);
   });
 
   // The content script's isolated world can't see the page's pushState
@@ -439,5 +617,6 @@ export function start() {
       if (frame.tab === details.tabId) send(frame, { type: "rescan" });
     }
     if (details.tabId === state.session?.tab) push(details.tabId);
+    paint();
   });
 }

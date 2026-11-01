@@ -18,21 +18,13 @@ import {
 } from "lucide-react";
 import { LIMITS, position, type Member } from "@repo/protocol";
 import type { Action, View } from "../lib/messages";
+import { clock } from "../lib/clock";
 import { preview } from "../lib/preview";
 import type { Settings } from "../lib/settings";
 import { Avatar, Editable, Icon } from "./ui";
 
 /** Faces shown before the rest collapse into +N. */
 const FACES = 6;
-
-function clock(seconds: number) {
-  const whole = Math.max(0, Math.floor(seconds));
-  const hours = Math.floor(whole / 3600);
-  const minutes = Math.floor((whole % 3600) / 60);
-  const rest = String(whole % 60).padStart(2, "0");
-  if (hours === 0) return `${minutes}:${rest}`;
-  return `${hours}:${String(minutes).padStart(2, "0")}:${rest}`;
-}
 
 /** The host's video URL with the room attached, or just the code. */
 function share(view: View) {

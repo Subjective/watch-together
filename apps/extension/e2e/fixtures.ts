@@ -149,6 +149,51 @@ export class User {
     );
   }
 
+  /**
+   * Make the browser refuse `play()` from the extension until the next click
+   * on the page, the way an autoplay policy does. Chrome lets content scripts
+   * autoplay, so this patches the extension's own isolated world.
+   */
+  async refuse() {
+    const session = await this.context.newCDPSession(this.page);
+    const worlds: { id: number; name: string }[] = [];
+    session.on("Runtime.executionContextCreated", (event) =>
+      worlds.push(event.context),
+    );
+    await session.send("Runtime.enable");
+    const world = worlds.find((context) => context.name === "Watch Together");
+    if (!world) throw new Error("No content script on the page");
+    await session.send("Runtime.evaluate", {
+      contextId: world.id,
+      expression: `{
+        const play = HTMLMediaElement.prototype.play;
+        HTMLMediaElement.prototype.play = () =>
+          Promise.reject(new DOMException("No gesture yet", "NotAllowedError"));
+        addEventListener("pointerdown", () => {
+          HTMLMediaElement.prototype.play = play;
+        }, { capture: true, once: true });
+      }`,
+    });
+    await session.detach();
+  }
+
+  /** The toolbar badge, for one tab or the shared one. */
+  async badge(tab?: number) {
+    const worker = await this.worker();
+    return worker.evaluate(async (id) => {
+      const details = id === undefined ? {} : { tabId: id };
+      return {
+        text: await chrome.action.getBadgeText(details),
+        color: await chrome.action.getBadgeBackgroundColor(details),
+      };
+    }, tab);
+  }
+
+  /** Tabs showing the test site, which leaves out the popup. */
+  videos(): Page[] {
+    return this.context.pages().filter((page) => page.url().startsWith(SITE));
+  }
+
   async media(): Promise<Media> {
     const frame = await this.player();
     return frame.evaluate(() => {

@@ -1,6 +1,7 @@
 import { browser, type Browser } from "wxt/browser";
 import type { Playback } from "@repo/protocol";
 import type { Command, FrameMessage } from "../lib/messages";
+import { pill } from "./pill";
 import { ECHO_MS, echo, plan, type Expected, type Kind } from "../lib/sync";
 
 /** Recheck drift and layout this often while bound. */
@@ -58,6 +59,11 @@ export function start() {
   function post(message: FrameMessage) {
     state.port?.postMessage(message);
   }
+
+  const overlay = pill(
+    () => state.video,
+    (offer) => post({ type: "offer", offer }),
+  );
 
   function server() {
     return Date.now() + state.offset;
@@ -139,6 +145,7 @@ export function start() {
   function receive(command: Command) {
     if (command.type === "rescan") return scan();
     if (command.type === "status") return report("status");
+    if (command.type === "overlay") return overlay(command.overlay);
     state.playback = command.playback;
     state.offset = command.offset;
     if (command.playback) return apply();

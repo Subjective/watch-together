@@ -18,7 +18,7 @@
 
 ## Coding Style & Naming Conventions
 
-- Language: TypeScript (Node 20.x). Package manager: pnpm 9.x.
+- Language: TypeScript (Node 24.x). Package manager: pnpm 9.x.
 - Formatting: Prettier (2‑space indent) via Husky + lint‑staged. Run `pnpm format` / `pnpm format:check`.
 - Linting: shared config `@repo/eslint-config`; fix with `pnpm lint`.
 - Naming: `camelCase` for vars/functions, `PascalCase` for React components/types, `UPPER_SNAKE_CASE` for constants. File names kebab- or lowerCamel; tests as `*.test.ts` or under `__tests__/`.
@@ -38,7 +38,7 @@
 ## Security & Configuration Tips
 
 - Do not commit secrets. Backend uses Cloudflare Wrangler (`apps/backend/wrangler.toml`); extension uses `.env.*` in `apps/extension/`. Website deploys via Vercel.
-- Run `pnpm install` once with Node 20.x; use `mise`/Corepack if configured.
+- Run `pnpm install` once with Node 24.x; use `mise`/Corepack if configured.
 
 ## IMPORTANT
 

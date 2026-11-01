@@ -3,18 +3,18 @@
 ## Project Structure & Module Organization
 
 - Monorepo managed by pnpm + Turborepo.
-- Apps: `apps/backend` (Cloudflare Worker), `apps/extension` (browser extension, Vite), `apps/website` (Next.js).
-- Packages: shared libs and configs under `packages/` (`adapters`, `types`, `eslint-config`, `typescript-config`, `vitest-config`, `logo`, `test-utils`).
-- Tests: integration/e2e under `tests/`; unit tests live with sources (`__tests__/` or `*.test.ts`).
+- Apps: `apps/backend` (Cloudflare Worker with a Durable Object per room), `apps/extension` (browser extension, WXT + React), `apps/website` (Next.js).
+- Packages: `packages/protocol` (wire types and validation shared by backend and extension), `packages/logo`, and configs (`eslint-config`, `typescript-config`).
+- Tests: unit tests in each package's `test/`; extension end-to-end tests in `apps/extension/e2e`.
+- Design and behavior of the extension: `docs/rewrite-plan.md`. Known site issues: `docs/site-support.md`.
 
 ## Build, Test, and Development Commands
 
 - `pnpm dev` — run all app dev tasks (watch mode via Turborepo).
 - `pnpm build` — build all packages/apps.
 - `pnpm lint` / `pnpm typecheck` — ESLint and TypeScript across workspace.
-- `pnpm test` — run all tests; `pnpm test:unit`, `pnpm test:integration`, `pnpm test:e2e` for subsets.
+- `pnpm test` — unit tests; `pnpm test:e2e` — extension end-to-end tests (builds the extension, runs `wrangler dev`).
 - Targeted filters: `pnpm extension:dev`, `pnpm extension:build`, `pnpm backend:build`, `pnpm backend:deploy`.
-- Coverage report: `pnpm test:coverage` (merges and opens NYC report in `coverage/report`).
 
 ## Coding Style & Naming Conventions
 
@@ -25,10 +25,9 @@
 
 ## Testing Guidelines
 
-- Unit/integration: Vitest; browser env via JSDOM where needed.
-- E2E: Playwright in `tests/` (`pnpm test:headed` / `pnpm test:debug` helpful locally).
-- Prefer colocated unit tests; use `tests/` for cross-project integration.
-- Aim for meaningful coverage; verify with `pnpm test:coverage`.
+- Unit: Vitest. The backend runs on `@cloudflare/vitest-pool-workers` with a real Durable Object.
+- E2E: Playwright in `apps/extension/e2e`, one browser profile per user with the built extension. `HEADED=1` shows the browsers, `SKIP_BUILD=1` reuses the last build, `RECORD=out.mp4` records the demos.
+- Put pure logic in small modules with unit tests; cover behavior across browsers with e2e scenarios.
 
 ## Commit & Pull Request Guidelines
 

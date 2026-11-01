@@ -1,8 +1,0 @@
-{
-  "extends": "@repo/typescript-config/base.json",
-  "compilerOptions": {
-    "types": ["node", "@playwright/test", "chrome"]
-  },
-  "include": ["**/*"],
-  "exclude": ["node_modules"]
-}

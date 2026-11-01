@@ -23,13 +23,42 @@ import {
   Heart,
   ExternalLink,
 } from "lucide-react";
-import type {
-  RoomState,
-  User,
-  ConnectionStatus,
-  FollowMode,
-  ControlMode,
-} from "@repo/types";
+
+// The mockup's own shapes; it shows the popup with made-up data
+interface User {
+  id: string;
+  name: string;
+  isHost: boolean;
+  isConnected: boolean;
+  joinedAt: number;
+}
+
+interface VideoState {
+  isPlaying: boolean;
+  currentTime: number;
+  duration: number;
+  playbackRate: number;
+  url: string;
+  lastUpdated: number;
+}
+
+type ControlMode = "HOST_ONLY" | "FREE_FOR_ALL";
+type FollowMode = "AUTO_FOLLOW" | "MANUAL_FOLLOW";
+type ConnectionStatus = "DISCONNECTED" | "CONNECTING" | "CONNECTED" | "ERROR";
+
+interface RoomState {
+  id: string;
+  name: string;
+  hostId: string;
+  users: User[];
+  controlMode: ControlMode;
+  followMode: FollowMode;
+  videoState: VideoState;
+  hostVideoState: VideoState | null;
+  hostCurrentUrl: string | null;
+  createdAt: number;
+  lastActivity: number;
+}
 
 export function ExtensionMockup() {
   // Use static base timestamp to ensure deterministic SSR/hydration

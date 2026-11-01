@@ -17,11 +17,7 @@
       "dependsOn": ["^build"]
     },
     "test": {
-      "dependsOn": ["transit", "@repo/vitest-config#build"],
-      "outputs": ["coverage.json"]
-    },
-    "transit": {
-      "dependsOn": ["^transit"]
+      "dependsOn": ["^build"]
     },
     "test:watch": {
       "cache": false,
@@ -29,21 +25,12 @@
     },
     "test:e2e": {
       "dependsOn": ["^build"],
-      "inputs": ["tests/e2e/**", "dist/**"],
+      "inputs": ["$TURBO_DEFAULT$"],
       "outputs": ["test-results/**", "playwright-report/**"]
     },
     "deploy": {
       "dependsOn": ["build"],
       "cache": false
-    },
-    "//#merge-json-reports": {
-      "inputs": ["**/coverage.json"],
-      "outputs": ["coverage/merged/**"]
-    },
-    "//#report": {
-      "dependsOn": ["//#merge-json-reports"],
-      "inputs": ["coverage/merged/**"],
-      "outputs": ["coverage/report/**"]
     },
     "@repo/logo#build": {
       "dependsOn": ["^build"],

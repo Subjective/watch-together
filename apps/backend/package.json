@@ -10,7 +10,6 @@
     "lint": "eslint \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:unit": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {

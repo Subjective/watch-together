@@ -1,4 +1,5 @@
-import { mkdtempSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -17,6 +18,17 @@ import { SITE, backend, proxy, site } from "./servers";
 declare const chrome: typeof import("wxt/browser").browser;
 
 const EXTENSION = resolve(import.meta.dirname, "../.output/chrome-mv3");
+
+/** Chrome's id for an unpacked extension: a hash of its path. */
+const ID = [
+  ...createHash("sha256").update(EXTENSION).digest("hex").slice(0, 32),
+]
+  .map((digit) => String.fromCharCode(97 + parseInt(digit, 16)))
+  .join("");
+
+/** With SCREEN set, windows sit side by side with the extension pinned,
+ * so a screen recording shows the toolbar icon too. */
+const SCREEN = { width: 700, height: 760 };
 
 /** Allowed difference in seconds between two synced videos. */
 export const TOLERANCE = 1;
@@ -314,26 +326,35 @@ export const test = base.extend<
     const contexts: BrowserContext[] = [];
     await use(async (...names) =>
       Promise.all(
-        names.map(async (name) => {
-          const context = await chromium.launchPersistentContext(
-            mkdtempSync(join(tmpdir(), "wt-")),
-            {
-              channel: "chromium",
-              headless: !process.env.HEADED,
-              viewport: { width: 680, height: 600 },
-              recordVideo: process.env.RECORD
-                ? {
-                    dir: info.outputPath("videos", name),
-                    size: { width: 680, height: 600 },
-                  }
-                : undefined,
-              args: [
-                `--disable-extensions-except=${EXTENSION}`,
-                `--load-extension=${EXTENSION}`,
-                "--autoplay-policy=no-user-gesture-required",
-              ],
-            },
+        names.map(async (name, index) => {
+          const profile = mkdtempSync(join(tmpdir(), "wt-"));
+          mkdirSync(join(profile, "Default"));
+          writeFileSync(
+            join(profile, "Default", "Preferences"),
+            JSON.stringify({ extensions: { pinned_extensions: [ID] } }),
           );
+          const context = await chromium.launchPersistentContext(profile, {
+            channel: "chromium",
+            headless: !process.env.HEADED && !process.env.SCREEN,
+            viewport: process.env.SCREEN ? null : { width: 680, height: 600 },
+            recordVideo: process.env.RECORD
+              ? {
+                  dir: info.outputPath("videos", name),
+                  size: { width: 680, height: 600 },
+                }
+              : undefined,
+            args: [
+              `--disable-extensions-except=${EXTENSION}`,
+              `--load-extension=${EXTENSION}`,
+              "--autoplay-policy=no-user-gesture-required",
+              ...(process.env.SCREEN
+                ? [
+                    `--window-position=${index * SCREEN.width},0`,
+                    `--window-size=${SCREEN.width},${SCREEN.height}`,
+                  ]
+                : []),
+            ],
+          });
           contexts.push(context);
           const user = new User(name, context);
           const worker = await user.worker();

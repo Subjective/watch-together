@@ -1,7 +1,8 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { expect, synced, test, type User } from "./fixtures";
+import { SITE } from "./servers";
 
 /**
  * A narrated run for the milestone video. Only runs with RECORD=<output.mp4>,
@@ -225,4 +226,129 @@ test("demo: the popup", async ({ users }) => {
     ...["-map", "[v]", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "26"],
     output,
   ]);
+});
+
+/**
+ * Following and visibility. With SCREEN set, run under a virtual display
+ * (`xvfb-run -s "-screen 0 1400x760x24"`), so the recording shows both
+ * whole windows with their toolbar icons.
+ */
+test("demo: following, the overlay and the toolbar icon", async ({
+  users,
+  servers,
+}) => {
+  test.setTimeout(240_000);
+  const screen = process.env.SCREEN
+    ? spawn(
+        "ffmpeg",
+        [
+          ...["-loglevel", "error", "-y", "-f", "x11grab"],
+          ...["-video_size", "1400x760", "-framerate", "25"],
+          ...["-i", process.env.DISPLAY!, "-c:v", "libx264"],
+          ...["-pix_fmt", "yuv420p", "-crf", "26", process.env.RECORD!],
+        ],
+        { stdio: ["pipe", "ignore", "inherit"] },
+      )
+    : null;
+  const [alice, bob] = await users("Alice", "Bob");
+  const pause = (ms = 1800) => alice.page.waitForTimeout(ms);
+  const say = async (text: string) => {
+    await Promise.all(
+      [alice, bob].map((user) => user.caption(text).catch(() => null)),
+    );
+  };
+
+  await alice.open("watch.html?v=a");
+  await bob.open("watch.html?v=b");
+  await bob.settings({ name: "Bob" });
+  await say("Outside a room the toolbar icon is grey");
+  await pause(2500);
+
+  await say("Alice creates a room and plays");
+  const code = await alice.create();
+  await (await alice.popup()).close();
+  await alice.page.bringToFront();
+  await alice.seek(20);
+  await alice.play();
+  await pause();
+
+  await say("Bob opens Alice's share link: he joins, and the link is cleaned");
+  await bob.page.goto(`${SITE}/watch.html?v=a&wt_room=${code}`);
+  await bob.ready();
+  await synced([alice, bob], { paused: false });
+  await bob.label("Bob");
+  await say("Color icon on the synced tab, with the member count");
+  await pause(3500);
+
+  await say("Alice pauses, then jumps ahead: Bob sees what happened");
+  await alice.pause();
+  await pause(2200);
+  await alice.seek(60);
+  await alice.play();
+  await pause(3000);
+
+  await say("Alice switches videos in her tab: Bob's tab follows");
+  await alice.page.goto(`${SITE}/watch.html?v=b`);
+  await alice.ready();
+  await alice.label("Alice");
+  await alice.play();
+  await expect.poll(() => bob.page.url()).toContain("v=b");
+  await bob.ready();
+  await bob.label("Bob");
+  await synced([alice, bob], { paused: false });
+  await pause(3500);
+
+  await say("With auto-follow off, Bob gets a Follow button instead");
+  await bob.settings({ follow: false });
+  await alice.page.goto(`${SITE}/watch.html?v=a`);
+  await alice.ready();
+  await alice.label("Alice");
+  await alice.play();
+  const pill = bob.page.getByTestId("pill");
+  await expect(pill).toContainText("switched videos");
+  await pause(2500);
+  await pill.getByRole("button", { name: "Follow" }).click();
+  await bob.ready();
+  await bob.label("Bob");
+  await synced([alice, bob], { paused: false });
+  await pause(2500);
+
+  await say("Another tab with the room's video offers to sync it");
+  const other = await bob.context.newPage();
+  await other.goto(`${SITE}/watch.html?v=a`);
+  await other.evaluate(() => {
+    document.getElementById("label")!.textContent = "Bob · second tab";
+  });
+  await pause(2500);
+  await other
+    .getByTestId("pill")
+    .getByRole("button", { name: "Sync this tab" })
+    .click();
+  bob.page = other;
+  await synced([alice, bob], { paused: false });
+  await say("The color icon moves to the tab that's synced now");
+  await pause(3000);
+
+  await say("The backend restarts: amber badge, Reconnecting…");
+  const restart = servers.restart();
+  await expect
+    .poll(async () => (await bob.view()).status)
+    .not.toBe("connected");
+  await pause(1500);
+  await restart;
+  await expect.poll(async () => (await bob.view()).status).toBe("connected");
+  await say("Back to green, still in sync");
+  await pause(3000);
+
+  await say("Bob leaves: grey icon, no badge, no overlay");
+  const guest = await bob.popup();
+  await guest.getByTestId("leave").click();
+  await guest.close();
+  await bob.page.bringToFront();
+  await pause(3000);
+
+  await Promise.all([alice.context.close(), bob.context.close()]);
+  if (!screen) return;
+  screen.stdin!.write("q");
+  await new Promise((done) => screen.once("exit", done));
 });

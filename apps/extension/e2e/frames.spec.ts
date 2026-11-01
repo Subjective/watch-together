@@ -57,7 +57,7 @@ test("muted autoplay in the host's foreground tab does not move the room", async
   await preview.waitForTimeout(1000);
   expect((await alice.view()).room!.playback.url).toContain("v=a");
 
-  // Playing it with sound does move the room
+  // Playing it with sound offers to move the room there
   await preview.evaluate(() => {
     (document.getElementById("player") as HTMLVideoElement).muted = false;
   });
@@ -67,6 +67,10 @@ test("muted autoplay in the host's foreground tab does not move the room", async
   await preview.evaluate(() =>
     (document.getElementById("player") as HTMLVideoElement).play(),
   );
+  await preview
+    .getByTestId("pill")
+    .getByRole("button", { name: "Move room here" })
+    .click();
   await expect
     .poll(async () => (await bob.view()).room?.playback.url)
     .toContain("v=b");

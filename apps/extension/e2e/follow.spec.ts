@@ -34,8 +34,12 @@ test("auto-follow takes the follower's synced tab along and reuses it", async ({
   await bob.ready();
   await synced([alice, bob], { paused: false });
 
-  // A new tab, then back to the first video
+  // A new tab only moves the room when the host says so
   await host(alice, "watch.html?v=a", true);
+  const pill = alice.page.getByTestId("pill");
+  await expect(pill).toContainText("Not synced");
+  expect((await alice.view()).room?.playback.url).toContain("v=b");
+  await pill.getByRole("button", { name: "Move room here" }).click();
   await expect.poll(() => bob.page.url()).toContain("v=a");
   await bob.ready();
   await synced([alice, bob], { paused: false });

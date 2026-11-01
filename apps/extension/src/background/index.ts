@@ -86,6 +86,8 @@ export function start() {
     remembered: "",
     /** The latest note about the room, shown on the overlay for a moment. */
     note: { text: "", id: 0, at: 0 },
+    /** The tab where the host last played another video, offered on its overlay. */
+    candidate: null as number | null,
   };
 
   const ready = browser.storage.session.get("session").then((stored) => {
@@ -138,6 +140,7 @@ export function start() {
               status: state.view.status,
               blocked: state.view.blocked,
               synced: tab === session.tab,
+              candidate: tab === state.candidate,
               url: info.url,
               note: fresh ? state.note.text : null,
               id: state.note.id,
@@ -241,8 +244,22 @@ export function start() {
           room: session.label,
         }),
       message: (message) => {
+        if (message.type === "error" && message.code === "forbidden") {
+          // Not a fault: snap the video back and say who's in control
+          push(state.session?.tab);
+          const host = state.room?.members.find(
+            (member) => member.id === state.room?.host,
+          );
+          state.note = {
+            text: `Only ${host?.name ?? "the host"} can control`,
+            id: state.note.id + 1,
+            at: Date.now(),
+          };
+          paint();
+          setTimeout(paint, NOTE_MS);
+          return;
+        }
         if (message.type === "error") {
-          if (message.code === "forbidden") push(state.session?.tab);
           render({ error: message.message });
           return;
         }
@@ -353,6 +370,7 @@ export function start() {
     const session = state.session!;
     const previous = session.tab;
     session.tab = tab;
+    state.candidate = null;
     await save();
     if (previous !== tab) {
       push(previous);
@@ -388,8 +406,13 @@ export function start() {
             playing: message.playing,
             audible: message.audible,
             foreground: front?.id === frame.tab,
+            free: session.tab === undefined || !player(session.tab),
           });
     if (decision === "ignore") return;
+    if (decision === "offer") {
+      state.candidate = frame.tab;
+      return paint();
+    }
     if (decision === "push") return push(frame.tab);
     if (decision === "adopt") await adopt(frame.tab);
     state.link?.send({
@@ -554,7 +577,10 @@ export function start() {
       if (message.type === "offer") {
         if (!state.session) return;
         if (message.offer === "follow") return follow();
-        return adopt(tab);
+        await adopt(tab);
+        // Moving the room: the tab reports its video as the room's
+        if (message.offer === "move") send(frame, { type: "status" });
+        return;
       }
       if (message.type === "blocked") {
         if (tab === state.session?.tab) render({ blocked: message.blocked });
@@ -572,6 +598,22 @@ export function start() {
     if (message?.type !== "action") return;
     act(message.action as Action).then(respond);
     return true;
+  });
+
+  // Chrome only adds content scripts to pages loaded later, so tabs that were
+  // open before an install or update get them here
+  browser.runtime.onInstalled.addListener(async () => {
+    const tabs = await browser.tabs.query({
+      url: ["http://*/*", "https://*/*"],
+    });
+    for (const tab of tabs)
+      if (tab.id !== undefined)
+        browser.scripting
+          .executeScript({
+            target: { tabId: tab.id, allFrames: true },
+            files: ["/content-scripts/content.js"],
+          })
+          .catch(() => null);
   });
 
   browser.tabs.onRemoved.addListener(async (tab) => {

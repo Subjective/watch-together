@@ -4,6 +4,9 @@ import { key } from "./key";
 import type { Status } from "./messages";
 import type { Room } from "@repo/protocol";
 
+/** The button after the pill's text. */
+export type Offer = "sync" | "follow" | "move";
+
 /** What the pill on a video shows. */
 export interface Overlay {
   text: string;
@@ -11,7 +14,7 @@ export interface Overlay {
   /** Something needs attention: amber, and it doesn't fade. */
   warn: boolean;
   /** A button after the text. */
-  offer: "sync" | "follow" | null;
+  offer: Offer | null;
   /** Changes when a new note should bring the pill back. */
   id: number;
 }
@@ -53,6 +56,8 @@ export interface Scene {
   blocked: boolean;
   /** This tab is your synced tab. */
   synced: boolean;
+  /** The host played another video here, so the room could move here. */
+  candidate: boolean;
   /** The tab's URL. */
   url: string | undefined;
   /** A recent note, which replaces the label. */
@@ -74,8 +79,10 @@ export function overlay(scene: Scene): Overlay | null {
     id: scene.id,
   };
   if (!scene.synced) {
-    if (!matches) return null;
-    return { ...base, text: "Not synced", warn: true, offer: "sync" };
+    if (matches)
+      return { ...base, text: "Not synced", warn: true, offer: "sync" };
+    if (!host || !scene.candidate) return null;
+    return { ...base, text: "Not synced", warn: true, offer: "move" };
   }
   if (!matches) {
     if (host || !room.playback.url) return null;

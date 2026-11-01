@@ -79,6 +79,7 @@ describe("overlay", () => {
     status: "connected",
     blocked: false,
     synced: true,
+    candidate: false,
     url: VIDEO,
     note: null,
     id: 0,
@@ -113,6 +114,21 @@ describe("overlay", () => {
     expect(
       overlay({ ...scene, synced: false, url: "https://example.com/b" }),
     ).toBeNull();
+  });
+
+  it("offers the host to move the room to another tab's video", () => {
+    const other = {
+      ...scene,
+      you: "ana",
+      synced: false,
+      url: "https://example.com/b",
+    };
+    expect(overlay(other)).toBeNull();
+    expect(overlay({ ...other, candidate: true })).toMatchObject({
+      text: "Not synced",
+      offer: "move",
+    });
+    expect(overlay({ ...other, you: "ben", candidate: true })).toBeNull();
   });
 
   it("offers a follower the host's new video", () => {

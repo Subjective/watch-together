@@ -1,5 +1,5 @@
 import type { Mode, Playback, Room } from "@repo/protocol";
-import type { Overlay } from "./overlay";
+import type { Offer, Overlay } from "./overlay";
 import type { Kind } from "./sync";
 
 /** Content script → background, over the frame's port. */
@@ -18,7 +18,7 @@ export type FrameMessage =
     }
   | { type: "blocked"; blocked: boolean }
   /** A button on the overlay was pressed. */
-  | { type: "offer"; offer: "sync" | "follow" };
+  | { type: "offer"; offer: Offer };
 
 /** Background → content script. A null playback releases the video. */
 export type Command =

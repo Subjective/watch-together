@@ -36,6 +36,13 @@ test("host mode: a follower's actions snap back to the room", async ({
 
   await bob.play();
   await synced([alice, bob], { paused: true, time: 20 });
+  // Being locked out is a note on the video, not an error on the toolbar
+  await expect(bob.page.getByTestId("pill")).toContainText(
+    "Only Alice can control",
+  );
+  const tab = (await bob.view()).synced!.tab;
+  expect((await bob.badge(tab)).color).toEqual([34, 197, 94, 255]);
+  expect((await bob.view()).error).toBeNull();
   await bob.seek(90);
   await synced([alice, bob], { paused: true, time: 20 });
   await bob.rate(2);

@@ -9,6 +9,7 @@ const base: Report = {
   playing: true,
   audible: true,
   foreground: true,
+  free: false,
 };
 
 describe("route", () => {
@@ -33,15 +34,27 @@ describe("route", () => {
     expect(route({ ...base, synced: true, matches: true })).toBe("push");
   });
 
-  it("moves the host's synced tab to a video played with sound in front", () => {
-    expect(route({ ...base, host: true })).toBe("adopt");
-    expect(route({ ...base, host: true, synced: true })).toBe("adopt");
+  it("moves the room when the host's synced tab plays a new video", () => {
+    const host = { ...base, host: true, synced: true };
+    expect(route(host)).toBe("report");
+    // A playlist moving on in the background counts too
+    expect(route({ ...host, foreground: false })).toBe("report");
+  });
+
+  it("offers to move the room when the host plays in another tab", () => {
+    expect(route({ ...base, host: true })).toBe("offer");
+    // The room's own video already offers to sync instead
+    expect(route({ ...base, host: true, matches: true })).toBe("ignore");
+    // Without a synced tab, the host's next video takes over
+    expect(route({ ...base, host: true, free: true })).toBe("adopt");
   });
 
   it("never moves the room for muted, paused or background videos", () => {
-    expect(route({ ...base, host: true, audible: false })).toBe("ignore");
-    expect(route({ ...base, host: true, playing: false })).toBe("ignore");
-    expect(route({ ...base, host: true, foreground: false })).toBe("ignore");
+    const host = { ...base, host: true, free: true };
+    expect(route({ ...host, audible: false })).toBe("ignore");
+    expect(route({ ...host, playing: false })).toBe("ignore");
+    expect(route({ ...host, foreground: false })).toBe("ignore");
+    expect(route({ ...host, synced: true, audible: false })).toBe("ignore");
   });
 
   it("lets followers pick a tab only by playing the room's video", () => {

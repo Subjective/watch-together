@@ -1,4 +1,4 @@
-import type { Overlay } from "../lib/overlay";
+import type { Offer, Overlay } from "../lib/overlay";
 
 /** How long the pill stays after it was last needed, like player controls. */
 const FADE_MS = 3000;
@@ -22,12 +22,14 @@ const STYLE = `
   font: 600 12px/1 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   white-space: nowrap;
   opacity: 0;
-  transition: opacity 300ms ease;
+  transform: translateY(-4px) scale(0.97);
+  transform-origin: top left;
+  transition: opacity 250ms ease, transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1), background-color 300ms ease;
   pointer-events: none;
 }
-.pill[data-visible="true"] { opacity: 1; pointer-events: auto; }
+.pill[data-visible="true"] { opacity: 1; transform: none; pointer-events: auto; }
 .pill.offer { padding-right: 4px; }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; flex: none; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; flex: none; transition: background-color 300ms ease; }
 .pill[data-warn="true"] .dot { background: #f59e0b; }
 .text { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
 .count { display: flex; align-items: center; gap: 4px; opacity: 0.7; }
@@ -41,16 +43,24 @@ button {
   background: #fff;
   color: #111214;
   font: 600 12px/24px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  transition: transform 150ms ease;
+  transition: transform 150ms ease-out, background-color 150ms ease-out;
 }
-button:hover { transform: scale(1.04); }
-button:active { transform: scale(0.96); }
+button:hover { transform: scale(1.04); background: #f1f5f9; }
+button:active { transform: scale(0.94); }
+button:focus-visible { outline: 2px solid #86efac; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .pill, .dot, button { transition-duration: 1ms; }
+}
 `;
 
 /** lucide "users" */
 const PEOPLE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
 
-const OFFERS = { sync: "Sync this tab", follow: "Follow" };
+const OFFERS = {
+  sync: "Sync this tab",
+  follow: "Follow",
+  move: "Move room here",
+};
 
 /**
  * The status pill on the synced video, in a shadow root so the page's styles
@@ -59,7 +69,7 @@ const OFFERS = { sync: "Sync this tab", follow: "Follow" };
  */
 export function pill(
   video: () => HTMLVideoElement | null,
-  press: (offer: "sync" | "follow") => void,
+  press: (offer: Offer) => void,
 ) {
   const host = document.createElement("watch-together-overlay");
   const root = host.attachShadow({ mode: "open" });
@@ -141,6 +151,15 @@ export function pill(
     state.overlay = overlay;
     if (!overlay) return;
     if (!previous) requestAnimationFrame(place);
+    // A new line eases in rather than snapping
+    if (text.textContent !== overlay.text && previous)
+      text.animate(
+        [
+          { opacity: 0, transform: "translateY(2px)" },
+          { opacity: 1, transform: "none" },
+        ],
+        { duration: 200, easing: "ease-out" },
+      );
     text.textContent = overlay.text;
     count.textContent = String(overlay.count);
     box.dataset.warn = String(overlay.warn);

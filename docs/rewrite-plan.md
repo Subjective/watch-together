@@ -71,15 +71,20 @@ Playback {url, title, playing, position, rate, at}   // position is true at serv
 
 ### The synced tab and following the host
 
-**The room follows the last video the host plays with sound in the tab
-they're on.**
+**The room follows the host's synced tab. Other tabs move it only when the
+host says so.**
 
 - Each person has at most one **synced tab**. Playback commands only ever
   touch that tab. Other tabs are never affected and never affect the room.
-- **Host:** when a video starts playing, unmuted (`!muted && volume > 0`), in
-  the active tab of the focused window, that tab becomes the host's synced
-  tab. If its URL differs from the room's, the host sends a `playback` intent
-  with the new `url` and `title`. Muted autoplay (hover previews, feeds),
+- **Host:** a video playing unmuted (`!muted && volume > 0`) in the host's
+  synced tab with a URL that differs from the room's moves the room: the host
+  sends a `playback` intent with the new `url` and `title`. That includes
+  navigating the synced tab and a playlist moving on in the background.
+- When the host plays a different video with sound in another tab (the
+  active tab of the focused window), the room doesn't move. That tab's
+  overlay offers **Move room here**, which makes it the synced tab and moves
+  the room. A host without a synced tab (closed, or no video on it) adopts the
+  next such tab automatically. Muted autoplay (hover previews, feeds),
   background tabs and pages without video never move the room.
 - **Followers:** when the room's `url` changes:
   - Auto-follow on: navigate the follower's synced tab to the new URL. If they
@@ -93,7 +98,9 @@ they're on.**
 - The tab where you create or join a room becomes your synced tab if it has a
   video.
 - No Undo button. If the host moves the room by accident, playing the old tab
-  again moves it back. The host sees a short "Room moved to _title_" note.
+  again offers to move it back. The host sees a short "Room moved to _title_" note.
+- Tabs that were open before the extension was installed or updated get the
+  content script on install, so they work without a reload.
 - No tab groups.
 
 ### URL matching
@@ -221,8 +228,8 @@ red on error, empty outside a room.
 | Host role on drop           | Kept for 30 s grace, then oldest online member                        |
 | Control mode on host change | Stays with the room                                                   |
 | Synced tabs                 | Exactly one per person; no multi-tab sync                             |
-| Follow rule                 | Last video the host plays with sound in their foreground tab          |
-| Undo button                 | None, replaying the old tab moves the room back                       |
+| Follow rule                 | The host's synced tab; other tabs offer "Move room here"              |
+| Undo button                 | None, replaying the old tab offers to move the room back              |
 | Tab groups                  | Not used                                                              |
 | Settings removed            | Notifications, Background sync, Enhanced URLs                         |
 | Menu removed                | Report issue, Donate                                                  |
@@ -259,8 +266,8 @@ red on error, empty outside a room.
 - **Scenarios that must pass:**
   - Play, pause, seek and rate in both control modes, and host-only snap-back.
   - Late joiner mid-playback.
-  - Host switches video in the same tab, then in a new tab. Followers'
-    synced tab is reused.
+  - Host switches video in the same tab, then moves the room to a new tab
+    from its overlay. Followers' synced tab is reused.
   - Muted autoplay elsewhere does not move the room.
   - Socket killed, backend restarted, and service worker stopped (via the
     DevTools protocol): everyone resumes and the host keeps the role within

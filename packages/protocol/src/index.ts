@@ -27,6 +27,8 @@ export interface Playback {
   duration: number | null;
   /** Preview image of the video: its poster or the page's share image. */
   image: string | null;
+  /** Member whose intent set this playback, or null for a new room. */
+  by: string | null;
 }
 
 export interface Room {

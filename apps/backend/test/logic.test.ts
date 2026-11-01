@@ -165,6 +165,23 @@ describe("image", () => {
   });
 });
 
+describe("by", () => {
+  it("records who set the playback", () => {
+    const { state, members } = room("Ana", "Ben");
+    expect(state.room.playback.by).toBeNull();
+    const everyone = apply(
+      state,
+      members[0],
+      { type: "mode", mode: "everyone" },
+      10,
+    );
+    const played = apply(everyone as State, members[0], play, 20) as State;
+    expect(played.room.playback.by).toBe(members[0]);
+    const paused = apply(played, members[1], { ...play, playing: false }, 50);
+    expect((paused as State).room.playback.by).toBe(members[1]);
+  });
+});
+
 describe("leaving and grace", () => {
   it("moves the host role immediately on leave", () => {
     const { state, members } = room("Ana", "Ben", "Cy");
@@ -202,6 +219,7 @@ describe("position", () => {
       at: 1000,
       duration: null,
       image: null,
+      by: null,
     };
     expect(position(playback, 3000)).toBe(14);
     expect(position({ ...playback, playing: false }, 3000)).toBe(10);

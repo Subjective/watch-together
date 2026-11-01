@@ -47,6 +47,7 @@ export function create(id: string, name: string, now: number): State {
         at: now,
         duration: null,
         image: null,
+        by: null,
       },
       seq: 0,
     },
@@ -178,6 +179,7 @@ export function apply(
         at: now,
         duration: intent.duration ?? null,
         image: intent.image ?? null,
+        by: member,
       };
       break;
     }

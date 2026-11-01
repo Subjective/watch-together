@@ -106,29 +106,21 @@ export function Editable(props: {
   );
 }
 
-/** A delay between `low` and `high` ms. */
-function jitter(low: number, high: number) {
-  return low + Math.random() * (high - low);
-}
-
 /**
- * How long until the next keystroke, like a person typing: an uneven pace,
- * a beat after spaces, the odd hesitation, then holding backspace, which
- * waits before it repeats.
+ * How long until the next keystroke. A steady rhythm reads as fluid: typing
+ * at about 85 ms a key with only a little variation, a short beat before the
+ * ellipsis, then an even, quicker backspace.
  */
 function pause(text: string, count: number, erasing: boolean) {
-  // One press, the key-repeat delay, then fast repeats
-  if (erasing && count === text.length) return 220;
-  if (erasing) return count === text.length - 1 ? 420 : jitter(32, 55);
-  if (count === text.length) return 2600;
-  if (count === 0) return 700;
-  const hesitate = Math.random() < 0.12 ? jitter(150, 320) : 0;
-  const space = text[count - 1] === " " ? jitter(60, 140) : 0;
-  return jitter(55, 140) + space + hesitate;
+  if (erasing) return 30;
+  if (count === text.length) return 2000;
+  if (count === 0) return 600;
+  const beat = text[count] === "…" ? 140 : 0;
+  return 75 + Math.random() * 20 + beat;
 }
 
 /**
- * Types `text` out like a person, holds it under a blinking caret, then
+ * Types `text` out at a steady pace, holds it under a blinking caret, then
  * backspaces it and starts over. While `still`, it shows the whole text like
  * a placeholder.
  */

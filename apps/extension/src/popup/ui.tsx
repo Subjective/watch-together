@@ -106,13 +106,31 @@ export function Editable(props: {
   );
 }
 
-/** Before each character, in ms: unhurried and a little uneven, like a person. */
-const CADENCE = [70, 95, 60, 85, 110, 75];
+/** A delay between `low` and `high` ms. */
+function jitter(low: number, high: number) {
+  return low + Math.random() * (high - low);
+}
 
 /**
- * Types `text` out character by character, holds it under a blinking caret,
- * fades it and starts over. While `still`, it shows the whole text like a
- * placeholder.
+ * How long until the next keystroke, like a person typing: an uneven pace,
+ * a beat after spaces, the odd hesitation, then holding backspace, which
+ * waits before it repeats.
+ */
+function pause(text: string, count: number, erasing: boolean) {
+  // One press, the key-repeat delay, then fast repeats
+  if (erasing && count === text.length) return 220;
+  if (erasing) return count === text.length - 1 ? 420 : jitter(32, 55);
+  if (count === text.length) return 2600;
+  if (count === 0) return 700;
+  const hesitate = Math.random() < 0.12 ? jitter(150, 320) : 0;
+  const space = text[count - 1] === " " ? jitter(60, 140) : 0;
+  return jitter(55, 140) + space + hesitate;
+}
+
+/**
+ * Types `text` out like a person, holds it under a blinking caret, then
+ * backspaces it and starts over. While `still`, it shows the whole text like
+ * a placeholder.
  */
 export function Typing(props: {
   text: string;
@@ -121,46 +139,31 @@ export function Typing(props: {
 }) {
   const length = props.text.length;
   const [count, setCount] = useState(0);
-  const [fading, setFading] = useState(false);
+  const [erasing, setErasing] = useState(false);
   const calm =
     props.still || matchMedia("(prefers-reduced-motion: reduce)").matches;
   useEffect(() => {
     if (calm) {
-      setFading(false);
+      setErasing(false);
       setCount(length);
       return;
     }
-    const space = props.text[count - 1] === " " ? 80 : 0;
-    const delay = fading
-      ? 450
-      : count === length
-        ? 2800
-        : count === 0
-          ? 500
-          : CADENCE[count % CADENCE.length] + space;
-    const timer = setTimeout(() => {
-      if (fading) {
-        setFading(false);
-        setCount(0);
-        return;
-      }
-      if (count === length) return setFading(true);
-      setCount(count + 1);
-    }, delay);
+    const timer = setTimeout(
+      () => {
+        if (erasing && count === 0) return setErasing(false);
+        if (erasing) return setCount(count - 1);
+        if (count === length) return setErasing(true);
+        setCount(count + 1);
+      },
+      pause(props.text, count, erasing),
+    );
     return () => clearTimeout(timer);
-  }, [calm, count, fading, length, props.text]);
-  const typing = !calm && count > 0 && count < length;
+  }, [calm, count, erasing, length, props.text]);
+  const moving = !calm && count > 0 && count < length;
   return (
-    <span
-      aria-hidden
-      className={`whitespace-pre transition-opacity duration-[450ms] ease-out ${fading ? "opacity-0" : ""} ${props.className ?? ""}`}
-    >
-      {[...props.text.slice(0, calm ? length : count)].map((char, index) => (
-        <span key={index} className={calm ? "" : "type"}>
-          {char}
-        </span>
-      ))}
-      {!props.still && <span className={`caret ${typing ? "" : "blink"}`} />}
+    <span aria-hidden className={`whitespace-pre ${props.className ?? ""}`}>
+      {props.text.slice(0, calm ? length : count)}
+      {!props.still && <span className={`caret ${moving ? "" : "blink"}`} />}
     </span>
   );
 }

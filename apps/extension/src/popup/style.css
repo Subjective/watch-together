@@ -33,18 +33,6 @@ body {
   }
 }
 
-/* Each typed character settles in instead of popping */
-.type {
-  animation: type 180ms ease-out both;
-}
-
-@keyframes type {
-  from {
-    opacity: 0;
-    filter: blur(2px);
-  }
-}
-
 /* A thin bar caret: solid while typing, blinking while waiting */
 .caret {
   display: inline-block;
